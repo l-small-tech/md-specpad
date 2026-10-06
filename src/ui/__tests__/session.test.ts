@@ -441,6 +441,60 @@ describe('restore', () => {
     expect(state.activeTabId).toBe('t1');
   });
 
+  test('tab files are read concurrently, in order, with progress reported', async () => {
+    const note = (id: string, name: string) => ({
+      id,
+      kind: 'note',
+      notePath: `${NOTES}/${name}`,
+      filePath: null,
+      customTitle: null,
+      mode: 'raw',
+      savedMtimeMs: null,
+      hasBuffer: false,
+      cursor: null,
+    });
+    const manifest = {
+      schema: 1,
+      activeTabId: 't1',
+      tabs: [note('t1', 'slow.md'), note('t2', 'fast.md')],
+    };
+    const fs = makeFakeFs({
+      [`${SESSION}/session.json`]: JSON.stringify(manifest),
+      [`${NOTES}/slow.md`]: 'slow',
+      [`${NOTES}/fast.md`]: 'fast',
+    });
+    // slow.md (think: a WSL share booting its VM) holds until released.
+    let releaseSlow!: () => void;
+    const slowGate = new Promise<void>((resolve) => (releaseSlow = resolve));
+    const started: string[] = [];
+    const read = fs.ipc.readTextFile;
+    fs.ipc.readTextFile = async (path) => {
+      started.push(path);
+      if (path.endsWith('slow.md')) {
+        await slowGate;
+      }
+      return read(path);
+    };
+    const progress: string[][] = [];
+    const controller = makeController(fs, undefined, {
+      onRestoreProgress: (waitingOn) => progress.push(waitingOn),
+    });
+
+    const restoring = controller.restore();
+    await vi.waitFor(() => expect(started).toContain(`${NOTES}/fast.md`));
+    // fast.md was read while slow.md was still outstanding — not after it.
+    expect(started).toContain(`${NOTES}/slow.md`);
+    expect(progress.at(-1)).toEqual(['slow.md']);
+
+    releaseSlow();
+    await restoring;
+
+    expect(progress.at(-1)).toEqual([]);
+    const state = tabs.tabsStore.getState();
+    expect(state.tabs.map((t) => t.id)).toEqual(['t1', 't2']);
+    expect(state.tabs.map((t) => t.model.getText())).toEqual(['slow', 'fast']);
+  });
+
   test('a corrupt manifest is quarantined and recent notes reopen (self-heal)', async () => {
     const fs = makeFakeFs({
       [`${SESSION}/session.json`]: 'garbage{{{ not json',

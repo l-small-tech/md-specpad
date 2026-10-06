@@ -17,6 +17,15 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
   far it is ahead of or behind the base); and the branch picker with Fetch,
   Pull and Push in the status bar, where the mode buttons would otherwise
   sit. Click a branch pill for switch / merge / delete.
+- **Show hidden files.** The eye button in the Workspaces header (or
+  right-click a folder → *Hidden Files*) reveals hidden files and folders
+  such as `.github` or `.obsidian`. It follows each platform's rules:
+  dot-names everywhere, plus the hidden attribute on Windows and the hidden
+  flag on macOS.
+- **Faster, visible startup with slow drives.** Restored tabs now load in
+  parallel, and when a tab's file is slow to reach (a cloud drive, or a WSL
+  share while WSL starts up) the window shows a loading message naming the
+  file it is waiting for, instead of a blank screen.
 
 ## [0.10.1] — 2026-10-01
 

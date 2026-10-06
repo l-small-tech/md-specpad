@@ -123,6 +123,9 @@ export interface SessionControllerDeps {
   /** Injectable clock so `.bad-<timestamp>` naming is deterministic in tests. */
   now?: () => number;
   onError?: (error: unknown) => void;
+  /** Boot restore progress: the file names whose reads are still outstanding
+   *  (empty once all are done). The boot splash shows them. */
+  onRestoreProgress?: (waitingOn: string[]) => void;
 }
 
 export interface SessionController {

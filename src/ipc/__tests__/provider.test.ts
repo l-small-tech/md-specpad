@@ -144,6 +144,18 @@ describe('SafProvider', () => {
     expect(names).toEqual(['keep.md', 'keep.txt', 'memo.docx', 'pic.png', 'report.pdf']);
   });
 
+  test('showHidden lists dot-files (still filtered by type unless allFiles)', async () => {
+    const { files, ops } = makeFakeSaf();
+    files.set('keep.md', 'x');
+    files.set('.hidden.md', 'x');
+    files.set('.env', 'x');
+    const saf = createSafProvider(ops);
+    const names = async (allFiles: boolean) =>
+      (await saf.listDir(ROOT, allFiles, true)).map((e) => e.path.slice(ROOT.length + 1)).sort();
+    expect(await names(false)).toEqual(['.hidden.md', 'keep.md']);
+    expect(await names(true)).toEqual(['.env', '.hidden.md', 'keep.md']);
+  });
+
   test('round-trips UTF-8 text through base64 without corruption', async () => {
     const { files, ops } = makeFakeSaf();
     const saf = createSafProvider(ops);

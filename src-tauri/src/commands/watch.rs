@@ -25,15 +25,24 @@ pub struct WatchState(pub Mutex<Option<Debouncer<RecommendedWatcher>>>);
 
 /// Map debounced event paths to the watched roots they fall under. Events
 /// touching only dot-files/dirs (`.git`, editor lockfiles, …) are ignored —
-/// the explorer skips dot entries anyway, so re-listing for them is churn.
-fn changed_roots(paths: &[PathBuf], roots: &[PathBuf]) -> Vec<String> {
+/// the explorer skips dot entries by default, so re-listing for them is churn.
+/// With `show_hidden` (the explorer lists them) only `.git` is still ignored:
+/// git rewrites it constantly and the explorer never needs a re-list for it
+/// (`git_changed_roots` reports repository state separately).
+fn changed_roots(paths: &[PathBuf], roots: &[PathBuf], show_hidden: bool) -> Vec<String> {
     roots
         .iter()
         .filter(|root| {
             paths.iter().any(|p| {
                 p.strip_prefix(root).is_ok_and(|rel| {
-                    !rel.components()
-                        .any(|c| c.as_os_str().to_string_lossy().starts_with('.'))
+                    !rel.components().any(|c| {
+                        let name = c.as_os_str().to_string_lossy();
+                        if show_hidden {
+                            name == ".git"
+                        } else {
+                            name.starts_with('.')
+                        }
+                    })
                 })
             })
         })
@@ -104,8 +113,15 @@ fn git_changed_roots(paths: &[PathBuf], roots: &[PathBuf]) -> Vec<String> {
 /// are skipped silently — a workspace folder may be on a disconnected drive.
 /// Emits `fs-changed` (payload: affected root paths) app-wide, debounced,
 /// and `git-changed` (same payload shape) when repository state moved.
+/// `show_hidden` mirrors the explorer's "Show hidden files" (see
+/// `changed_roots`).
 #[tauri::command]
-pub async fn watch_dirs(app: AppHandle, dirs: Vec<String>) -> FsResult<()> {
+pub async fn watch_dirs(
+    app: AppHandle,
+    dirs: Vec<String>,
+    show_hidden: Option<bool>,
+) -> FsResult<()> {
+    let show_hidden = show_hidden.unwrap_or(false);
     let roots: Vec<PathBuf> = dirs
         .iter()
         .map(PathBuf::from)
@@ -119,7 +135,7 @@ pub async fn watch_dirs(app: AppHandle, dirs: Vec<String>) -> FsResult<()> {
         move |res: DebounceEventResult| {
             if let Ok(events) = res {
                 let paths: Vec<PathBuf> = events.into_iter().map(|e| e.path).collect();
-                let changed = changed_roots(&paths, &event_roots);
+                let changed = changed_roots(&paths, &event_roots, show_hidden);
                 if !changed.is_empty() {
                     let _ = emit_app.emit("fs-changed", changed);
                 }
@@ -176,7 +192,7 @@ mod tests {
                 "{tail}"
             );
             // The same path never counts as an explorer change.
-            assert!(changed_roots(&paths, &roots).is_empty(), "{tail}");
+            assert!(changed_roots(&paths, &roots, false).is_empty(), "{tail}");
         }
     }
 
@@ -234,21 +250,39 @@ mod tests {
     fn maps_paths_to_their_root() {
         let roots = [p("/ws/a"), p("/ws/b")];
         let paths = [p("/ws/a/note.md")];
-        assert_eq!(changed_roots(&paths, &roots), vec!["/ws/a".to_string()]);
+        assert_eq!(
+            changed_roots(&paths, &roots, false),
+            vec!["/ws/a".to_string()]
+        );
     }
 
     #[test]
     fn dedupes_and_skips_unrelated_roots() {
         let roots = [p("/ws/a"), p("/ws/b")];
         let paths = [p("/ws/a/x.md"), p("/ws/a/sub/y.md"), p("/elsewhere/z.md")];
-        assert_eq!(changed_roots(&paths, &roots), vec!["/ws/a".to_string()]);
+        assert_eq!(
+            changed_roots(&paths, &roots, false),
+            vec!["/ws/a".to_string()]
+        );
     }
 
     #[test]
     fn ignores_dot_components() {
         let roots = [p("/ws/a")];
         let paths = [p("/ws/a/.git/index"), p("/ws/a/sub/.lock")];
-        assert!(changed_roots(&paths, &roots).is_empty());
+        assert!(changed_roots(&paths, &roots, false).is_empty());
+    }
+
+    #[test]
+    fn show_hidden_reports_dot_paths_but_not_git() {
+        let roots = [p("/ws/a")];
+        let shown = [p("/ws/a/.config/notes.md")];
+        assert_eq!(
+            changed_roots(&shown, &roots, true),
+            vec!["/ws/a".to_string()]
+        );
+        let git = [p("/ws/a/.git/index"), p("/ws/a/sub/.git/HEAD")];
+        assert!(changed_roots(&git, &roots, true).is_empty());
     }
 
     #[test]
@@ -257,7 +291,7 @@ mod tests {
         let roots = [p("/home/.config/notes")];
         let paths = [p("/home/.config/notes/a.md")];
         assert_eq!(
-            changed_roots(&paths, &roots),
+            changed_roots(&paths, &roots, false),
             vec!["/home/.config/notes".to_string()]
         );
     }

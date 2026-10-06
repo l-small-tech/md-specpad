@@ -37,6 +37,7 @@ import {
   setWorkspaceColor,
   setWorkspaceLiveEdit,
   toggleShowAllFilesFor,
+  toggleShowHiddenFiles,
   type ExplorerEntry,
 } from '../../session';
 import { explorerStore, useExplorerStore } from '../../stores/explorer';
@@ -99,6 +100,7 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
   /** Which page of the directory menu is showing (see the New/Import rows below). */
   const [page, setPage] = useState<'root' | 'new' | 'import'>('root');
   const aiName = useSettingsStore((s) => harnessName(s.settings));
+  const showHidden = useSettingsStore((s) => s.settings.showHiddenFiles);
   const clipboard = useExplorerStore((s) => s.clipboard);
   const harnessReady = useHarnessAvailability(harnessInstalled);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -626,6 +628,24 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
           Unsupported Files
         </button>
       )}
+      {/* One global switch (every workspace), unlike the per-folder one above:
+          the platform's hidden entries — dot-names, plus the Windows hidden
+          attribute / macOS hidden flag. Same as the header's eye button. */}
+      <button
+        className="context-menu-item"
+        role="menuitemcheckbox"
+        aria-checked={showHidden}
+        title="List hidden files and folders (dot-names, and items the OS marks hidden) in every workspace"
+        onClick={() => {
+          onClose();
+          toggleShowHiddenFiles();
+        }}
+      >
+        <span className="context-menu-check" aria-hidden="true">
+          {showHidden ? '✓' : ''}
+        </span>
+        Hidden Files
+      </button>
       {/* Everything created here — files, folders, drawings, terminal and AI
           sessions — lives on one drill-in page (same pattern as Import).
           Shown read-only too when a terminal can spawn: a session in a

@@ -168,6 +168,7 @@ export {
   savePastedFileInto,
   savePastedImageForTab,
   toggleShowAllFilesFor,
+  toggleShowHiddenFiles,
   setWorkspaceColor,
   setWorkspaceLiveEdit,
   takePendingReveal,
@@ -354,10 +355,12 @@ export function createSessionController(deps: SessionControllerDeps): SessionCon
   setWorkspaceRootForDispatch((path) => ctx.workspaceRootFor(path));
   setListNotesDispatch(async (dir?: string) => {
     const target = dir ?? ctx.notesDir;
-    const { showAllFilesDirs, hideUnsupportedDirs } = settingsStore.getState().settings;
+    const { showAllFilesDirs, hideUnsupportedDirs, showHiddenFiles } =
+      settingsStore.getState().settings;
     const entries = await ipc.listDir(
       target,
       showsAllFiles(target, showAllFilesDirs, hideUnsupportedDirs),
+      showHiddenFiles,
     );
     return sortExplorerEntries(
       entries
