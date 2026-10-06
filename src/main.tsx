@@ -95,6 +95,7 @@ import { closeOverview, notesOverviewStore } from './ui/notes-overview';
 import { closeWorkspaceInit, workspaceInitStore } from './ui/workspace-init';
 import { isAndroid } from './ui/platform';
 import { globalCoordsTrusted } from './ui/global-coords';
+import { removeBootSplash, restoreStatusText, setBootStatus } from './ui/boot-splash';
 import { renderOsGhostPage } from './ui/tab-drag-ghost';
 import { escapeFullscreen, leaveOsFullscreenForClose } from './ui/fullscreen';
 import { isDark, subscribeDark } from './ui/theme';
@@ -704,6 +705,7 @@ async function boot(): Promise<void> {
   // applyDomSettings has already set from the persisted scheme.)
   const bootParams = new URLSearchParams(window.location.search);
   if (bootParams.get('ghost') === '1') {
+    removeBootSplash();
     renderOsGhostPage(bootParams);
     return;
   }
@@ -738,6 +740,7 @@ async function boot(): Promise<void> {
     }).catch(() => {});
     installLinkGuard();
     installContextMenuGuard();
+    removeBootSplash();
     createRoot(document.getElementById('root')!).render(<PresenterView />);
     return;
   }
@@ -780,6 +783,7 @@ async function boot(): Promise<void> {
     saveDiscardCancel: saveDiscardCancelDialog,
     pickDirectory: pickDirectoryDialog,
     pickFile: pickFileDialog,
+    onRestoreProgress: (waitingOn) => setBootStatus(restoreStatusText(waitingOn)),
   });
 
   // The git store's real dependencies (the session facade, the tabs store,
@@ -790,6 +794,7 @@ async function boot(): Promise<void> {
 
   // Rebuild the tabs from disk BEFORE React mounts, so the first paint is the
   // restored session, never a flash of an empty Untitled tab.
+  setBootStatus(restoreStatusText([]));
   await controller.restore();
 
   // Bring back the windows that were open last run: every torn-off window left
@@ -839,6 +844,7 @@ async function boot(): Promise<void> {
   // Same shape, same lifetime: the webview's Back / Reload / Inspect menu
   // never appears over app chrome (src/ui/context-menu-guard.ts).
   installContextMenuGuard();
+  removeBootSplash();
   createRoot(document.getElementById('root')!).render(<App />);
 
   // Which harnesses are on PATH — for the Settings dialog's rows, and for the
@@ -1279,4 +1285,9 @@ async function boot(): Promise<void> {
     .catch(() => {});
 }
 
-void boot();
+boot().catch((error: unknown) => {
+  // Before mount this leaves the reason on the splash instead of a blank
+  // window; after mount the splash is gone and this is just the log line.
+  console.error('[boot] failed', error);
+  setBootStatus(`Could not start: ${error instanceof Error ? error.message : String(error)}`);
+});
