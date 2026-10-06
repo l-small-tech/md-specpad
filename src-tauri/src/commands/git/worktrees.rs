@@ -159,17 +159,106 @@ pub(super) fn worktree_add(
     Ok(())
 }
 
+/// How many times the leftover-directory delete is retried, and the pause
+/// between tries. A shell that was closed a moment ago can still hold the
+/// directory on Windows; a couple of seconds covers its exit.
+const LEFTOVER_DELETE_TRIES: u32 = 6;
+const LEFTOVER_DELETE_PAUSE: std::time::Duration = std::time::Duration::from_millis(400);
+
+/// `git worktree remove` validates the checkout (dirty? locked? a worktree at
+/// all?) before deleting anything, so once stderr reports a *delete* failure
+/// the refusal stage is over: git has already dropped the worktree's record
+/// and only the folder is left. On Windows that happens for every pnpm
+/// worktree — `node_modules/.pnpm` paths exceed MAX_PATH and git's own delete
+/// does not use the long-path form, even with `core.longpaths=true`.
+fn is_delete_failure(stderr: &str) -> bool {
+    let text = stderr.to_ascii_lowercase();
+    text.contains("failed to delete") || text.contains("failed to remove")
+}
+
+/// Whether `dir` is the leftover folder of a worktree of `root` that git no
+/// longer lists: its `.git` is a file whose `gitdir:` points into `root`'s
+/// `.git/worktrees/`. Only such a folder is deleted without git's say-so.
+fn is_orphaned_worktree_of(root: &Path, dir: &Path) -> bool {
+    let marker = dir.join(".git");
+    if !marker.is_file() {
+        return false;
+    }
+    let Ok(text) = std::fs::read_to_string(&marker) else {
+        return false;
+    };
+    let Some(gitdir) = text.trim().strip_prefix("gitdir:") else {
+        return false;
+    };
+    // Compared as written, not canonicalised: on Windows `canonicalize`
+    // yields a verbatim (`//?/`) path that git's plain `gitdir:` never has.
+    let plain = |p: &str| {
+        let key = super::path_key(p);
+        key.strip_prefix("//?/").map(str::to_string).unwrap_or(key)
+    };
+    let admin = root.join(".git").join("worktrees");
+    let admin_key = format!("{}/", plain(&admin.to_string_lossy()));
+    plain(gitdir.trim()).starts_with(&admin_key)
+}
+
+/// Delete a worktree folder ourselves. `std::fs::remove_dir_all` uses the
+/// long-path form on Windows, never follows a junction or symlink (a linked
+/// `node_modules` loses the link, not its target), and ignores read-only
+/// attributes. Transient holds ("being used by another process", a
+/// directory a closing shell has not released) are retried.
+fn remove_leftover_dir(dir: &Path) -> GitResult<()> {
+    let mut last = None;
+    for attempt in 0..LEFTOVER_DELETE_TRIES {
+        if attempt > 0 {
+            std::thread::sleep(LEFTOVER_DELETE_PAUSE);
+        }
+        match std::fs::remove_dir_all(dir) {
+            Ok(()) => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => last = Some(e),
+        }
+        if !dir.exists() {
+            return Ok(());
+        }
+    }
+    let e = last.expect("at least one attempt");
+    Err(GitError::failed(format!(
+        "git unregistered the worktree but its folder could not be deleted: {} ({e}). Close any terminal or program inside it, then remove the folder by hand.",
+        dir.display()
+    )))
+}
+
 pub(super) fn worktree_remove(root: &Path, path: &str, force: bool) -> GitResult<()> {
     let path = safe_abs_path(path)?;
+    let dir = Path::new(path);
     // A directory that is already gone (deleted by hand) has nothing to
     // remove; `prune` alone drops git's record of it.
-    if Path::new(path).exists() {
-        let mut args = vec!["worktree", "remove"];
-        if force {
-            args.push("--force");
+    if dir.exists() {
+        let key = super::path_key(path);
+        let registered = list_worktrees(root)?
+            .iter()
+            .any(|w| super::path_key(&w.path) == key);
+        if !registered && is_orphaned_worktree_of(root, dir) {
+            // An earlier removal got as far as unregistering it (the app was
+            // closed mid-delete, or an older build ran git alone).
+            remove_leftover_dir(dir)?;
+        } else {
+            let mut args = vec!["worktree", "remove"];
+            if force {
+                args.push("--force");
+            }
+            args.extend(["--", path]);
+            match checked(root, GitMode::Mutate, &args) {
+                Ok(_) => {}
+                // Git gave up on the folder after dropping its record of the
+                // worktree ("Filename too long", a held directory): finish
+                // the job with a delete that copes with both.
+                Err(GitError::Failed { stderr }) if is_delete_failure(&stderr) => {
+                    remove_leftover_dir(dir)?;
+                }
+                Err(e) => return Err(e),
+            }
         }
-        args.extend(["--", path]);
-        checked(root, GitMode::Mutate, &args)?;
     }
     checked(root, GitMode::Mutate, &["worktree", "prune"])?;
     Ok(())
@@ -407,5 +496,80 @@ mod tests {
             &root,
             &["rev-parse", "--verify", "refs/heads/feat/existing"],
         );
+    }
+
+    #[test]
+    fn delete_failure_is_recognised_after_the_refusal_stage() {
+        assert!(is_delete_failure(
+            "error: failed to delete 'C:/r/worktrees/a': Filename too long\n"
+        ));
+        assert!(is_delete_failure(
+            "warning: failed to remove 'C:/r/worktrees/a/x': The process cannot access the file"
+        ));
+        assert!(!is_delete_failure(
+            "fatal: 'worktrees/a' contains modified or untracked files, use --force to delete it"
+        ));
+        assert!(!is_delete_failure("fatal: 'C:/x' is not a working tree"));
+    }
+
+    #[test]
+    fn real_remove_deletes_a_folder_git_already_unregistered() {
+        if !have_git() {
+            eprintln!("skipping: no git on PATH");
+            return;
+        }
+        let (_g, root) = temp_repo();
+        let wt = root.join("worktrees").join("orphan");
+        worktree_add(&root, &s(&wt), "feat/orphan", None, true).unwrap();
+        // What a failed `git worktree remove` leaves behind: the record under
+        // .git/worktrees/ is gone, the folder (with its `.git` file) is not.
+        std::fs::remove_dir_all(root.join(".git").join("worktrees").join("orphan")).unwrap();
+        assert!(wt.join(".git").is_file());
+        assert!(list_worktrees(&root).unwrap().len() == 1);
+        assert!(is_orphaned_worktree_of(&root, &wt));
+
+        worktree_remove(&root, &s(&wt), false).unwrap();
+        assert!(!wt.exists());
+
+        // A plain folder that was never a worktree is git's refusal, verbatim.
+        let plain = root.join("worktrees").join("plain");
+        std::fs::create_dir_all(&plain).unwrap();
+        assert!(!is_orphaned_worktree_of(&root, &plain));
+        // (The runner classifies git's "is not a working tree" as NotARepo.)
+        match worktree_remove(&root, &s(&plain), false) {
+            Err(GitError::NotARepo(_)) => {}
+            Err(GitError::Failed { stderr }) => {
+                assert!(stderr.contains("not a working tree"), "{stderr}")
+            }
+            other => panic!("expected git's refusal, got {other:?}"),
+        }
+        assert!(plain.exists());
+    }
+
+    /// The Windows failure this module exists for: a worktree with a path
+    /// deeper than MAX_PATH (pnpm's `node_modules/.pnpm`). git drops its
+    /// record and then cannot delete the folder; the fallback can.
+    #[cfg(windows)]
+    #[test]
+    fn real_remove_survives_paths_beyond_max_path() {
+        if !have_git() {
+            eprintln!("skipping: no git on PATH");
+            return;
+        }
+        let (_g, root) = temp_repo();
+        git_ok(&root, &["config", "core.longpaths", "false"]);
+        let wt = root.join("worktrees").join("deep");
+        worktree_add(&root, &s(&wt), "feat/deep", None, true).unwrap();
+        let mut deep = wt.join("node_modules").join(".pnpm");
+        for i in 0..12 {
+            deep = deep.join(format!("package-{i}-with-a-rather-long-name"));
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        std::fs::write(deep.join("index.js"), "module.exports = 1;\n").unwrap();
+        assert!(deep.to_string_lossy().len() > 300);
+
+        worktree_remove(&root, &s(&wt), true).unwrap();
+        assert!(!wt.exists(), "the folder is gone, node_modules included");
+        assert_eq!(worktree_summaries(&root, None).unwrap().len(), 1);
     }
 }
