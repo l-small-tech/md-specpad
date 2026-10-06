@@ -492,6 +492,13 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
      * when git first tries; git says so ("being used by another process",
      * "Permission denied", "Directory not empty") and a second try a beat
      * later succeeds. Any other failure is reported at once.
+     *
+     * The command itself finishes what git leaves behind: when git has already
+     * dropped the worktree's record but could not delete its folder (paths
+     * beyond MAX_PATH under pnpm's node_modules, a directory still held for a
+     * moment), it deletes the folder with a long-path-aware remove and its own
+     * retries, so the second call here only ever sees a folder git no longer
+     * lists — which it also recognises and deletes.
      */
     const removeWorktreeDir = async (mainRoot: string, path: string, force: boolean) => {
       try {
