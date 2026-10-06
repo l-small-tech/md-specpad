@@ -90,6 +90,7 @@ import {
   refreshWorkspaces,
   renameExplorerEntry,
   savePastedFileInto,
+  toggleShowHiddenFiles,
   type ExplorerEntry,
 } from '../session';
 import { explorerStore, useExplorerStore } from '../stores/explorer';
@@ -140,6 +141,7 @@ export function FileExplorer() {
   // Folders listing every file ("Show unsupported files"); a change re-lists.
   const showAllDirs = useSettingsStore((s) => s.settings.showAllFilesDirs);
   const hideAllDirs = useSettingsStore((s) => s.settings.hideUnsupportedDirs);
+  const showHidden = useSettingsStore((s) => s.settings.showHiddenFiles);
   const showAllSignature = JSON.stringify([showAllDirs, hideAllDirs]);
   // Missing key = not yet loaded (show "Loading…"); an array = the listing.
   const [entriesByDir, setEntriesByDir] = useState<Record<string, ExplorerEntry[]>>({});
@@ -318,6 +320,7 @@ export function FileExplorer() {
                 .dirHasRelevantFiles(
                   e.path,
                   showsAllFiles(e.path, ...(JSON.parse(showAllSignature) as [string[], string[]])),
+                  showHidden,
                 )
                 .then((has) => {
                   if (cancelled) {
@@ -370,6 +373,7 @@ export function FileExplorer() {
     notesDirSetting,
     explorerRefresh,
     showAllSignature,
+    showHidden,
   ]);
 
   if (!open) {
@@ -920,6 +924,41 @@ export function FileExplorer() {
                   strokeLinejoin="round"
                   fill="none"
                 />
+              </svg>
+            </button>
+            {/* Global "Show hidden files" (dot-names + OS hidden flags): an eye,
+                struck through while hidden entries stay hidden. */}
+            <button
+              className="file-explorer-action"
+              aria-label="Show hidden files"
+              aria-pressed={showHidden}
+              title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
+              onClick={() => toggleShowHiddenFiles()}
+            >
+              <svg width="15" height="13" viewBox="0 0 15 13" aria-hidden="true">
+                <path
+                  d="M1.5 6.5S3.8 2.5 7.5 2.5s6 4 6 4-2.3 4-6 4-6-4-6-4Z"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinejoin="round"
+                  fill="none"
+                />
+                <circle
+                  cx="7.5"
+                  cy="6.5"
+                  r="1.8"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  fill="none"
+                />
+                {!showHidden && (
+                  <path
+                    d="M2.5 1.5 12.5 11.5"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
+                )}
               </svg>
             </button>
             {/* Re-fetch every workspace from its backend and re-list. The

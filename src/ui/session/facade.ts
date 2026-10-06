@@ -911,6 +911,11 @@ export function toggleShowAllFilesFor(dir: string): void {
   );
   update({ showAllFilesDirs: shown, hideUnsupportedDirs: hidden });
 }
+/** FileExplorer → settings: flip the global "Show hidden files". */
+export function toggleShowHiddenFiles(): void {
+  const { settings, update } = settingsStore.getState();
+  update({ showHiddenFiles: !settings.showHiddenFiles });
+}
 /**
  * FileExplorer single-click → controller: open a note file (activates it if
  * already open). Opens as a reusable preview tab when the setting is on.

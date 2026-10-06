@@ -401,14 +401,23 @@ export const ipc = {
   atomicWriteText: (path: string, text: string) => call<void>('atomic_write_text', { path, text }),
   listNotes: (dir: string) => call<NoteMeta[]>('list_notes', { dir }),
   /** One explorer level: subdirs + text/image/document files (dirs A→Z, files
-   *  newest first). `allFiles` lists every file (unsupported files shown). */
-  listDir: (dir: string, allFiles?: boolean) =>
-    call<DirEntryMeta[]>('list_dir', { dir, allFiles: allFiles ?? false }),
+   *  newest first). `allFiles` lists every file (unsupported files shown);
+   *  `showHidden` also lists hidden entries (dot-names, OS hidden flags). */
+  listDir: (dir: string, allFiles?: boolean, showHidden?: boolean) =>
+    call<DirEntryMeta[]>('list_dir', {
+      dir,
+      allFiles: allFiles ?? false,
+      showHidden: showHidden ?? false,
+    }),
   /** Recursive: does `dir`'s subtree hold anything the explorer would list (or
-   *  an extension-less file)? `allFiles` counts any file. Local paths only —
-   *  never call with `saf://`. */
-  dirHasRelevantFiles: (dir: string, allFiles?: boolean) =>
-    call<boolean>('dir_has_relevant_files', { dir, allFiles: allFiles ?? false }),
+   *  an extension-less file)? `allFiles` counts any file; `showHidden` counts
+   *  and walks hidden entries. Local paths only — never call with `saf://`. */
+  dirHasRelevantFiles: (dir: string, allFiles?: boolean, showHidden?: boolean) =>
+    call<boolean>('dir_has_relevant_files', {
+      dir,
+      allFiles: allFiles ?? false,
+      showHidden: showHidden ?? false,
+    }),
   /** The Marp slide decks (`marp: true` frontmatter) directly inside `dir` —
    *  the explorer badges them. Reads only each markdown file's head. Local
    *  paths only — never call with `saf://`. */
@@ -433,7 +442,8 @@ export const ipc = {
    *  Rust emits a debounced `fs-changed` event (payload: affected roots) when
    *  anything under them changes. Not registered on Android — only call
    *  behind a platform check. */
-  watchDirs: (dirs: string[]) => call<void>('watch_dirs', { dirs }),
+  watchDirs: (dirs: string[], showHidden?: boolean) =>
+    call<void>('watch_dirs', { dirs, showHidden: showHidden ?? false }),
   /** Desktop only: flip the engine's own smooth wheel scrolling for THIS
    *  window (WebKitGTK's enable-smooth-scrolling; a no-op on Windows/macOS,
    *  whose engines have their own behavior). Not registered on Android —
