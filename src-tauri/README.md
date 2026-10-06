@@ -66,8 +66,10 @@ session concepts in Rust, stop and move it to `src/core`.
     from the marker files under `rev-parse --git-path` and `merge_head`.
   - `refs.rs` — `git_branches` (`for-each-ref` with a `%1f`/`%1e`-separated
     format over `refs/heads` + `refs/remotes`, `%(upstream:track)` parsed into
-    ahead/behind/gone, `refs/remotes/*/HEAD` dropped), `git_log` (paged; `[]`
-    on an unborn HEAD), `git_commit_files` (a merge commit against its first
+    ahead/behind/gone, `refs/remotes/*/HEAD` dropped), `git_log` (paged; each
+    commit's `refs` from `%D`; `all` logs `--date-order --branches --remotes
+    --tags [HEAD]` — never `--all`, which includes `refs/stash` — ignoring
+    `rev`; `[]` on an unborn HEAD or a repo with no refs), `git_commit_files` (a merge commit against its first
     parent), `git_diff_names` (`from...to`), `git_ahead_behind`.
   - `worktrees.rs` — `git_worktrees` (the dashboard: per checkout, capped at
     20, dirty counts from a status + ahead/behind the base from `rev-list`;

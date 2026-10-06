@@ -29,7 +29,15 @@ export type IconName =
   | 'cloud-up'
   | 'download'
   | 'upload'
-  | 'dot';
+  | 'dot'
+  | 'tag'
+  | 'home'
+  | 'history'
+  | 'chevron-up'
+  | 'cloud'
+  | 'arrow-up'
+  | 'arrow-down'
+  | 'more';
 
 const PATHS: Record<IconName, ReactNode> = {
   'chevron-down': <path d="M4 6l4 4 4-4" />,
@@ -134,6 +142,35 @@ const PATHS: Record<IconName, ReactNode> = {
   download: <path d="M8 2.5v8m0 0L5 7.5m3 3l3-3M3 13.5h10" />,
   upload: <path d="M8 10.5v-8m0 0L5 5.5m3-3l3 3M3 13.5h10" />,
   dot: <circle cx="8" cy="8" r="2.5" fill="currentColor" stroke="none" />,
+  tag: (
+    <>
+      <path d="M2.5 2.5h5l6 6-5 5-6-6z" />
+      <circle cx="5.5" cy="5.5" r="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  home: (
+    <>
+      <path d="M2.5 8l5.5-5 5.5 5" />
+      <path d="M4 7v6.5h8V7" />
+    </>
+  ),
+  history: (
+    <>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 5v3l2 1.5" />
+    </>
+  ),
+  'chevron-up': <path d="M4 10l4-4 4 4" />,
+  cloud: <path d="M5 12.5h6.5a2.5 2.5 0 0 0 .3-5 3.5 3.5 0 0 0-6.8-.8A3 3 0 0 0 5 12.5z" />,
+  'arrow-up': <path d="M8 13V3m0 0L4.5 6.5M8 3l3.5 3.5" />,
+  'arrow-down': <path d="M8 3v10m0 0l-3.5-3.5M8 13l3.5-3.5" />,
+  more: (
+    <>
+      <circle cx="4" cy="8" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="8" r="1.1" fill="currentColor" stroke="none" />
+    </>
+  ),
 };
 
 export function Icon({ name, className }: { name: IconName; className?: string }) {

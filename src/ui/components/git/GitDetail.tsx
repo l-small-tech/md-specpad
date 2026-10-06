@@ -3,7 +3,8 @@
  * a changed file (DiffView over `repo.diff`, with an EOL / binary hint bar),
  * a commit (subject, body, its files — a file click narrows the diff to it),
  * a worktree's files against the base branch, the finish-worktree stepper,
- * or a hint when nothing is selected.
+ * or nothing while nothing is selected (GitTab then gives the graph the
+ * whole column). A thin bar names what is shown and closes it (Esc too).
  */
 
 import { relativeTime } from '../../../core/notes-overview';
@@ -11,7 +12,29 @@ import { gitStore } from '../../stores/git';
 import { DiffView } from '../DiffView';
 import { FinishFlow } from './FinishFlow';
 import { Icon } from './icons';
-import { checkoutLabel, PathLabel, shortSha, StatusGlyph, useNow, useRepoSlice } from './shared';
+import {
+  checkoutLabel,
+  IconButton,
+  PathLabel,
+  shortSha,
+  StatusGlyph,
+  useNow,
+  useRepoSlice,
+} from './shared';
+
+/** The thin bar above the detail: what is shown, and the close (Esc) button. */
+function DetailBar({ root, label }: { root: string; label: string }) {
+  return (
+    <div className="git-detail-bar">
+      <span className="git-detail-label">{label}</span>
+      <IconButton
+        icon="close"
+        title="Close (Esc)"
+        onClick={() => gitStore.getState().select(root, null)}
+      />
+    </div>
+  );
+}
 
 function DiffPane({ root }: { root: string }) {
   const diff = useRepoSlice(root, (r) => r.diff) ?? null;
@@ -147,26 +170,36 @@ function WorktreeDiffPane({ root, path }: { root: string; path: string }) {
 export function GitDetail({ root }: { root: string }) {
   const selected = useRepoSlice(root, (r) => r.selected) ?? null;
   if (selected === null) {
-    return (
-      <div className="git-detail-hint git-detail-idle">
-        <p>
-          Select a change to see its diff, a commit to see its files, or a worktree to see what its
-          branch changes.
-        </p>
-        <p className="git-detail-keys">
-          <kbd>Ctrl/Cmd+Enter</kbd> in the message box commits · <kbd>Esc</kbd> clears the selection
-        </p>
-      </div>
-    );
+    return null;
   }
   switch (selected.kind) {
     case 'file':
-      return <DiffPane root={root} />;
+      return (
+        <>
+          <DetailBar root={root} label={`Diff · ${selected.path}`} />
+          <DiffPane root={root} />
+        </>
+      );
     case 'commit':
-      return <CommitPane root={root} sha={selected.sha} path={selected.path} />;
+      return (
+        <>
+          <DetailBar root={root} label={`Commit ${shortSha(selected.sha)}`} />
+          <CommitPane root={root} sha={selected.sha} path={selected.path} />
+        </>
+      );
     case 'worktree-diff':
-      return <WorktreeDiffPane root={root} path={selected.path} />;
+      return (
+        <>
+          <DetailBar root={root} label={`${checkoutLabel(selected.path, root)} vs base`} />
+          <WorktreeDiffPane root={root} path={selected.path} />
+        </>
+      );
     case 'finish':
-      return <FinishFlow root={root} />;
+      return (
+        <>
+          <DetailBar root={root} label="Finish worktree" />
+          <FinishFlow root={root} />
+        </>
+      );
   }
 }

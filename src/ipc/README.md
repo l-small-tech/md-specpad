@@ -69,7 +69,7 @@ A branch the checkout does not have falls back to auto-detection
 | --- | --- |
 | `gitStatus(root)` | `status --porcelain=v2` → `GitStatus` (entries, upstream, ahead/behind, `state`, `mergeHead`) |
 | `gitBranches(root)` | local + remote branches with tracking |
-| `gitLog(root, rev, max, skip)` | a page of commits (`[]` on an unborn HEAD) |
+| `gitLog(root, rev, max, skip, all?)` | a page of commits with their `refs` (`%D` decorations); `all` = every branch, remote branch and tag (+ HEAD) in date order, `rev` ignored (`[]` on an unborn HEAD) |
 | `gitCommitFiles(root, sha)` / `gitDiffNames(root, from, to)` | `--name-status` rows of a commit / of `from...to` |
 | `gitAheadBehind(root, a, b)` | `rev-list --left-right --count` |
 | `gitWorktrees(root, baseBranch?)` | every checkout with dirty counts and ahead/behind the base (the dashboard) |

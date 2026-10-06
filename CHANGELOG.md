@@ -10,6 +10,13 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- **Visual Git.** The Git tab is redrawn around a picture of the repository:
+  a commit graph of every branch with coloured lanes and branch, remote, tag
+  and worktree pills on the commits; worktree cards across the top (click
+  one to show that checkout; each shows its branch, what is dirty, and how
+  far it is ahead of or behind the base); and the branch picker with Fetch,
+  Pull and Push in the status bar, where the mode buttons would otherwise
+  sit. Click a branch pill for switch / merge / delete.
 - **Show hidden files.** The eye button in the Workspaces header (or
   right-click a folder → *Hidden Files*) reveals hidden files and folders
   such as `.github` or `.obsidian`. It follows each platform's rules:

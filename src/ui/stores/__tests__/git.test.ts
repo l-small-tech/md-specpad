@@ -97,6 +97,7 @@ const commit = (sha: string): GitCommit => ({
   author: 'me',
   at: '2026-09-24T00:00:00Z',
   subject: `commit ${sha}`,
+  refs: [],
   body: '',
 });
 
@@ -273,7 +274,7 @@ describe('refresh', () => {
     expect(repo.unavailable).toBeNull();
     expect(repo.loading).toEqual({ status: false, branches: false, log: false, worktrees: false });
     expect(h.ipc.gitStatus).toHaveBeenCalledWith(MAIN);
-    expect(h.ipc.gitLog).toHaveBeenCalledWith(MAIN, null, LOG_PAGE, 0);
+    expect(h.ipc.gitLog).toHaveBeenCalledWith(MAIN, null, LOG_PAGE, 0, true);
     expect(h.ipc.gitRepoInfo).toHaveBeenCalledWith(MAIN, undefined);
   });
 
@@ -448,7 +449,7 @@ describe('selection and diffs', () => {
     expect(h.r().logExhausted).toBe(false);
     h.ipc.gitLog.mockResolvedValue([commit('last')]);
     await h.s().loadMoreLog(MAIN);
-    expect(h.ipc.gitLog).toHaveBeenLastCalledWith(MAIN, null, LOG_PAGE, LOG_PAGE);
+    expect(h.ipc.gitLog).toHaveBeenLastCalledWith(MAIN, null, LOG_PAGE, LOG_PAGE, true);
     expect(h.r().log).toHaveLength(LOG_PAGE + 1);
     expect(h.r().logExhausted).toBe(true);
   });

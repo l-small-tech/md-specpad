@@ -21,16 +21,17 @@ Keep this directory small; anything smart belongs in a store or in core.
 | `TerminalTab` | M9 | one terminal tab page: hosts its split tree — see I10 below |
 | `TerminalPane` | M9 | one pty + engine + canvas + input; the only place src/term and src/renderer meet the app |
 | `PaneTree` | M9 | places a tab's panes as keyed, absolutely-positioned SIBLINGS (nesting them would remount — and kill — a pty on every split) |
-| `git/GitTab` | git | the source-control panel behind a `kind: 'git'` tab: header + side column + detail column, hidden with `display: none` when inactive (I7) — see "Git tab (tool tab)" below |
-| `git/GitHeader` | git | checkout picker (main first, then `worktrees/<slug> · <branch>`), branch / upstream / ahead-behind, state chip, Fetch / Pull / Push ("Publish branch" when there is no upstream), refresh |
+| `git/GitTab` | git | the source-control panel behind a `kind: 'git'` tab: the worktree strip on top, then the side column (conflicts, changes + commit) and the main column (the commit graph; under it, while something is selected, the detail; the output drawer at the foot), hidden with `display: none` when inactive (I7) — see "Git tab (tool tab)" below |
+| `git/WorktreeStrip` | git | the header: one card per checkout (main first, then `worktrees/<slug>`) — the card IS the checkout picker; each shows branch, a stacked dirty bar (staged · changed · untracked · conflicted), ahead/behind meters against the base, terminal dot, state / missing / locked chips, and the row actions (open as workspace, terminal / harness here, diff vs base, merge either way, Finish…, Remove); the dashed card is **New worktree** |
+| `git/GraphPane` | git | the whole repository's history as a lane graph (`core/git/graph.ts` lays out, this paints one SVG per row): ref pills from `%D` decorations (`core/git/decorations.ts`) — local / current / remote / tag — plus a folder pill per worktree standing on the commit, the subject, an author mark, the age, the sha; a row click shows the commit, a branch pill opens `BranchMenu`, a worktree pill selects that checkout; Load more |
+| `git/BranchPicker` | git | `BranchMenu` — one branch's actions (Switch / check out as tracking local, Merge into current, Delete; "in `<worktree>`" disables what git would refuse) from a graph pill; `BranchPicker` — the status bar's popover: fuzzy filter, locals then remotes with the same actions on hover, inline New branch |
+| `git/GitStatusBar` | git | what `StatusBar` renders on a git tab instead of the mode segments: the branch button (upstream, state chip) opening `BranchPicker` upward, Fetch / Pull / Push ("Publish" with no upstream; ahead / behind count badges), Refresh, the last error |
+| `git/GitMenu` | git | the anchored popover primitive (`fixed`, kept on screen, backdrop click / Esc closes) + `MenuItem`; `anchorFor(el, dir, align)` |
 | `git/GitStates` | git | whole-panel states: git missing, no longer a repository (+ Close tab), first-load skeleton |
 | `git/ConflictsSection` | git | unmerged files, the live tracker line, **Copy conflict prompt** / Terminal here / Harness here / Abort / Continue (gated), per-file Mark resolved; `ConflictActions` is shared with the finish flow |
 | `git/ChangesSection` | git | Staged / Changes / Untracked groups (from `repo.groups`) with hover actions and Stage all / Unstage all; the commit box (mod+Enter on the textarea commits, Amend) |
-| `git/WorktreesSection` | git | the worktree dashboard rows and their actions (open as workspace, terminal / harness here, diff vs base, merge either way, Finish…, Remove); **New worktree** |
-| `git/BranchesSection` | git | fuzzy-filtered local + remote branches; Switch / Merge into current / Delete; inline New branch |
-| `git/HistorySection` | git | the log with relative times; Load more |
-| `git/GitDetail` | git | the right column: `DiffView` over `repo.diff` (+ EOL / binary hint bar), a commit with its files, a worktree's files vs base, or `FinishFlow` |
-| `git/OutputDrawer` | git | streamed fetch / pull / push output at the foot of the detail column; the failure hint is text in a `<code>`, never a button; Cancel / Dismiss |
+| `git/GitDetail` | git | the lower half of the main column while something is selected: a thin bar naming it (+ close), then `DiffView` over `repo.diff` (+ EOL / binary hint bar), a commit with its files, a worktree's files vs base, or `FinishFlow` |
+| `git/OutputDrawer` | git | streamed fetch / pull / push output at the foot of the main column; the failure hint is text in a `<code>`, never a button; Cancel / Dismiss |
 | `git/FinishFlow` | git | the finish-worktree stepper: verify pause (terminal here + Continue / Skip), conflicts pause (the agent-first actions + tracker), failed (Retry / Skip / Abort), cleanup confirm text |
 | `git/NewWorktreeDialog` | git | `.settings-dialog` chrome: slug, prefix, base branch, "then open" none / shell / harness, a live preview line, Create |
 

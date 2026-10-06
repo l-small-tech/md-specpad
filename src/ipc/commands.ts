@@ -318,6 +318,8 @@ export interface GitCommit {
   at: string;
   subject: string;
   body: string;
+  /** `%D` decorations, one per item (`HEAD -> x`, `origin/x`, `tag: v1`, `HEAD`). */
+  refs: string[];
 }
 
 /** One `--name-status` row: `status` is git's letter (A M D R C T U). */
@@ -708,8 +710,12 @@ export const ipc = {
   /** Local and remote branches with tracking info. */
   gitBranches: (root: string) => call<GitBranch[]>('git_branches', { root }),
   /** `max` commits reachable from `rev` (HEAD when null), skipping `skip`. `[]` on an unborn HEAD. */
-  gitLog: (root: string, rev: string | null, max: number, skip: number) =>
-    call<GitCommit[]>('git_log', { root, rev, max, skip }),
+  /**
+   * `all`: every branch, remote and tag (plus HEAD) in `--date-order` — the
+   * graph's view; otherwise `rev` (HEAD when null) in git's default order.
+   */
+  gitLog: (root: string, rev: string | null, max: number, skip: number, all = false) =>
+    call<GitCommit[]>('git_log', { root, rev, max, skip, all }),
   /** The files one commit touched (renames detected). */
   gitCommitFiles: (root: string, sha: string) =>
     call<GitFileDelta[]>('git_commit_files', { root, sha }),

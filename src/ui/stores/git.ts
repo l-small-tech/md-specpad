@@ -617,7 +617,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       setLoading(mainRoot, 'log', true);
       let rows: GitCommit[];
       try {
-        rows = await getDeps().ipc.gitLog(sel, null, LOG_PAGE, skip);
+        rows = await getDeps().ipc.gitLog(sel, null, LOG_PAGE, skip, true);
       } catch (err) {
         if (seq !== state.seq.log) {
           return;
