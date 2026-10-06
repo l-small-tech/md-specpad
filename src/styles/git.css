@@ -1131,6 +1131,26 @@
   font-family: var(--font-mono);
 }
 
+/* Where a linked worktree lives, relative to the main root — dim, tail kept on overflow. */
+.git-card-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  color: var(--fg-muted);
+  opacity: 0.7;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.git-card-path > * {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .git-chip-base {
   color: var(--accent);
   border-color: color-mix(in oklab, var(--accent) 50%, var(--border));

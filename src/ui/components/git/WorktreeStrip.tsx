@@ -16,7 +16,7 @@ import type { GitCheckout } from '../../../core/git/types';
 import { gitStore } from '../../stores/git';
 import { tabDisplayTitle, tabsStore, useTabsStore, type TabEntry } from '../../stores/tabs';
 import { Icon } from './icons';
-import { checkoutLabel, IconButton, useRepoSlice } from './shared';
+import { checkoutDir, checkoutLabel, checkoutName, IconButton, useRepoSlice } from './shared';
 
 /** Titles of the terminal tabs whose shell is inside `path` (core's containment rule). */
 function terminalsInside(tabs: readonly TabEntry[], path: string): string[] {
@@ -121,6 +121,7 @@ function WorktreeCard({
   const actions = gitStore.getState();
   const s = checkout.summary;
   const isMain = checkout.isMain;
+  const dir = checkoutDir(checkout.path, root);
   const onBase = base !== null && checkout.branch === base;
   const missing = s?.missing === true;
   const pick = () => {
@@ -156,7 +157,7 @@ function WorktreeCard({
     >
       <div className="git-card-head">
         <Icon name={isMain ? 'home' : 'folder'} />
-        <span className="git-card-name">{checkoutLabel(checkout.path, root)}</span>
+        <span className="git-card-name">{checkoutName(checkout.path, root)}</span>
         {terminals.length > 0 && (
           <span
             className="git-terminal-dot"
@@ -188,6 +189,11 @@ function WorktreeCard({
         <span className="git-card-branch-name">{checkout.branch ?? 'detached'}</span>
         {onBase && <span className="git-chip git-chip-base">base</span>}
       </div>
+      {dir !== '' && (
+        <div className="git-card-path" title={checkout.path}>
+          <span>{dir}/</span>
+        </div>
+      )}
       <div className="git-card-stats">
         {s ? (
           <DirtyBar
