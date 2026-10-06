@@ -79,8 +79,8 @@ import type {
   GitOutputLine,
   GitStatus,
   GitStatusEntry,
+  DiffGroup,
   SelectedItem,
-  StatusGroup,
   StatusGroups,
 } from '../../core/git/types';
 import {
@@ -755,9 +755,19 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
 
     const entryFor = (
       groups: StatusGroups,
-      group: StatusGroup,
+      group: DiffGroup,
       path: string,
-    ): GitStatusEntry | null => groups[group].find((e) => e.path === path) ?? null;
+    ): GitStatusEntry | null => {
+      const lists =
+        group === 'changed' ? [groups.staged, groups.unstaged, groups.untracked] : [groups[group]];
+      for (const list of lists) {
+        const hit = list.find((e) => e.path === path);
+        if (hit) {
+          return hit;
+        }
+      }
+      return null;
+    };
 
     const loadDiff = async (mainRoot: string, item: SelectedItem): Promise<void> => {
       const r = repo(mainRoot);
@@ -785,6 +795,9 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
             break;
           case 'conflicted':
             sides = Promise.all([showOrNull(root, 'HEAD', path), readWorkingFile(root, path)]);
+            break;
+          case 'changed':
+            sides = Promise.all([showOrNull(root, 'HEAD', origPath), readWorkingFile(root, path)]);
             break;
         }
       } else if (item.kind === 'commit' && item.path !== undefined) {
