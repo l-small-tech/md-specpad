@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+## [0.10.3] — 2026-10-05
+
 - **Fixed: Raw mode lost its margins, highlighting, scrolling and your
   colour theme in the installed 0.10.2.** The boot splash's inline styles
   made Tauri tighten the app's Content Security Policy, which then blocked

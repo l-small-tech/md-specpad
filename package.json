@@ -1,7 +1,7 @@
 {
   "name": "md-specpad",
   "private": true,
-  "version": "0.10.2",
+  "version": "0.10.3",
   "description": "A minimal, fast, cross-platform markdown notepad with Notepad-style ephemeral tabs.",
   "license": "GPL-3.0-only",
   "type": "module",
