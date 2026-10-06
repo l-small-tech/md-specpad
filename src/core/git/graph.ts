@@ -13,6 +13,15 @@
  * a line of history keeps one x position for as long as it lasts, which is
  * what makes the picture readable.
  *
+ * Trunks: the caller may name tips (the checked-out branch, the base branch)
+ * whose first-parent chains deserve the left-hand lanes. Lane `i` is reserved
+ * for trunk `i` — no other line is ever laid in it, and every parent edge
+ * heading for a trunk commit aims straight at its lane — so the branches a
+ * reader navigates by stay at the left edge of the graph instead of landing
+ * wherever a lane happened to be free when their tip came up. A trunk whose
+ * tip is not in the window reserves nothing; a trunk whose chain runs into an
+ * earlier trunk's chain hands over at the shared commit.
+ *
  * Colours: every lane carries a colour index assigned when its line of
  * history starts (`palette` of them, cycling), so a branch keeps its colour
  * from its tip down to where it joins the trunk. The trunk — the lane the
@@ -51,13 +60,56 @@ interface Lane {
   color: number;
 }
 
+const FREE: Lane = { awaiting: null, color: 0 };
+
+/**
+ * Which reserved lane each commit on a trunk's first-parent chain belongs
+ * to. Trunks are taken in order; a tip outside the window is skipped, and a
+ * chain stops where it meets a commit an earlier trunk already claimed.
+ * Returns the map and how many lanes it reserves.
+ */
+function claimTrunks(
+  commits: readonly GitCommit[],
+  trunks: readonly string[],
+): { laneOf: Map<string, number>; reserved: number } {
+  const byIndex = new Map<string, GitCommit>();
+  for (const c of commits) {
+    byIndex.set(c.sha, c);
+  }
+  const laneOf = new Map<string, number>();
+  let reserved = 0;
+  for (const tip of trunks) {
+    if (!byIndex.has(tip) || laneOf.has(tip)) {
+      continue;
+    }
+    const lane = reserved;
+    reserved += 1;
+    let sha: string | undefined = tip;
+    while (sha !== undefined && !laneOf.has(sha)) {
+      const commit = byIndex.get(sha);
+      if (commit === undefined) {
+        break;
+      }
+      laneOf.set(sha, lane);
+      sha = commit.parents[0];
+    }
+  }
+  return { laneOf, reserved };
+}
+
 /**
  * Lay the commits out. Commits whose parents are not in the list (the
  * window's bottom edge) leave their lanes open — the line runs off the
- * bottom, as it should: history continues below the page.
+ * bottom, as it should: history continues below the page. `trunks` are
+ * tip shas, most important first, whose first-parent chains take the
+ * leftmost lanes (see the module comment).
  */
-export function layoutGraph(commits: readonly GitCommit[]): GraphRow[] {
-  const lanes: Lane[] = [];
+export function layoutGraph(
+  commits: readonly GitCommit[],
+  trunks: readonly string[] = [],
+): GraphRow[] {
+  const { laneOf: trunkLane, reserved } = claimTrunks(commits, trunks);
+  const lanes: Lane[] = Array.from({ length: reserved }, () => FREE);
   let nextColor = 0;
   const takeColor = (): number => {
     const c = nextColor % LANE_COLORS;
@@ -65,11 +117,12 @@ export function layoutGraph(commits: readonly GitCommit[]): GraphRow[] {
     return c;
   };
   const freeLane = (): number => {
-    const idx = lanes.findIndex((l) => l.awaiting === null);
-    if (idx !== -1) {
-      return idx;
+    for (let i = reserved; i < lanes.length; i += 1) {
+      if ((lanes[i] as Lane).awaiting === null) {
+        return i;
+      }
     }
-    lanes.push({ awaiting: null, color: 0 });
+    lanes.push(FREE);
     return lanes.length - 1;
   };
   const lastUsed = (): number => {
@@ -81,20 +134,49 @@ export function layoutGraph(commits: readonly GitCommit[]): GraphRow[] {
     });
     return n;
   };
+  /**
+   * The lane a line heading for `sha` should take: the lane already awaiting
+   * it; else, for a trunk commit, its reserved lane while that is free; else
+   * a free lane. Opens the lane (with a fresh colour) when nothing awaits it.
+   */
+  const laneFor = (sha: string): number => {
+    const awaiting = lanes.findIndex((l) => l.awaiting === sha);
+    if (awaiting !== -1) {
+      return awaiting;
+    }
+    const trunk = trunkLane.get(sha);
+    const lane =
+      trunk !== undefined && (lanes[trunk] as Lane).awaiting === null ? trunk : freeLane();
+    lanes[lane] = { awaiting: sha, color: takeColor() };
+    return lane;
+  };
 
   const rows: GraphRow[] = [];
   for (const commit of commits) {
     const edges: GraphEdge[] = [];
     const topWidth = lastUsed();
+    // Which lanes were already heading for this commit: those draw a line
+    // in from the row's top. A lane opened for the commit itself does not —
+    // a branch tip starts its line at the node, nothing hangs above it.
+    const arriving = lanes.map((l) => l.awaiting === commit.sha);
 
-    // Where the node goes: the first lane awaiting this commit, else a free one.
-    let nodeLane = lanes.findIndex((l) => l.awaiting === commit.sha);
-    if (nodeLane === -1) {
-      nodeLane = freeLane();
-      lanes[nodeLane] = { awaiting: commit.sha, color: takeColor() };
+    // Where the node goes: a trunk commit sits in its reserved lane; any
+    // other in the first lane awaiting it, else a free one.
+    const trunk = trunkLane.get(commit.sha);
+    let nodeLane: number;
+    if (trunk !== undefined) {
+      nodeLane = trunk;
+      if ((lanes[trunk] as Lane).awaiting !== commit.sha) {
+        // The line reaching this commit (if any) was laid elsewhere — a
+        // merge's edge opened before the trunk lane was free. The node keeps
+        // that line's colour so the curve into the lane reads as one line.
+        const feeder = lanes.find((l) => l.awaiting === commit.sha);
+        lanes[trunk] = { awaiting: commit.sha, color: feeder?.color ?? takeColor() };
+      }
+    } else {
+      nodeLane = laneFor(commit.sha);
     }
-    const node = lanes[nodeLane] as Lane;
-    const color = node.color;
+    const color = (lanes[nodeLane] as Lane).color;
 
     // Every lane heading for this commit closes into the node; the rest pass through.
     lanes.forEach((l, i) => {
@@ -102,9 +184,11 @@ export function layoutGraph(commits: readonly GitCommit[]): GraphRow[] {
         return;
       }
       if (l.awaiting === commit.sha) {
-        edges.push({ kind: 'in', lane: i, color: l.color });
+        if (arriving[i] === true) {
+          edges.push({ kind: 'in', lane: i, color: l.color });
+        }
         if (i !== nodeLane) {
-          lanes[i] = { awaiting: null, color: 0 };
+          lanes[i] = FREE;
         }
       } else {
         edges.push({ kind: 'through', lane: i, color: l.color });
@@ -112,22 +196,17 @@ export function layoutGraph(commits: readonly GitCommit[]): GraphRow[] {
     });
 
     // Parents: the first continues the node's lane; the others curve into a
-    // lane already awaiting them or open a new one.
+    // lane already awaiting them, the trunk lane they belong to, or a new one.
     const [first, ...others] = commit.parents;
     if (first === undefined) {
-      lanes[nodeLane] = { awaiting: null, color: 0 };
+      lanes[nodeLane] = FREE;
     } else {
       lanes[nodeLane] = { awaiting: first, color };
       edges.push({ kind: 'out', lane: nodeLane, color });
     }
     for (const parent of others) {
-      let target = lanes.findIndex((l) => l.awaiting === parent);
-      if (target === -1) {
-        target = freeLane();
-        lanes[target] = { awaiting: parent, color: takeColor() };
-      }
-      const laneColor = (lanes[target] as Lane).color;
-      edges.push({ kind: 'out', lane: target, color: laneColor });
+      const target = laneFor(parent);
+      edges.push({ kind: 'out', lane: target, color: (lanes[target] as Lane).color });
     }
 
     rows.push({

@@ -261,11 +261,22 @@ export function GraphPane({ root, tabId }: { root: string; tabId: string }) {
   const checkouts = useRepoSlice(root, (r) => r.checkouts) ?? NONE;
   const selectedCheckout = useRepoSlice(root, (r) => r.selectedCheckout) ?? root;
   const head = useRepoSlice(root, (r) => r.status?.head ?? '') ?? '';
+  const baseBranch = useRepoSlice(root, (r) => r.info?.baseBranch ?? null) ?? null;
   const actions = gitStore.getState();
   const now = useNow();
   const [menu, setMenu] = useState<{ anchor: MenuAnchor; branch: GitBranch } | null>(null);
 
-  const rows = useMemo(() => layoutGraph(log), [log]);
+  // The lines a reader navigates by, leftmost first: what is checked out,
+  // then the base branch (its local tip, else the remote's).
+  const trunks = useMemo(() => {
+    const base =
+      baseBranch === null
+        ? undefined
+        : (branches.find((b) => b.kind === 'local' && b.name === baseBranch) ??
+          branches.find((b) => b.kind === 'remote' && b.name.endsWith(`/${baseBranch}`)));
+    return [head, base?.head ?? ''].filter((sha) => sha !== '');
+  }, [head, baseBranch, branches]);
+  const rows = useMemo(() => layoutGraph(log, trunks), [log, trunks]);
   const width = useMemo(() => graphWidth(rows), [rows]);
   const remotes = useMemo(() => remoteNames(branches), [branches]);
   const pillsBySha = useMemo(() => {

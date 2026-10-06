@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- Git tab: the history graph keeps the checked-out branch and the base branch in the two leftmost lanes, so main no longer drifts to the far right behind feature lines.
+
 ## [0.10.3] — 2026-10-05
 
 - **Fixed: Raw mode lost its margins, highlighting, scrolling and your

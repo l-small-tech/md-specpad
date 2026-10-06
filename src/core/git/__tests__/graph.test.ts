@@ -22,6 +22,8 @@ describe('layoutGraph', () => {
     expect(rows.map((r) => r.lane)).toEqual([0, 0, 0]);
     expect(rows.map((r) => r.color)).toEqual([0, 0, 0]);
     expect(rows.map((r) => r.width)).toEqual([1, 1, 1]);
+    // The tip starts its line at the node — nothing drawn above it.
+    expect(kinds(rows[0]!.edges, 'in')).toEqual([]);
     // a → b continues; b → c continues; the root ends its lane.
     expect(kinds(rows[0]!.edges, 'out')).toEqual([0]);
     expect(kinds(rows[2]!.edges, 'out')).toEqual([]);
@@ -73,5 +75,69 @@ describe('layoutGraph', () => {
     const rows = layoutGraph([c('o', ['p', 'q', 'r'])]);
     expect(kinds(rows[0]!.edges, 'out')).toEqual([0, 1, 2]);
     expect(rows[0]!.width).toBe(3);
+  });
+});
+
+describe('layoutGraph with trunks', () => {
+  // The shape that put main on the far right: two feature tips (x, y) whose
+  // parent is the trunk commit t, listed above main's tip m (a merge of
+  // t into the older main commit m0). Without trunks, x and y hold lanes 0
+  // and 1 until t, so m lands in lane 2 — right of every feature line.
+  const history = [
+    c('x', ['t']),
+    c('y', ['t']),
+    c('m', ['m0', 't']),
+    c('t', ['t0']),
+    c('m0', ['t0']),
+    c('t0'),
+  ];
+
+  it('without trunks, a late tip takes whatever lane is free', () => {
+    const rows = layoutGraph(history);
+    expect(rows.map((r) => r.lane)).toEqual([0, 1, 2, 0, 2, 0]);
+  });
+
+  it("reserves lane 1 for the base branch's first-parent chain", () => {
+    const rows = layoutGraph(history, ['x', 'm']);
+    // x (HEAD) in lane 0; y is pushed past the reserved lane; m and m0 in lane 1.
+    expect(rows.map((r) => r.lane)).toEqual([0, 2, 1, 0, 1, 0]);
+    expect(rows[2]!.color).toBe(rows[4]!.color);
+    // m's second parent is the trunk commit t: its edge aims straight at lane 0.
+    expect(kinds(rows[2]!.edges, 'out').sort()).toEqual([0, 1]);
+    // m0's parent is on the HEAD trunk: lane 1 closes into t0's node in lane 0.
+    expect(kinds(rows[5]!.edges, 'in').sort()).toEqual([0, 1]);
+    expect(graphWidth(rows)).toBe(3);
+  });
+
+  it('keeps the trunk lane for the trunk even when other lanes are free', () => {
+    const rows = layoutGraph([c('a', ['b']), c('b')], ['zzz', 'a']);
+    // zzz is not in the window — it reserves nothing; a's chain takes lane 0.
+    expect(rows.map((r) => r.lane)).toEqual([0, 0]);
+  });
+
+  it('a merge that reaches a trunk tip from above curves into its lane', () => {
+    // d (HEAD) merged main's tip m back: d → (d0, m); m → m0; d0 → m0.
+    const rows = layoutGraph(
+      [c('d', ['d0', 'm']), c('d0', ['m0']), c('m', ['m0']), c('m0')],
+      ['d', 'm'],
+    );
+    expect(rows.map((r) => r.lane)).toEqual([0, 0, 1, 0]);
+    expect(kinds(rows[0]!.edges, 'out')).toEqual([0, 1]);
+    // m keeps the colour the merge edge opened with — one continuous line.
+    expect(rows[2]!.color).toBe(rows[0]!.edges.find((e) => e.lane === 1)!.color);
+  });
+
+  it('a trunk tip nothing points at has no line above it; one a merge reaches does', () => {
+    const rows = layoutGraph([c('x', ['t']), c('m', ['m0', 't']), c('t'), c('m0')], ['x', 'm']);
+    expect(rows[1]).toMatchObject({ lane: 1 });
+    expect(kinds(rows[1]!.edges, 'in')).toEqual([]);
+    // m0 is awaited by lane 1 (m's first parent): the line comes in from the top.
+    expect(kinds(rows[3]!.edges, 'in')).toEqual([1]);
+  });
+
+  it('a trunk whose tip is already on another trunk reserves nothing', () => {
+    // HEAD is on main: both tips are the same commit.
+    const rows = layoutGraph([c('a', ['b']), c('b')], ['a', 'a']);
+    expect(rows.map((r) => r.width)).toEqual([1, 1]);
   });
 });
