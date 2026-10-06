@@ -15,6 +15,10 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
   such as `.github` or `.obsidian`. It follows each platform's rules:
   dot-names everywhere, plus the hidden attribute on Windows and the hidden
   flag on macOS.
+- **Faster, visible startup with slow drives.** Restored tabs now load in
+  parallel, and when a tab's file is slow to reach (a cloud drive, or a WSL
+  share while WSL starts up) the window shows a loading message naming the
+  file it is waiting for, instead of a blank screen.
 
 ## [0.10.1] — 2026-10-01
 
