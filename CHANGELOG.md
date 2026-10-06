@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+## [0.10.2] — 2026-10-05
+
 - **MD Notepad is now MD Specpad.** New name, new home:
   [github.com/l-small-tech/md-specpad](https://github.com/l-small-tech/md-specpad)
   (old links redirect). On first launch on desktop, your notes, sessions,
