@@ -2271,6 +2271,10 @@ body.explorer-dragging * {
   border-top: 1px solid var(--border);
   color: var(--fg-muted);
   font-size: 12px;
+  /* Chrome, not content: the mode segments are buttons and the readouts are
+     labels — a wandering drag must never paint a selection across them. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .mode-segments {

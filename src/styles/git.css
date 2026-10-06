@@ -55,6 +55,21 @@
   background: var(--bg);
 }
 
+/* The git tab, its status-bar controls and its menus are chrome — cards,
+   graph rows, pills, buttons — never selectable text. The command drawer's
+   output and a commit's SHA are the exceptions: those are for copying. */
+.git-host,
+.git-sb,
+.git-menu {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.git-drawer-body,
+.git-sha {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .git-tone-added {
   color: var(--git-added);
 }

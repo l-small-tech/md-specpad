@@ -719,6 +719,9 @@ textarea.vn-note-text:focus {
   border-radius: 10px;
   background: var(--bg-alt);
   border: 1px solid var(--border);
+  /* Buttons, not selectable text. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 .rn-segment {
   border: none;
