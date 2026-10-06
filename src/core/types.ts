@@ -521,6 +521,13 @@ export interface Settings {
    */
   hideUnsupportedDirs: string[];
   /**
+   * "Show hidden files": the explorer also lists hidden entries — dot-prefixed
+   * names everywhere, plus whatever the OS marks hidden (the Windows hidden
+   * attribute, the macOS hidden flag; see Rust `is_hidden_entry`). One global
+   * switch, like Finder's Cmd+Shift+. or Explorer's "Hidden items". Default false.
+   */
+  showHiddenFiles: boolean;
+  /**
    * Review mode's "What changed" baseline: the branch a code file is compared
    * against (via `merge-base(HEAD, <branch>)`). Empty — the default — means
    * auto-detect, trying `development`, then `main`, then `master`. A name this

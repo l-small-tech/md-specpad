@@ -10,6 +10,12 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- **Show hidden files.** The eye button in the Workspaces header (or
+  right-click a folder → *Hidden Files*) reveals hidden files and folders
+  such as `.github` or `.obsidian`. It follows each platform's rules:
+  dot-names everywhere, plus the hidden attribute on Windows and the hidden
+  flag on macOS.
+
 ## [0.10.1] — 2026-10-01
 
 - **Mark headings running or complete.** Right-click a heading in Raw,
