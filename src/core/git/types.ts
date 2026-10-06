@@ -72,6 +72,12 @@ export interface GitCommit {
   at: string;
   subject: string;
   body: string;
+  /**
+   * `git log --format=%D` decorations, one per item: `HEAD -> development`,
+   * `origin/development`, `tag: v0.10.1`, or `HEAD` (detached). Parsed by
+   * `core/git/decorations.ts`.
+   */
+  refs: string[];
 }
 
 /** One file of a commit or a range diff (`--name-status`). */

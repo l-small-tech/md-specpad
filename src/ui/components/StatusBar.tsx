@@ -1,6 +1,8 @@
 /**
  * StatusBar — mode segment control, caret position, word count, and the
- * transient notice area (editor errors now; flush errors / hints later).
+ * transient notice area (editor errors now; flush errors / hints later). On
+ * a git tab the segments' room holds GitStatusBar instead (branch picker,
+ * Fetch / Pull / Push).
  *
  * Reads the active tab's mode + word count from the tabs store and the caret
  * readout from the ui store (kept separate so caret moves don't re-render the
@@ -19,6 +21,7 @@ import { useSettingsStore } from '../stores/settings';
 import { tabsStore, useTabsStore } from '../stores/tabs';
 import { useUiStore } from '../stores/ui';
 import { downloadAndInstall, useUpdateStore } from '../update';
+import { GitStatusBar } from './git/GitStatusBar';
 
 /**
  * Tooltip per mode; the label comes from `modeLabel` (core/doc-family) and
@@ -162,9 +165,11 @@ export function StatusBar() {
   const chars = active.charCount;
   const family = docFamilyForTab(active);
   // A family with ONE mode (a tool tab — the git tab; a terminal never gets
-  // here) has nothing to pick and no text to count: the bar keeps only its
-  // notice area and the chips.
+  // here) has nothing to pick and no text to count: the git tab puts its
+  // branch picker and network buttons where the segments would sit, and the
+  // bar keeps its notice area and the chips.
   const singleMode = allowedModesFor(family).length === 1;
+  const gitRoot = active.kind === 'git' ? active.gitRoot : null;
   // A deck reads in slides, not lines: the caret becomes `Slide 4 / 12` and
   // the word count a talk length (core/deck). The split is cheap — it is a
   // line scan of a document that is, by nature, short.
@@ -177,7 +182,9 @@ export function StatusBar() {
 
   return (
     <div className="statusbar" onContextMenu={swallowContextMenu}>
-      {singleMode ? null : active.readOnly ? (
+      {gitRoot !== null ? (
+        <GitStatusBar root={gitRoot} />
+      ) : singleMode ? null : active.readOnly ? (
         <span className="statusbar-readonly" title="This document can be read but not edited">
           Read-only
         </span>

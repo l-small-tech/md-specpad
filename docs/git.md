@@ -27,32 +27,49 @@ second window like any other tab.
 
 ## The layout
 
-The tab has a header and two columns. The left column is the panel, the right
-column shows whatever you select in it — a file's diff, a commit, a
-worktree's changes against the base branch, or the Finish stepper. Drag the
-divider to resize; press Esc to clear the selection.
+The tab is a picture of the repository, top to bottom:
 
-**Header.** A picker for the checkout you are looking at (the main checkout
-and every worktree), the current branch and how far it is ahead of or behind
-its upstream, a chip when the checkout is in the middle of something
-(merging, rebasing, a detached HEAD, no commits yet), and **Fetch**, **Pull**
-and **Push** (or **Publish branch** when the branch has no upstream yet).
+**Worktree cards** run across the top — the main folder first, then every
+linked worktree. A card is the checkout picker: click one and the panel
+shows that checkout's changes and branch. Each card shows its branch (with a
+*base* chip on the base branch), a bar of what is dirty there (staged in the
+accent, changed in amber, untracked in grey, conflicted in red) or *clean*,
+two small meters for how far the branch is ahead of and behind the base
+branch, a dot when one of this window's terminals is standing inside it, and
+chips for *merging*, *missing* or *locked*. The actions appear on the card
+you hover or have selected; the dashed card at the end is **New worktree**.
 
-**Changes.** Staged, unstaged and untracked files in three groups. Hover a row
-for stage / unstage / discard / open; the group headers stage or unstage
-everything at once. Click a row to see its diff. Below the groups: the commit
-message box (Ctrl+Enter commits), an **Amend** switch, and **Commit**. When
-Commit is disabled, its tooltip says why.
+**Changes**, on the left: staged, unstaged and untracked files in three
+groups. Hover a row for stage / unstage / discard / open; the group headers
+stage or unstage everything at once. Click a row to see its diff. Below the
+groups: the commit message box (Ctrl+Enter commits), an **Amend** switch,
+and **Commit**. When Commit is disabled, its tooltip says why. A **Merge
+conflicts** group appears above when a merge stops on conflicts.
 
-**Worktrees.** The dashboard — see below.
+**History**, on the right: the whole repository's commits as a graph, newest
+first. Each line of history keeps one colour and one column from its tip
+down to where it joins another; a hollow node is a merge, the glowing one
+is where the selected checkout stands. Pills on a commit name what points
+at it: a **branch** (solid; the checked-out one filled in; a little cloud
+when its remote twin is on the same commit), a **remote** branch (dashed),
+a **tag**, and a **worktree** standing there (folder — click it to show that
+checkout). Click a branch pill to switch to it, merge it into the current
+branch, or delete it. Click the row to see the commit's message and files;
+click a file to see what the commit did to it. **Load more history** pages
+further back.
 
-**Branches.** Local branches, then remote ones, with a filter box. Switch,
-merge into the current branch, delete, or create a new one from the current
-branch. A branch checked out in a worktree says so; git will not let you
-switch to or delete it from elsewhere.
+**The detail** opens under the graph when you select something — a file's
+diff, a commit, a worktree's files against the base branch, or the Finish
+stepper — and closes with its × or Esc. Drag the divider between the graph
+and the detail, or between the two columns, to resize.
 
-**History.** Recent commits, newest first. Click one to see its message and
-files; click a file to see what that commit did to it.
+**The status bar** carries the controls while a Git tab is active: the
+current branch with its upstream (click it for the branch picker — filter,
+switch, merge, delete, or type a name to create a branch here), a chip when
+the checkout is in the middle of something (merging, rebasing, a detached
+HEAD), then **Fetch**, **Pull** (with a count when you are behind) and
+**Push** (with a count when you are ahead; **Publish** when the branch has no
+upstream yet), and refresh.
 
 ## Worktrees
 
@@ -62,9 +79,9 @@ each other, and it is what the **Git worktree workflow** directive in
 *Initialize workspace* tells agents to do: `worktrees/<slug>` on
 `feat/<slug>`.
 
-The Worktrees section shows every checkout: its branch, how many files are
+The worktree cards across the top show every checkout: its branch, what is
 dirty, how far it is ahead of or behind the base branch, and a dot when one
-of this window's terminals is standing inside it. Each row offers:
+of this window's terminals is standing inside it. Each card offers:
 
 - **Open as workspace** — add the folder to the sidebar so you can browse and
   edit its files.
@@ -119,8 +136,8 @@ conflict markers, and **Mark resolved** stages it when you are done.
 
 ## Fetch, pull and push
 
-The three buttons stream git's output into a drawer at the bottom of the
-right column, with **Cancel** while it runs. Nothing prompts for a password:
+The three status-bar buttons stream git's output into a drawer at the bottom
+of the right column, with **Cancel** while it runs. Nothing prompts for a password:
 if git needs credentials, a credential helper with its own window (Git
 Credential Manager on Windows and macOS) or an SSH agent answers, and if
 nothing does the drawer shows git's message with a one-line reading of it —

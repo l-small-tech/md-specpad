@@ -49,6 +49,9 @@ pub struct GitCommit {
     /// Author date, ISO 8601.
     pub at: String,
     pub subject: String,
+    /// `%D` split on `, `: `HEAD -> main`, `origin/main`, `tag: v1`, … —
+    /// empty when the commit is undecorated.
+    pub refs: Vec<String>,
     pub body: String,
 }
 
@@ -150,8 +153,9 @@ pub(super) fn branches(root: &Path) -> GitResult<Vec<GitBranch>> {
 
 /* ---------------------------------- log ----------------------------------- */
 
-/// `%x1f` / `%x1e` are `log --format`'s hex escapes.
-const LOG_FORMAT: &str = "%H%x1f%h%x1f%P%x1f%an%x1f%aI%x1f%s%x1f%b%x1e";
+/// `%x1f` / `%x1e` are `log --format`'s hex escapes. The body is last: it is
+/// the only multi-line field.
+const LOG_FORMAT: &str = "%H%x1f%h%x1f%P%x1f%an%x1f%aI%x1f%s%x1f%D%x1f%b%x1e";
 
 pub(super) fn parse_log(out: &str) -> Vec<GitCommit> {
     out.split(RECORD)
@@ -161,7 +165,7 @@ pub(super) fn parse_log(out: &str) -> Vec<GitCommit> {
                 return None;
             }
             let f: Vec<&str> = rec.split(UNIT).collect();
-            if f.len() < 7 {
+            if f.len() < 8 {
                 return None;
             }
             Some(GitCommit {
@@ -171,7 +175,13 @@ pub(super) fn parse_log(out: &str) -> Vec<GitCommit> {
                 author: f[3].to_string(),
                 at: f[4].to_string(),
                 subject: f[5].to_string(),
-                body: f[6].trim_end().to_string(),
+                refs: f[6]
+                    .split(", ")
+                    .map(str::trim)
+                    .filter(|r| !r.is_empty())
+                    .map(str::to_string)
+                    .collect(),
+                body: f[7].trim_end().to_string(),
             })
         })
         .collect()
@@ -185,17 +195,35 @@ fn is_unborn_log(stderr: &str) -> bool {
         || lower.contains("bad revision 'head'")
 }
 
+/// A page of `log`. With `all`, every branch, remote-tracking branch and tag
+/// (plus a detached HEAD) in date order — the commit graph's view — and `rev`
+/// is ignored. Not `--all`: that would drag in `refs/stash`. A repository
+/// with no refs at all then logs nothing, successfully.
 pub(super) fn log(
     root: &Path,
     rev: Option<&str>,
     max: u32,
     skip: u32,
+    all: bool,
 ) -> GitResult<Vec<GitCommit>> {
     let format = format!("--format={LOG_FORMAT}");
     let count = format!("-n{}", max.clamp(1, 1000));
     let skip = format!("--skip={skip}");
-    let mut args = vec!["log", format.as_str(), count.as_str(), skip.as_str()];
-    if let Some(rev) = rev {
+    // `%D` honours `log.decorate=full`; pin the short names.
+    let mut args = vec![
+        "log",
+        "--decorate=short",
+        format.as_str(),
+        count.as_str(),
+        skip.as_str(),
+    ];
+    if all {
+        args.extend(["--date-order", "--branches", "--remotes", "--tags"]);
+        // A born HEAD may be detached on a commit no ref reaches.
+        if head_sha(root)?.is_some() {
+            args.push("HEAD");
+        }
+    } else if let Some(rev) = rev {
         args.push(safe_arg(rev)?);
     }
     args.push("--");
@@ -320,22 +348,24 @@ pub async fn git_branches(root: String) -> GitResult<Vec<GitBranch>> {
 }
 
 /// `max` commits reachable from `rev` (HEAD when null), skipping `skip`.
-/// `[]` on an unborn HEAD.
+/// `all`: from every branch, remote branch and tag (+ HEAD) in date order
+/// instead, `rev` ignored. `[]` on an unborn HEAD / a repo with no refs.
 #[tauri::command]
 pub async fn git_log(
     root: String,
     rev: Option<String>,
     max: u32,
     skip: u32,
+    all: bool,
 ) -> GitResult<Vec<GitCommit>> {
     blocking(move || {
         let root = Path::new(&root);
         // An unborn HEAD has no log; asking git prints an error we would
         // only have to recognise, so check first when HEAD is what is asked.
-        if rev.is_none() && head_sha(root)?.is_none() {
+        if !all && rev.is_none() && head_sha(root)?.is_none() {
             return Ok(Vec::new());
         }
-        log(root, rev.as_deref(), max, skip)
+        log(root, rev.as_deref(), max, skip, all)
     })
     .await
 }
@@ -423,8 +453,8 @@ mod tests {
     #[test]
     fn log_records_parse_with_multi_line_bodies_and_merge_parents() {
         let out = concat!(
-            "s1\u{1f}s1s\u{1f}p1 p2\u{1f}Ann\u{1f}2026-09-24T10:00:00+02:00\u{1f}Merge x\u{1f}\u{1e}\n",
-            "s2\u{1f}s2s\u{1f}p3\u{1f}Bob\u{1f}2026-09-23T10:00:00+02:00\u{1f}feat: y\u{1f}line one\n\nline three\n\u{1e}\n",
+            "s1\u{1f}s1s\u{1f}p1 p2\u{1f}Ann\u{1f}2026-09-24T10:00:00+02:00\u{1f}Merge x\u{1f}\u{1f}\u{1e}\n",
+            "s2\u{1f}s2s\u{1f}p3\u{1f}Bob\u{1f}2026-09-23T10:00:00+02:00\u{1f}feat: y\u{1f}\u{1f}line one\n\nline three\n\u{1e}\n",
         );
         let c = parse_log(out);
         assert_eq!(c.len(), 2);
@@ -433,6 +463,23 @@ mod tests {
         assert_eq!(c[1].subject, "feat: y");
         assert_eq!(c[1].body, "line one\n\nline three");
         assert_eq!(c[1].author, "Bob");
+    }
+
+    #[test]
+    fn log_records_split_decorations_into_refs() {
+        let out = concat!(
+            "s1\u{1f}s1s\u{1f}p1\u{1f}Ann\u{1f}2026-09-24T10:00:00+02:00\u{1f}tip\u{1f}HEAD -> development, origin/development, tag: v0.10.1\u{1f}body\n\u{1e}\n",
+            "s2\u{1f}s2s\u{1f}p2\u{1f}Ann\u{1f}2026-09-23T10:00:00+02:00\u{1f}plain\u{1f}\u{1f}\u{1e}\n",
+        );
+        let c = parse_log(out);
+        assert_eq!(c.len(), 2);
+        assert_eq!(
+            c[0].refs,
+            vec!["HEAD -> development", "origin/development", "tag: v0.10.1"]
+        );
+        assert_eq!(c[0].body, "body");
+        assert_eq!(c[1].subject, "plain");
+        assert!(c[1].refs.is_empty());
     }
 
     #[test]
@@ -505,7 +552,7 @@ mod tests {
                 ],
             );
         }
-        let page1 = log(&root, None, 2, 0).unwrap();
+        let page1 = log(&root, None, 2, 0, false).unwrap();
         assert_eq!(page1.len(), 2);
         assert_eq!(page1[0].subject, "commit 4");
         assert_eq!(page1[0].body, "body line\n\nmore");
@@ -513,17 +560,17 @@ mod tests {
         assert_eq!(page1[0].short.len(), 7.min(page1[0].short.len()));
         assert_eq!(page1[0].parents.len(), 1);
         assert_eq!(page1[0].author, "Test");
-        let page2 = log(&root, None, 2, 2).unwrap();
+        let page2 = log(&root, None, 2, 2, false).unwrap();
         assert_eq!(page2.len(), 2);
         assert_eq!(page2[1].subject, "first");
         assert!(page2[1].parents.is_empty(), "root commit has no parents");
         assert!(page2[1].body.is_empty());
-        assert!(log(&root, None, 2, 4).unwrap().is_empty());
+        assert!(log(&root, None, 2, 4, false).unwrap().is_empty());
         // A rev other than HEAD.
-        let from_second = log(&root, Some("HEAD~2"), 10, 0).unwrap();
+        let from_second = log(&root, Some("HEAD~2"), 10, 0, false).unwrap();
         assert_eq!(from_second.len(), 2);
         assert!(matches!(
-            log(&root, Some("-n"), 1, 0),
+            log(&root, Some("-n"), 1, 0, false),
             Err(GitError::InvalidArg(_))
         ));
     }
@@ -536,8 +583,62 @@ mod tests {
         }
         let dir = tempfile::tempdir().unwrap();
         init_repo(dir.path());
-        assert!(log(dir.path(), None, 10, 0).unwrap().is_empty());
-        assert!(log(dir.path(), Some("HEAD"), 10, 0).unwrap().is_empty());
+        assert!(log(dir.path(), None, 10, 0, false).unwrap().is_empty());
+        assert!(log(dir.path(), Some("HEAD"), 10, 0, false)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn real_log_all_spans_every_branch_and_decorates_the_tips() {
+        if !have_git() {
+            eprintln!("skipping: no git on PATH");
+            return;
+        }
+        let (_g, root) = temp_repo();
+        git_ok(&root, &["switch", "-c", "feat/side"]);
+        write(&root, "side.ts", "s\n");
+        git_ok(&root, &["add", "side.ts"]);
+        git_ok(&root, &["commit", "-m", "side"]);
+        git_ok(&root, &["switch", "main"]);
+        write(&root, "a.ts", "2\n");
+        git_ok(&root, &["commit", "-am", "main two"]);
+        git_ok(&root, &["tag", "v1"]);
+        // A stash must not show up: `--all` would include refs/stash.
+        write(&root, "a.ts", "3\n");
+        git_ok(&root, &["stash", "push", "-m", "wip"]);
+
+        let c = log(&root, None, 50, 0, true).unwrap();
+        let subjects: Vec<&str> = c.iter().map(|c| c.subject.as_str()).collect();
+        assert_eq!(c.len(), 3, "{subjects:?}");
+        assert!(subjects.contains(&"side"), "{subjects:?}");
+        assert!(subjects.contains(&"main two"), "{subjects:?}");
+        assert!(subjects.contains(&"first"), "{subjects:?}");
+        let tip = c.iter().find(|c| c.subject == "main two").unwrap();
+        assert!(
+            tip.refs.iter().any(|r| r == "HEAD -> main"),
+            "{:?}",
+            tip.refs
+        );
+        assert!(tip.refs.iter().any(|r| r == "tag: v1"), "{:?}", tip.refs);
+        let side = c.iter().find(|c| c.subject == "side").unwrap();
+        assert_eq!(side.refs, vec!["feat/side"]);
+        let first = c.iter().find(|c| c.subject == "first").unwrap();
+        assert!(first.refs.is_empty(), "{:?}", first.refs);
+        // `rev` is ignored with `all`; the plain log sees main only.
+        assert_eq!(log(&root, Some("HEAD~1"), 50, 0, true).unwrap().len(), 3);
+        assert_eq!(log(&root, None, 50, 0, false).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn real_log_all_of_an_empty_repo_is_empty() {
+        if !have_git() {
+            eprintln!("skipping: no git on PATH");
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        assert!(log(dir.path(), None, 10, 0, true).unwrap().is_empty());
     }
 
     #[test]
@@ -598,7 +699,7 @@ mod tests {
         let merge_files = commit_files(&root, "HEAD").unwrap();
         assert_eq!(merge_files.len(), 1);
         assert_eq!(merge_files[0].path, "d.ts");
-        let top = log(&root, None, 1, 0).unwrap();
+        let top = log(&root, None, 1, 0, false).unwrap();
         assert_eq!(top[0].parents.len(), 2);
     }
 }
