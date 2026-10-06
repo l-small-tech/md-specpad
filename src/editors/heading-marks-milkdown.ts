@@ -18,7 +18,7 @@ import { $prose } from '@milkdown/kit/utils';
 import { markOfText, stripMark, withMarkText, type HeadingMark } from '../core/heading-mark';
 import { headingMarkClass, openHeadingMarkMenu } from './heading-mark-menu';
 
-const key = new PluginKey<DecorationSet>('md-notepad-heading-marks');
+const key = new PluginKey<DecorationSet>('md-specpad-heading-marks');
 
 function build(doc: ProseNode): DecorationSet {
   const decos: Decoration[] = [];

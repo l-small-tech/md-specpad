@@ -52,7 +52,7 @@ import '../styles/wysiwyg.css';
  * must ignore them — otherwise opening a doc in Edit mode would immediately
  * normalize it.
  */
-const PROGRAMMATIC_META = 'md-notepad-programmatic';
+const PROGRAMMATIC_META = 'md-specpad-programmatic';
 
 /**
  * The app theme's resolved `--wb-*` palette, read off `<html>` — the same

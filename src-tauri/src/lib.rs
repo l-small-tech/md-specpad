@@ -3,6 +3,9 @@ mod commands;
 // tabs. Android has no pty (see commands/mod.rs).
 #[cfg(desktop)]
 mod pty;
+// Desktop-only: the one-time move of pre-rename (MD Notepad) app data.
+#[cfg(desktop)]
+mod rename_migration;
 #[cfg(desktop)]
 mod shell;
 // Windows-only: which virtual desktop a window sits on, for the
@@ -56,7 +59,7 @@ fn file_args(args: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Max log level for `tauri_plugin_log`, from `MDN_LOG` or argv.
+/// Max log level for `tauri_plugin_log`, from `MDS_LOG` or argv.
 ///
 /// The plugin's own default is TRACE, and nothing in this crate logs at all —
 /// so every TRACE line came from a dependency. The explorer's `notify` watcher
@@ -66,7 +69,7 @@ fn file_args(args: &[String]) -> Vec<String> {
 /// `tauri dev` readable.
 ///
 /// `--verbose` (what `pnpm run tauri:dev:verbose` passes) opens it to DEBUG;
-/// `MDN_LOG` takes an explicit off/error/warn/info/debug/trace and wins over
+/// `MDS_LOG` takes an explicit off/error/warn/info/debug/trace and wins over
 /// the flag. TRACE is the old firehose — reach for it deliberately.
 fn log_level_from(env: Option<&str>, args: &[String]) -> LevelFilter {
     if let Some(level) = env.and_then(|v| v.trim().parse::<LevelFilter>().ok()) {
@@ -203,7 +206,7 @@ fn handle_second_instance(app: &tauri::AppHandle, args: &[String]) {
 
     let (width, height, min_width, min_height) = NEW_WINDOW;
     let _ = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
-        .title("MD Notepad")
+        .title("MD Specpad")
         .inner_size(width, height)
         .min_inner_size(min_width, min_height)
         .decorations(false)
@@ -212,9 +215,14 @@ fn handle_second_instance(app: &tauri::AppHandle, args: &[String]) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+    // Before the builder: no plugin or webview may open the app folders first.
+    #[cfg(desktop)]
+    rename_migration::migrate(&context.config().identifier);
+
     let args = std::env::args().collect::<Vec<_>>();
     let startup_files = file_args(&args);
-    let log_level = log_level_from(std::env::var("MDN_LOG").ok().as_deref(), &args);
+    let log_level = log_level_from(std::env::var("MDS_LOG").ok().as_deref(), &args);
 
     let builder = tauri::Builder::default();
 
@@ -445,7 +453,7 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             commands::voice_typing::voice_typing_toggle,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }
 
@@ -454,7 +462,7 @@ mod tests {
     use super::{encode_query, file_args, fresh_window_label, log_level_from, LevelFilter};
 
     fn argv(flags: &[&str]) -> Vec<String> {
-        std::iter::once("md-notepad")
+        std::iter::once("md-specpad")
             .chain(flags.iter().copied())
             .map(str::to_string)
             .collect()
@@ -463,7 +471,7 @@ mod tests {
     #[test]
     fn file_args_skips_exe_and_flags() {
         let args = vec![
-            "C:\\apps\\md-notepad.exe".to_string(),
+            "C:\\apps\\md-specpad.exe".to_string(),
             "--flag".to_string(),
             "-v".to_string(),
             "C:\\notes\\a.md".to_string(),
@@ -501,7 +509,7 @@ mod tests {
             log_level_from(Some(" warn\n"), &argv(&[])),
             LevelFilter::Warn
         );
-        // Unparseable MDN_LOG falls through to the flag rather than panicking.
+        // Unparseable MDS_LOG falls through to the flag rather than panicking.
         assert_eq!(log_level_from(Some("loud"), &verbose), LevelFilter::Debug);
         assert_eq!(log_level_from(Some(""), &argv(&[])), LevelFilter::Info);
     }

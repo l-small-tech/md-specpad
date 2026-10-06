@@ -10,6 +10,13 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- **MD Notepad is now MD Specpad.** New name, new home:
+  [github.com/l-small-tech/md-specpad](https://github.com/l-small-tech/md-specpad)
+  (old links redirect). On first launch on desktop, your notes, sessions,
+  settings, themes and Whisper models move over from the MD Notepad folder
+  automatically. The update installs as **MD Specpad** next to the old app,
+  so uninstall MD Notepad afterwards. On Android, MD Specpad installs as a
+  separate app: move any notes you want to keep, then uninstall MD Notepad.
 - **Visual Git.** The Git tab is redrawn around a picture of the repository:
   a commit graph of every branch with coloured lanes and branch, remote, tag
   and worktree pills on the commits; worktree cards across the top (click
@@ -297,4 +304,4 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
   volumes.
 
 Earlier releases are described on the
-[GitHub Releases](https://github.com/l-small-tech/md-notepad/releases) page.
+[GitHub Releases](https://github.com/l-small-tech/md-specpad/releases) page.

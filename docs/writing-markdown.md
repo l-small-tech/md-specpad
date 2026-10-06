@@ -1,7 +1,7 @@
 # Writing markdown
 
 Markdown is plain text with a few extra symbols for formatting. You can
-read it as-is, and MD Notepad turns it into clean, styled text in Split,
+read it as-is, and MD Specpad turns it into clean, styled text in Split,
 Edit, and Review modes.
 
 The easiest way to learn: put a tab in **Split mode** (Ctrl+2) and copy the
@@ -74,7 +74,7 @@ The pipes don't have to line up perfectly — the preview tidies them.
 
 ## Diagrams (Mermaid)
 
-MD Notepad can draw flowcharts and other diagrams from a text description,
+MD Specpad can draw flowcharts and other diagrams from a text description,
 using a popular format called Mermaid. Fence the description with
 ` ```mermaid `:
 

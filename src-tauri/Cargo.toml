@@ -1,5 +1,5 @@
 [package]
-name = "md-notepad"
+name = "md-specpad"
 version = "0.10.1"
 description = "A minimal, fast, cross-platform markdown notepad with Notepad-style ephemeral tabs."
 license = "GPL-3.0-only"
@@ -7,7 +7,7 @@ edition = "2021"
 
 # The lib name is distinct from the bin name so Windows builds don't clash.
 [lib]
-name = "md_notepad_lib"
+name = "md_specpad_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -85,6 +85,10 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+# The platform data/config dirs Tauri's path resolver builds on (same crate and
+# version as tauri's own), resolved before the app exists so the one-time move
+# of pre-rename app data (src/rename_migration.rs) runs ahead of every plugin.
+dirs = "6"
 
 # Offline voice-note transcription (commands/whisper): whisper.cpp through
 # whisper-rs, on every platform. Building it needs CMake and libclang
@@ -132,5 +136,5 @@ whisper-rs = { version = "0.16", features = ["log_backend"] }
 # Going further to `debug = 0` measured no faster, and stripping debuginfo from
 # dependencies (`[profile.dev.package."*"]`) measured no faster either, so
 # neither is worth the debuggability.
-[profile.dev.package.md-notepad]
+[profile.dev.package.md-specpad]
 debug = "line-tables-only"

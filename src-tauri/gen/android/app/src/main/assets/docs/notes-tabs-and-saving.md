@@ -1,6 +1,6 @@
 # Notes, tabs, and saving
 
-MD Notepad works with two kinds of tabs: **notes** and **files**. Knowing
+MD Specpad works with two kinds of tabs: **notes** and **files**. Knowing
 the difference explains everything about saving.
 
 ## Notes — the tabs you never save

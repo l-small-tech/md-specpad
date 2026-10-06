@@ -451,7 +451,7 @@ function UpdatesRow({ autoUpdateCheck }: { autoUpdateCheck: boolean }) {
           <span className="settings-path">
             {ready
               ? `v${version} available (you have v${__APP_VERSION__})`
-              : `MD Notepad v${__APP_VERSION__}`}
+              : `MD Specpad v${__APP_VERSION__}`}
           </span>
           {ready && (
             <button

@@ -1,4 +1,4 @@
-package tech.l_small.mdnotepad
+package tech.l_small.mdspecpad
 
 import android.os.Build
 import android.os.Bundle

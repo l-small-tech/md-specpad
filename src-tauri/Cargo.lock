@@ -2419,11 +2419,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "md-notepad"
+name = "md-specpad"
 version = "0.10.1"
 dependencies = [
  "base64 0.22.1",
  "cc",
+ "dirs",
  "futures-util",
  "log",
  "notify",

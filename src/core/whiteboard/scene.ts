@@ -18,7 +18,7 @@
  */
 
 /** Namespace for every editor-only attribute. Foreign renderers ignore it. */
-export const WB_NAMESPACE = 'urn:md-notepad:whiteboard';
+export const WB_NAMESPACE = 'urn:md-specpad:whiteboard';
 export const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 export const SCENE_SCHEMA = 1;
 

@@ -179,9 +179,9 @@ and normalize documents the user only LOOKED at. Instead:
 1. Get the ProseMirror `EditorView` from milkdown's ctx (`editorViewCtx`).
 2. Wrap `dispatchTransaction`（or use a ProseMirror plugin) so EVERY
    transaction reports
-   `guard.noteTransaction({ docChanged: tr.docChanged, programmatic: !!tr.getMeta('md-notepad-programmatic') })`.
+   `guard.noteTransaction({ docChanged: tr.docChanged, programmatic: !!tr.getMeta('md-specpad-programmatic') })`.
 3. Any content you set yourself (initial load, external model change) must
-   carry that meta flag: `tr.setMeta('md-notepad-programmatic', true)`.
+   carry that meta flag: `tr.setMeta('md-specpad-programmatic', true)`.
 4. `detach()` calls `guard.flushSync()` FIRST, then destroys the editor.
 
 Model → editor: on external model changes (reentrancy-flag filtered),

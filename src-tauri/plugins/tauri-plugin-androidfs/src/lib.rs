@@ -1,4 +1,4 @@
-//! Local mobile plugin: Android Context APIs for MD Notepad.
+//! Local mobile plugin: Android Context APIs for MD Specpad.
 //!
 //! Tauri's `appDataDir()` only exposes the INTERNAL files dir, and pure-Rust JNI
 //! can't reach the Android Context inside Tauri (`ndk-context` is unpopulated —

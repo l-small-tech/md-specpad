@@ -70,7 +70,7 @@ remembered. Press Esc or click outside the panel to close it.
 - **Confirm before moving files between folders** — whether dragging a file
   to a new folder in the sidebar asks "are you sure?" first.
 - **Review baseline branch** — which branch a code file's "what changed" view
-  compares against. Leave it empty (the default) and md-notepad looks for
+  compares against. Leave it empty (the default) and md-specpad looks for
   `development`, then `main`, then `master`. Only used when the file lives in a
   git repository and git is installed; on Android the view is hidden.
 - **Arrange tabs by workspace** — off by default, so tabs stay wherever you
@@ -106,7 +106,7 @@ knows to read for intent.
 - **Android** turns speech into text on the phone with the device's own
   recognizer, or with Whisper if you choose it below.
 - **Windows** uses Windows voice typing (the Win+H feature) unless you pick
-  Whisper below. When you tap the microphone, md-notepad starts it and your
+  Whisper below. When you tap the microphone, md-specpad starts it and your
   words appear in a box under the microphone, where you can fix them. The
   note saves by itself a few seconds after voice typing stops (when you stop
   talking, or click its own microphone button), or tap the microphone again
@@ -134,7 +134,7 @@ knows to read for intent.
 - **Run on the GPU** — shown when the app can use one (Vulkan on Windows and
   Linux, Metal on macOS). On, Whisper transcribes several times faster; turn
   it off only if transcription fails or a graphics driver misbehaves.
-  Setting the environment variable `MD_NOTEPAD_NO_VULKAN` before starting
+  Setting the environment variable `MD_SPECPAD_NO_VULKAN` before starting
   the app (Windows) keeps it from loading Vulkan at all.
 - **Whisper models** — the models you can download, with their size and a
   rough speed. **Small (English)** is the recommended balance (190 MB; a

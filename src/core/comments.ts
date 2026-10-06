@@ -22,7 +22,7 @@
  *
  * File format (v2):
  *
- *     <!-- md-notepad voice comments v2 -->
+ *     <!-- md-specpad voice comments v2 -->
  *     <!-- …disclaimer: how the file was made (VOICE_NOTES_DISCLAIMER)… -->
  *     # Voice notes for [meeting-notes.md](../meeting-notes.md)
  *     - branch: feat/explorer-filters (worktree: worktrees/explorer-filters)
@@ -98,7 +98,7 @@ export interface ReviewContext {
 }
 
 /** First line of every comments file — a version stamp and a human hint. */
-const HEADER_V2 = '<!-- md-notepad voice comments v2 -->';
+const HEADER_V2 = '<!-- md-specpad voice comments v2 -->';
 
 /**
  * Written right under the version stamp of every comments file: how the notes
@@ -122,7 +122,8 @@ export const VOICE_NOTES_DISCLAIMER = [
   '  and ask before acting on a note whose meaning is unclear.',
   '-->',
 ].join('\n');
-const HEADER_VERSION_RE = /^<!--\s*md-notepad voice comments v(\d+)\s*-->\s*$/;
+// md-notepad: the stamp written before the app was renamed to MD Specpad.
+const HEADER_VERSION_RE = /^<!--\s*md-(?:specpad|notepad) voice comments v(\d+)\s*-->\s*$/;
 
 /** Where a document's sidecar goes — the user's setting plus the workspace it's in. */
 export interface CommentsPathOptions {

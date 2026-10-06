@@ -150,7 +150,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__ # tauri-action substitutes the app version
-          releaseName: 'MD Notepad v__VERSION__'
+          releaseName: 'MD Specpad v__VERSION__'
           # The per-platform download table is NOT here: `finalize` prepends one
           # with real links, because only that job knows the built filenames.
           # If it never runs, the notes below still stand on their own.
@@ -282,8 +282,8 @@ jobs:
         run: |
           APK=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -n1)
           case "$APK" in
-            *unsigned*) NAME="md-notepad_${TAG#v}-unsigned.apk" ;;
-            *)          NAME="md-notepad_${TAG#v}.apk" ;;
+            *unsigned*) NAME="md-specpad_${TAG#v}-unsigned.apk" ;;
+            *)          NAME="md-specpad_${TAG#v}.apk" ;;
           esac
           cp "$APK" "$NAME"
           gh release upload "$TAG" "$NAME" --repo '${{ github.repository }}'
@@ -334,7 +334,7 @@ jobs:
           }
           # Re-upload in ascending rank; --clobber resets created_at so the final
           # upload order == the display order on the release page. Tab-delimited
-          # so the spaces in "MD Notepad_..." filenames survive sort/read.
+          # so the spaces in "MD Specpad_..." filenames survive sort/read.
           for f in *; do printf '%s\t%s\n' "$(rank "$f")" "$f"; done \
             | sort -n -k1,1 -s | cut -f2- \
             | while IFS= read -r f; do
