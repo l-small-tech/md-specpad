@@ -10,6 +10,15 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- **Fixed: Raw mode lost its margins, highlighting, scrolling and your
+  colour theme in the installed 0.10.2.** The boot splash's inline styles
+  made Tauri tighten the app's Content Security Policy, which then blocked
+  every stylesheet the editor and theme plugins add at runtime (dev builds,
+  with no CSP, never showed it). The splash styles now ship as a linked
+  stylesheet, and a test keeps `index.html` free of inline styles.
+- Status-bar mode buttons, the git tab's controls and the review-notes
+  filter buttons are no longer selectable as text.
+
 ## [0.10.2] — 2026-10-05
 
 - **MD Notepad is now MD Specpad.** New name, new home:

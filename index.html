@@ -12,58 +12,12 @@
       content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <title>MD Specpad</title>
-    <!-- Boot splash (src/ui/boot-splash.ts). Boot restores every tab's file
-         before React mounts; on slow storage (a cloud drive, a WSL share whose
-         VM is booting) that can take seconds. The splash fades in only after
-         a beat so a normal boot never flashes it. Colors come from the theme
-         variables applyDomSettings has set by then, with neutral fallbacks. -->
-    <style>
-      #boot-splash {
-        position: fixed;
-        inset: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        font:
-          13px system-ui,
-          sans-serif;
-        color: var(--fg-muted, #888);
-        opacity: 0;
-        animation: boot-splash-in 200ms ease-out 600ms forwards;
-        pointer-events: none;
-        user-select: none;
-      }
-      #boot-splash-title {
-        font-size: 15px;
-        color: var(--fg, inherit);
-      }
-      #boot-splash-detail {
-        max-width: 80vw;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      #boot-splash-spinner {
-        width: 22px;
-        height: 22px;
-        border: 2px solid currentColor;
-        border-right-color: transparent;
-        border-radius: 50%;
-        animation: boot-splash-spin 900ms linear infinite;
-      }
-      @keyframes boot-splash-in {
-        to {
-          opacity: 1;
-        }
-      }
-      @keyframes boot-splash-spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-    </style>
+    <!-- Boot splash styles (src/ui/boot-splash.ts). A linked sheet, never an
+         inline <style>: Tauri nonces every inline <style> here into the CSP's
+         style-src, which makes the browser drop 'unsafe-inline' and block every
+         stylesheet the app injects at runtime (CodeMirror, theme plugins). See
+         src/styles/boot-splash.css and src/ui/__tests__/boot-splash.test.ts. -->
+    <link rel="stylesheet" href="/src/styles/boot-splash.css" />
   </head>
   <body>
     <div id="root">
