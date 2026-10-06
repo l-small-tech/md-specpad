@@ -313,13 +313,13 @@ async function withConsoleImage(plugin: ThemePlugin, themePath: string): Promise
  * out of regeneration for good.
  */
 const AGENT_GUIDE_MARKER =
-  '<!-- md-notepad themes agent guide v2 (auto-written; delete this line to keep your own edits) -->';
+  '<!-- md-specpad themes agent guide v2 (auto-written; delete this line to keep your own edits) -->';
 
 const AGENT_GUIDE = `${AGENT_GUIDE_MARKER}
 
 # Editing this app's themes (guide for AI agents)
 
-You are in the themes folder of md-notepad, a markdown notepad app. Every
+You are in the themes folder of md-specpad, a markdown notepad app. Every
 \`.json\` file here is one color theme. Your job: edit these files (or add new
 ones) to make the changes the user asks for.
 
@@ -418,7 +418,8 @@ export async function ensureThemesAgentGuide(themesDir: string): Promise<void> {
     if (text.split(/\r?\n/, 1)[0] === AGENT_GUIDE_MARKER) {
       return;
     }
-    if (!text.includes('md-notepad themes agent guide')) {
+    // md-notepad: the marker written before the app was renamed to MD Specpad.
+    if (!/md-(?:specpad|notepad) themes agent guide/.test(text)) {
       // No marker anywhere: the user took the file over (or wrote their own).
       return;
     }

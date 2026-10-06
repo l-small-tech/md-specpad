@@ -6,7 +6,7 @@ explicitly). Check every box in the milestone's PR/commit message. The full
 3-OS sweep happens at M7.
 
 Conventions: "kill" = hard-kill the process (Task Manager / `taskkill /f
-/im md-notepad.exe` / `kill -9`), never a graceful quit. `notesDir` and
+/im md-specpad.exe` / `kill -9`), never a graceful quit. `notesDir` and
 `sessionDir` per your platform (see root README table; session dir is the
 sibling `session/` folder).
 
@@ -14,7 +14,7 @@ sibling `session/` folder).
 
 - [ ] Launch → single tab "Untitled", caret in the editor, no console errors.
 - [ ] Type `# Grocery list` → tab title becomes "Grocery list" (no `#`),
-      window title "Grocery list — MD Notepad". Delete the line → back to
+      window title "Grocery list — MD Specpad". Delete the line → back to
       "Untitled".
 - [ ] Type `-> => != >= <=` → each renders as a single ligature glyph.
       Arrow keys step through the ligature's underlying characters.
@@ -69,7 +69,7 @@ sibling `session/` folder).
 - [ ] Ctrl+Shift+S to a new path works; tab tracks the new file.
 - [ ] Save (Ctrl+S) on a NOTE tab → Save-As dialog; after saving, the note
       file is removed from notesDir and the tab is a file tab.
-- [ ] Launch from CLI: `md-notepad some.md` opens it. Second instance
+- [ ] Launch from CLI: `md-specpad some.md` opens it. Second instance
       (double-click a file while running) → existing window focuses, file
       opens as a tab, no second window. Opening an already-open file
       focuses its tab instead of duplicating.
@@ -183,7 +183,7 @@ sibling `session/` folder).
       `SHA256SUMS`.
 - [ ] `sha256sum -c` and `gh attestation verify` pass for every asset.
 - [ ] Clean Windows 11 VM: SmartScreen → Run anyway → installs; `.md`
-      double-click opens in MD Notepad (file association).
+      double-click opens in MD Specpad (file association).
 - [ ] Stock Ubuntu LTS: AppImage runs; deb installs.
 - [ ] macOS: right-click-Open works; universal binary (check both archs if
       hardware allows).

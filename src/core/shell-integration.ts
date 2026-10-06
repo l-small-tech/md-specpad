@@ -69,9 +69,9 @@ export interface ShellIntegrationFile {
  * app's decoder expects.
  */
 export const POWERSHELL_SNIPPET = [
-  "if ($function:prompt) { $Global:__MdNotepadPrompt = $function:prompt } else { $Global:__MdNotepadPrompt = { 'PS ' + $PWD.Path + '> ' } }",
+  "if ($function:prompt) { $Global:__MdSpecpadPrompt = $function:prompt } else { $Global:__MdSpecpadPrompt = { 'PS ' + $PWD.Path + '> ' } }",
   'function Global:prompt {',
-  '$t = [string](& $Global:__MdNotepadPrompt)',
+  '$t = [string](& $Global:__MdSpecpadPrompt)',
   '$l = $ExecutionContext.SessionState.Path.CurrentLocation',
   "if ($l.Provider.Name -eq 'FileSystem') { $e = [char]27; $t = $t + $e + ']7;' + ([System.Uri]$l.ProviderPath).AbsoluteUri + $e + '\\' }",
   '$t',
@@ -99,7 +99,7 @@ export const FISH_INIT_COMMAND =
 export const BASH_RCFILE_PATH = 'bash/bashrc';
 
 const BASH_RC = [
-  '# MD Notepad shell integration for bash.',
+  '# MD Specpad shell integration for bash.',
   '#',
   '# bash was started with "--rcfile <this file>", which takes the place of its',
   '# usual startup files - so the first job is to run those exactly as bash would',
@@ -175,7 +175,7 @@ const ZSH_HAND_BACK =
   'if [[ "${MDN_USER_ZDOTDIR:-$HOME}" == "$HOME" ]]; then unset ZDOTDIR; else ZDOTDIR="$MDN_USER_ZDOTDIR"; fi';
 
 const ZSH_ENV = [
-  '# MD Notepad shell integration for zsh: ZDOTDIR points at this folder so the',
+  '# MD Specpad shell integration for zsh: ZDOTDIR points at this folder so the',
   '# app can add a prompt hook. Each file here hands straight back to your own.',
   '# Rewritten by the app; edits do not persist. To opt out, give the terminal',
   '# profile its own "program" in settings.json.',
@@ -190,7 +190,7 @@ const ZSH_ENV = [
 ].join('\n');
 
 const ZSH_PROFILE = [
-  "# MD Notepad shell integration (see .zshenv): run the user's .zprofile.",
+  "# MD Specpad shell integration (see .zshenv): run the user's .zprofile.",
   ZSH_HAND_BACK,
   'if [[ -r "${ZDOTDIR:-$HOME}/.zprofile" ]]; then source "${ZDOTDIR:-$HOME}/.zprofile"; fi',
   'ZDOTDIR="$MDN_ZDOTDIR"',
@@ -198,7 +198,7 @@ const ZSH_PROFILE = [
 ].join('\n');
 
 const ZSH_RC = [
-  "# MD Notepad shell integration (see .zshenv): run the user's .zshrc, then",
+  "# MD Specpad shell integration (see .zshenv): run the user's .zshrc, then",
   '# report the working directory to the app after every command (OSC 7).',
   ZSH_HAND_BACK,
   'if [[ -r "${ZDOTDIR:-$HOME}/.zshrc" ]]; then source "${ZDOTDIR:-$HOME}/.zshrc"; fi',

@@ -793,7 +793,7 @@ mod tests {
     fn benchmark_throughput() {
         use std::sync::atomic::{AtomicUsize, Ordering};
 
-        let path = std::env::temp_dir().join("md-notepad-pty-bench.txt");
+        let path = std::env::temp_dir().join("md-specpad-pty-bench.txt");
         let line = format!("{}\n", "x".repeat(79));
         let mut data = String::with_capacity(10 << 20);
         while data.len() < (10 << 20) {

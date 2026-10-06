@@ -806,7 +806,7 @@ belt-and-braces; a new surface needs no guard of its own unless it has a menu.
 - Modals are reserved for: close-tab confirmation, save/discard/cancel on
   dirty file close, settings. Use `@tauri-apps/plugin-dialog` for native
   confirm dialogs (they match the OS), custom DOM only for SettingsDialog.
-- The window title mirrors the active tab: `<title> — MD Notepad`
+- The window title mirrors the active tab: `<title> — MD Specpad`
   (`getCurrentWindow().setTitle`), updated from a store subscription.
 - Drag-reorder of tabs: pointer-events implementation, no dnd library
   (dependency freeze), and NOT HTML5 drag-and-drop — Tauri's OS drag-drop

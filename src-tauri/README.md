@@ -139,7 +139,7 @@ session concepts in Rust, stop and move it to `src/core`.
   no device works. On Windows `vulkan-1.dll` is delay-loaded (build.rs +
   `src/vulkan_delayload.cpp`): the failure hook turns a missing DLL into the
   C++ exception ggml's Vulkan registration catches, so a driverless machine
-  starts and transcribes on the CPU; `MD_NOTEPAD_NO_VULKAN=1` forces the
+  starts and transcribes on the CPU; `MD_SPECPAD_NO_VULKAN=1` forces the
   same path. `models.rs` owns the pinned manifest (four q5 quantized Hugging
   Face `ggerganov/whisper.cpp` files with sizes and SHA-256 digests), the
   model folder (`<app_data_dir>/whisper`), and the download commands:
@@ -282,7 +282,7 @@ code that behaves differently per OS.
   logs — so that level is pure dependency noise (the explorer's `notify`
   watcher alone emitted ~700k lines in a 90-second dev run). `run()` caps it
   at INFO. `pnpm run tauri:dev:verbose` passes `--verbose` for DEBUG, and
-  `MDN_LOG=off|error|warn|info|debug|trace` overrides both.
+  `MDS_LOG=off|error|warn|info|debug|trace` overrides both.
 - Windows needs MSVC Build Tools; Linux needs the webkit2gtk-4.1 stack
   (exact apt list in `.github/workflows/ci.yml`).
 - `whisper-rs` builds whisper.cpp from source, which needs **CMake** on
@@ -300,4 +300,4 @@ code that behaves differently per OS.
   and Tauri's own default (10.13) fails the whisper build. A bare
   `cargo build` sets no deployment target, so only a bundle build sees it.
   A real-model engine test exists behind `#[ignore]`:
-  `MD_NOTEPAD_WHISPER_MODEL=<path to ggml-*.bin> cargo test -- --ignored real_model`.
+  `MD_SPECPAD_WHISPER_MODEL=<path to ggml-*.bin> cargo test -- --ignored real_model`.

@@ -146,7 +146,7 @@ describe('serialize (v2 format)', () => {
     );
     expect(text).toBe(
       [
-        '<!-- md-notepad voice comments v2 -->',
+        '<!-- md-specpad voice comments v2 -->',
         VOICE_NOTES_DISCLAIMER,
         '# Voice notes for [meeting-notes.md](../meeting-notes.md)',
         '',
@@ -232,7 +232,7 @@ describe('parse/serialize round-trip', () => {
 
   test('a legacy `- audio:` line is dropped, not read as transcript, and never rewritten', () => {
     const legacy = [
-      '<!-- md-notepad voice comments v2 -->',
+      '<!-- md-specpad voice comments v2 -->',
       '## ^cold1',
       '- file: foo.md',
       '- line: 4',
@@ -341,7 +341,7 @@ describe('code-review fields', () => {
 
   test('an older file (no unit line) still parses', () => {
     const older = [
-      '<!-- md-notepad voice comments v2 -->',
+      '<!-- md-specpad voice comments v2 -->',
       '## ^cold2',
       '- file: text-files.ts',
       '- line: 4',
@@ -366,7 +366,7 @@ describe('code-review fields', () => {
 
   test('an unknown meta line from a newer build is dropped, not read as transcript', () => {
     const newer = [
-      '<!-- md-notepad voice comments v2 -->',
+      '<!-- md-specpad voice comments v2 -->',
       '## ^cnew1',
       '- file: text-files.ts',
       '- line: 4',
@@ -442,6 +442,32 @@ describe('legacy v1 files', () => {
         quote: '',
         time: '2026-01-01T00:00:00.000Z',
         transcript: '> a v1 body that happens to start with a blockquote\nand continues',
+      },
+    ]);
+  });
+
+  test('a v2 file stamped md-notepad (before the rename) still parses as v2', () => {
+    const text = [
+      '<!-- md-notepad voice comments v2 -->',
+      '',
+      '## ^cabc',
+      '- file: a.md',
+      '- line: 3',
+      '- time: t',
+      '',
+      '> the quoted line',
+      '',
+      'the transcript',
+      '',
+    ].join('\n');
+    expect(parseCommentsFile(text)).toEqual([
+      {
+        id: 'cabc',
+        file: 'a.md',
+        line: 3,
+        quote: 'the quoted line',
+        time: 't',
+        transcript: 'the transcript',
       },
     ]);
   });

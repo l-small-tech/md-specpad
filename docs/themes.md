@@ -246,7 +246,7 @@ Editor font and size as your notes, so Ctrl/Cmd `+` / `-` resizes them too
 
 Coding agents draw their own interface, and most of them ship a dark look by
 default. On a light theme that can mean grey-on-white text until the agent
-learns where it is. md-notepad tells it three ways, all automatically:
+learns where it is. md-specpad tells it three ways, all automatically:
 
 - It answers the **background-color query** (`OSC 11`, and `OSC 10`/`12` for
   the foreground and cursor) with the live theme colors, in xterm's format and
@@ -267,12 +267,12 @@ What each agent does with that, and how to fix it by hand if it guesses wrong:
 | **OpenAI Codex CLI** | Uses `OSC 10` + `OSC 11` only for its input box; the rest of its interface uses your terminal's own colors, so it follows this theme already. | `/theme` changes syntax highlighting only. On Windows it reads the console attributes instead of asking, and can get the input box wrong. |
 | **Gemini CLI** | Polls `OSC 11` and switches between its Default and Default Light themes on its own. | `/theme` → **ANSI Light** to use this theme's palette, or **Default Light**. |
 | **opencode** | The DEC 2031 notification, falling back to `OSC 11`. | `/theme` → **system**, which paints with this theme's ANSI colors. |
-| **Grok CLI** | Your *operating system's* light/dark setting first, then `OSC 11`. md-notepad also sets `GROK_APPEARANCE` so it follows the app's theme rather than the OS's. | `/theme` → a light theme, or run `grok --minimal` for a terminal-native look. |
+| **Grok CLI** | Your *operating system's* light/dark setting first, then `OSC 11`. md-specpad also sets `GROK_APPEARANCE` so it follows the app's theme rather than the OS's. | `/theme` → a light theme, or run `grok --minimal` for a terminal-native look. |
 
 Each of those `/theme` commands is a one-time choice the agent remembers.
 
 A profile's own environment always wins: set `COLORFGBG` (or `GROK_APPEARANCE`)
-in a terminal profile's `env` and md-notepad's hint steps aside.
+in a terminal profile's `env` and md-specpad's hint steps aside.
 
 ### Advanced: the `css` field (optional)
 

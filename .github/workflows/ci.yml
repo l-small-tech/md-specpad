@@ -274,7 +274,7 @@ jobs:
         shell: bash
         run: |
           echo "CARGO_TARGET_DIR=D:/t" >> "$GITHUB_ENV"
-          echo "TAURI_APP_BIN=D:/t/debug/md-notepad.exe" >> "$GITHUB_ENV"
+          echo "TAURI_APP_BIN=D:/t/debug/md-specpad.exe" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
@@ -288,7 +288,7 @@ jobs:
       - run: pnpm run build
 
       # Builds the exe the wdio capabilities point tauri-driver at:
-      # src-tauri/target/debug/md-notepad.exe (see e2e/wdio.conf.ts).
+      # src-tauri/target/debug/md-specpad.exe (see e2e/wdio.conf.ts).
       - name: cargo build (app under test)
         run: cargo build
         working-directory: src-tauri

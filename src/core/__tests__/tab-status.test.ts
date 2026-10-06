@@ -4,13 +4,13 @@ import { splitAgentStatus } from '../tab-status';
 describe('splitAgentStatus', () => {
   it('reads the two states Claude Code actually writes', () => {
     // Idle prefix (also what a finished turn shows).
-    expect(splitAgentStatus('✳ md-notepad')).toEqual({
+    expect(splitAgentStatus('✳ md-specpad')).toEqual({
       cue: { activity: 'ready', glyph: '✳', label: 'Ready' },
-      rest: 'md-notepad',
+      rest: 'md-specpad',
     });
     // The alternating spinner frames while it works.
     for (const glyph of ['◐', '◑']) {
-      expect(splitAgentStatus(`${glyph} md-notepad`).cue?.activity).toBe('working');
+      expect(splitAgentStatus(`${glyph} md-specpad`).cue?.activity).toBe('working');
     }
   });
 

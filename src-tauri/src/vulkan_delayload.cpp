@@ -13,7 +13,7 @@
 // The hook pointers are `const` and defined (null) in delayimp.lib; the
 // definitions here win because build.rs puts this object file itself on the
 // link line, ahead of every library. Verified by the `notify` hook below:
-// with MD_NOTEPAD_NO_VULKAN set, the load is refused before it is
+// with MD_SPECPAD_NO_VULKAN set, the load is refused before it is
 // attempted, so the same unwind path can be exercised on a machine that has
 // the DLL (`cargo test real_model -- --ignored --nocapture`).
 
@@ -40,9 +40,11 @@ FARPROC WINAPI notify_hook(unsigned notification, PDelayLoadInfo info) {
     if (notification == dliNotePreLoadLibrary && is_vulkan(info)) {
         char buf[2];
         // GetEnvironmentVariableA returns the needed length; any non-empty
-        // value means "pretend the DLL is missing".
-        if (GetEnvironmentVariableA("MD_NOTEPAD_NO_VULKAN", buf, sizeof buf) > 0) {
-            throw std::runtime_error("MD_NOTEPAD_NO_VULKAN is set; Vulkan disabled");
+        // value means "pretend the DLL is missing". MD_NOTEPAD_NO_VULKAN is
+        // the name from before the app was renamed to MD Specpad.
+        if (GetEnvironmentVariableA("MD_SPECPAD_NO_VULKAN", buf, sizeof buf) > 0 ||
+            GetEnvironmentVariableA("MD_NOTEPAD_NO_VULKAN", buf, sizeof buf) > 0) {
+            throw std::runtime_error("MD_SPECPAD_NO_VULKAN is set; Vulkan disabled");
         }
     }
     return nullptr;

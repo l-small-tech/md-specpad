@@ -1,5 +1,5 @@
 {
-  "name": "md-notepad",
+  "name": "md-specpad",
   "private": true,
   "version": "0.10.1",
   "description": "A minimal, fast, cross-platform markdown notepad with Notepad-style ephemeral tabs.",

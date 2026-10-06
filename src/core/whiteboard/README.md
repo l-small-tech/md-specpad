@@ -437,7 +437,7 @@ Consequences, all load-bearing:
 - Anything a foreign renderer must honor is **standard SVG**: layer visibility
   is `display`, colors and widths are presentation attributes, layers are
   top-level `<g>`s. Editor-only state uses the `wb:` namespace
-  (`urn:md-notepad:whiteboard`) and a `<metadata><wb:doc>` JSON blob, both of
+  (`urn:md-specpad:whiteboard`) and a `<metadata><wb:doc>` JSON blob, both of
   which every other renderer ignores.
 - **No stacked transforms.** Select/move/resize bake coordinates into the
   element. Hit-testing, foreign-renderer fidelity and the scan pipeline's

@@ -269,7 +269,7 @@ function isHelperWindow(label: string): boolean {
 
 /** Shared construction options so every window looks like the main one. */
 const WINDOW_OPTIONS = {
-  title: 'MD Notepad',
+  title: 'MD Specpad',
   width: 900,
   height: 650,
   minWidth: 400,
@@ -492,7 +492,7 @@ let lastWindowTitle = '';
 // .env.DEV is true here but false in the built release. Tag the window/taskbar
 // title so a dev instance is obvious next to an installed release (the amber
 // icon from tauri.dev.conf.json is the other half of that distinction).
-const APP_NAME = import.meta.env.DEV ? 'MD Notepad Dev' : 'MD Notepad';
+const APP_NAME = import.meta.env.DEV ? 'MD Specpad Dev' : 'MD Specpad';
 
 function applyWindowTitle(): void {
   const active = tabsStore.getState().activeTab();

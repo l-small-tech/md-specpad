@@ -35,7 +35,7 @@ function stabilize(source: string): { first: string; second: string; doc: SceneD
   return { first, second, doc };
 }
 
-const BOARD = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-notepad:whiteboard" viewBox="0 0 1600 1000" width="1600" height="1000">
+const BOARD = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-specpad:whiteboard" viewBox="0 0 1600 1000" width="1600" height="1000">
   <metadata><wb:doc>{"schema":1,"background":"#ffffff","view":{"scale":1.5}}</wb:doc></metadata>
   <rect wb:role="background" x="0" y="0" width="1600" height="1000" fill="#ffffff"/>
   <g wb:layer="a1B2" wb:name="Layer 1">
@@ -55,6 +55,13 @@ describe('a whiteboard we wrote', () => {
   it('is a fixed point of serialization', () => {
     const { first, second } = stabilize(BOARD);
     expect(second).toBe(first);
+  });
+
+  it('reads a board saved before the rename (md-notepad namespace) and rewrites the namespace', () => {
+    const old = BOARD.replace('urn:md-specpad:whiteboard', 'urn:md-notepad:whiteboard');
+    const { first, doc } = stabilize(old);
+    expect(elementCount(doc)).toBe(6);
+    expect(first).toBe(stabilize(BOARD).first);
   });
 
   it('reads back every element with its geometry and style', () => {
@@ -130,7 +137,7 @@ describe('a board written before shape styling', () => {
     '<text class="wb-c0" x="40" y="400" font-size="24" fill="#1a1a1a"><tspan x="40" dy="0">hello</tspan><tspan x="40" dy="1.2em">world</tspan></text>',
   ];
 
-  const LEGACY = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-notepad:whiteboard" viewBox="0 0 1600 1000" width="1600" height="1000">
+  const LEGACY = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-specpad:whiteboard" viewBox="0 0 1600 1000" width="1600" height="1000">
   <g wb:layer="a1B2" wb:name="Layer 1">
     ${LEGACY_ELEMENTS.join('\n    ')}
   </g>
@@ -166,7 +173,7 @@ describe('a board written before shape styling', () => {
 
 describe('shape styling', () => {
   function withShapes(...elements: string[]): string {
-    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-notepad:whiteboard" viewBox="0 0 400 300" width="400" height="300">
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-specpad:whiteboard" viewBox="0 0 400 300" width="400" height="300">
   <g wb:layer="a1B2" wb:name="L">
     ${elements.join('\n    ')}
   </g>
@@ -242,7 +249,7 @@ describe('groups and labels (phase B)', () => {
     '<image wb:id="im1" wb:group="g2" x="0" y="0" width="10" height="10" href="data:image/png;base64,AAAA"/>',
   ];
 
-  const LABELLED = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-notepad:whiteboard" viewBox="0 0 400 300" width="400" height="300">
+  const LABELLED = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-specpad:whiteboard" viewBox="0 0 400 300" width="400" height="300">
   <g wb:layer="a1B2" wb:name="L">
     ${LABELLED_ELEMENTS.join('\n    ')}
   </g>
@@ -535,7 +542,7 @@ describe('connectors (phase D)', () => {
     '<path wb:route="elbow" wb:shape="elbow" class="wb-c0" d="M0,200 L50,200 L50,260 L100,260" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   ];
 
-  const CONNECTED = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-notepad:whiteboard" viewBox="0 0 400 300" width="400" height="300">
+  const CONNECTED = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-specpad:whiteboard" viewBox="0 0 400 300" width="400" height="300">
   <g wb:layer="a1B2" wb:name="L">
     ${CONNECTED_ELEMENTS.join('\n    ')}
   </g>

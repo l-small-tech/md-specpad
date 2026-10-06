@@ -2,7 +2,7 @@
  * Color math for theming — pure, no DOM.
  *
  * Two representations meet here. Theme *files* hold CSS hex strings (that is
- * what a human edits and what md-notepad's format already uses), while the
+ * what a human edits and what md-specpad's format already uses), while the
  * renderer wants 0xRRGGBB numbers (`src/renderer/theme.ts`). Everything in this
  * file works on the numbers; the string form is only the door in and out.
  *

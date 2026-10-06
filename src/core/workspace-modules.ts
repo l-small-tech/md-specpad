@@ -197,7 +197,7 @@ export function composeAgentsFile(
   const base =
     existing && existing.trim() !== ''
       ? existing.replace(/\r\n/g, '\n')
-      : `# ${workspaceName}\n\nInstructions for AI agents working in this folder. Sections between \`module\` markers are managed by md-notepad (Workspace directives…); write your own instructions outside them.\n`;
+      : `# ${workspaceName}\n\nInstructions for AI agents working in this folder. Sections between \`module\` markers are managed by md-specpad (Workspace directives…); write your own instructions outside them.\n`;
 
   const placed = new Set<string>();
   let text = base.replace(BLOCK, (all: string, id: string) => {

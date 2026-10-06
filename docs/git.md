@@ -1,6 +1,6 @@
 # The Git tab
 
-If a workspace is a git repository, MD Notepad can show you its source
+If a workspace is a git repository, MD Specpad can show you its source
 control in a tab of its own: what changed, what is committed, which branches
 and worktrees exist, and the buttons to move work along. It is built for
 working with AI agents — several of them at once, each in its own worktree —

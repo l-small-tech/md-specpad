@@ -1,13 +1,13 @@
 //! Windows only: start and stop Windows voice typing for voice notes by
 //! pressing Win+H on the user's behalf.
 //!
-//! Why not `Windows.Media.SpeechRecognition`: md-notepad installs without
+//! Why not `Windows.Media.SpeechRecognition`: md-specpad installs without
 //! package identity, and for such an app Windows opens the microphone for the
 //! speech runtime but hands the recognizer silence — with both the online and
 //! the offline engine — so every note came back empty. Voice typing is the
 //! shell's own dictation: it types what the user says into the focused text
 //! field (the voice-note sheet focuses its draft box first), uses Microsoft's
-//! online recognizer, and needs no package identity. md-notepad never touches
+//! online recognizer, and needs no package identity. md-specpad never touches
 //! the audio.
 //!
 //! Win+H is a toggle: the first press opens the voice-typing bar and starts

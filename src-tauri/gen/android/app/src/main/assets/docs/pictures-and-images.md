@@ -1,6 +1,6 @@
 # Pictures in your notes
 
-A note can include images — screenshots, photos, diagrams — and MD Notepad
+A note can include images — screenshots, photos, diagrams — and MD Specpad
 handles the fiddly parts for you.
 
 ## Adding a picture
@@ -49,5 +49,5 @@ is made.
 ## Viewing image files
 
 Click an image file in the sidebar (or drop one on the window) and it opens
-in its own tab as a viewer. Image tabs are display-only — MD Notepad never
+in its own tab as a viewer. Image tabs are display-only — MD Specpad never
 edits your pictures.

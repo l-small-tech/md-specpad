@@ -1,7 +1,7 @@
-﻿MD Notepad — third-party notices
+﻿MD Specpad — third-party notices
 =================================
 
-MD Notepad is licensed GPL-3.0-only (see LICENSE). It bundles the
+MD Specpad is licensed GPL-3.0-only (see LICENSE). It bundles the
 third-party components below. The Rust binary additionally statically
 links crates from the Tauri 2 ecosystem (tauri and official plugins,
 serde, thiserror, tempfile and their dependencies), all available under
@@ -6201,7 +6201,7 @@ Redistribution and use in source and binary forms, with or without modification,
 This software is provided by the copyright holders and contributors â€œas isâ€ and any express or implied warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are disclaimed. In no event shall the copyright owner or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this software, even if advised of the possibility of such damage.
 
 
-md-notepad 0.1.0
+md-specpad 0.1.0
 UNLICENSED
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007

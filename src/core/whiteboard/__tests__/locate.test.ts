@@ -22,7 +22,7 @@ import {
 import { parseWhiteboardWithSpans } from '../parse';
 import { serializeWhiteboard } from '../serialize';
 
-const BOARD = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-notepad:whiteboard" viewBox="0 0 800 600" width="800" height="600">
+const BOARD = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-specpad:whiteboard" viewBox="0 0 800 600" width="800" height="600">
   <metadata><wb:doc>{"schema":1,"background":"#ffffff"}</wb:doc></metadata>
   <rect wb:role="background" x="0" y="0" width="800" height="600" fill="#ffffff"/>
   <g wb:layer="a1B2" wb:name="Layer 1">
@@ -133,7 +133,7 @@ describe('ref ⇄ source', () => {
 
   it('prefers containment when two elements share a line', () => {
     const packed =
-      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-notepad:whiteboard" viewBox="0 0 10 10">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-specpad:whiteboard" viewBox="0 0 10 10">' +
       '<g wb:layer="L1"><rect x="0" y="0" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/></g>' +
       '</svg>';
     const packedSpans = sourceSpans(packed)!;

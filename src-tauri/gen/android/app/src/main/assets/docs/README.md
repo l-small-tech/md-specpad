@@ -1,6 +1,6 @@
-# Welcome to MD Notepad
+# Welcome to MD Specpad
 
-MD Notepad is a small, fast notepad for **markdown** — plain text with simple
+MD Specpad is a small, fast notepad for **markdown** — plain text with simple
 symbols for formatting (like `**bold**` or `# Heading`). Don't worry if you've
 never used markdown: the app can show you the polished result while you type,
 and this guide covers everything.
@@ -33,7 +33,7 @@ Read these in order the first time, or jump straight to what you need:
 
 ## About this documentation
 
-You're reading these pages inside MD Notepad itself, in the **Documentation**
+You're reading these pages inside MD Specpad itself, in the **Documentation**
 workspace in the sidebar. They are read-only — you can read them but not
 change them — so they'll always match the app. Click any page in the sidebar
 to open it. When you're done, you can close the tabs like any other; the

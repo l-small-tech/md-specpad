@@ -177,7 +177,7 @@ export async function openPresenterView(tabId: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const w = new WebviewWindow(PRESENTER_LABEL, {
         url: 'index.html?presenter=1',
-        title: 'Presenter view — MD Notepad',
+        title: 'Presenter view — MD Specpad',
         width: 1100,
         height: 680,
         minWidth: 560,
