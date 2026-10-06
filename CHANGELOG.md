@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+## [0.10.4] — 2026-10-05
+
 - Git tab: the three Staged / Changes / Untracked lists are now one list of every file changed since the last commit, with a checkbox per row that shows and sets whether it is staged. The commit box sits above the list so it never gets pushed down.
 - Git tab: the history graph keeps the checked-out branch and the base branch in the two leftmost lanes, so main no longer drifts to the far right behind feature lines.
 

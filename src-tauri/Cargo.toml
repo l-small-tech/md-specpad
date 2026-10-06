@@ -1,6 +1,6 @@
 [package]
 name = "md-specpad"
-version = "0.10.3"
+version = "0.10.4"
 description = "A minimal, fast, cross-platform markdown notepad with Notepad-style ephemeral tabs."
 license = "GPL-3.0-only"
 edition = "2021"

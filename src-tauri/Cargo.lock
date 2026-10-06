@@ -2420,7 +2420,7 @@ dependencies = [
 
 [[package]]
 name = "md-specpad"
-version = "0.10.3"
+version = "0.10.4"
 dependencies = [
  "base64 0.22.1",
  "cc",
