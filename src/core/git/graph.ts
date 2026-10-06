@@ -155,6 +155,10 @@ export function layoutGraph(
   for (const commit of commits) {
     const edges: GraphEdge[] = [];
     const topWidth = lastUsed();
+    // Which lanes were already heading for this commit: those draw a line
+    // in from the row's top. A lane opened for the commit itself does not —
+    // a branch tip starts its line at the node, nothing hangs above it.
+    const arriving = lanes.map((l) => l.awaiting === commit.sha);
 
     // Where the node goes: a trunk commit sits in its reserved lane; any
     // other in the first lane awaiting it, else a free one.
@@ -180,7 +184,9 @@ export function layoutGraph(
         return;
       }
       if (l.awaiting === commit.sha) {
-        edges.push({ kind: 'in', lane: i, color: l.color });
+        if (arriving[i] === true) {
+          edges.push({ kind: 'in', lane: i, color: l.color });
+        }
         if (i !== nodeLane) {
           lanes[i] = FREE;
         }

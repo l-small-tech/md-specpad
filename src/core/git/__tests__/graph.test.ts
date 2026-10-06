@@ -22,6 +22,8 @@ describe('layoutGraph', () => {
     expect(rows.map((r) => r.lane)).toEqual([0, 0, 0]);
     expect(rows.map((r) => r.color)).toEqual([0, 0, 0]);
     expect(rows.map((r) => r.width)).toEqual([1, 1, 1]);
+    // The tip starts its line at the node — nothing drawn above it.
+    expect(kinds(rows[0]!.edges, 'in')).toEqual([]);
     // a → b continues; b → c continues; the root ends its lane.
     expect(kinds(rows[0]!.edges, 'out')).toEqual([0]);
     expect(kinds(rows[2]!.edges, 'out')).toEqual([]);
@@ -123,6 +125,14 @@ describe('layoutGraph with trunks', () => {
     expect(kinds(rows[0]!.edges, 'out')).toEqual([0, 1]);
     // m keeps the colour the merge edge opened with — one continuous line.
     expect(rows[2]!.color).toBe(rows[0]!.edges.find((e) => e.lane === 1)!.color);
+  });
+
+  it('a trunk tip nothing points at has no line above it; one a merge reaches does', () => {
+    const rows = layoutGraph([c('x', ['t']), c('m', ['m0', 't']), c('t'), c('m0')], ['x', 'm']);
+    expect(rows[1]).toMatchObject({ lane: 1 });
+    expect(kinds(rows[1]!.edges, 'in')).toEqual([]);
+    // m0 is awaited by lane 1 (m's first parent): the line comes in from the top.
+    expect(kinds(rows[3]!.edges, 'in')).toEqual([1]);
   });
 
   it('a trunk whose tip is already on another trunk reserves nothing', () => {
