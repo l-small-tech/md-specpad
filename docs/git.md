@@ -39,11 +39,14 @@ branch, a dot when one of this window's terminals is standing inside it, and
 chips for *merging*, *missing* or *locked*. The actions appear on the card
 you hover or have selected; the dashed card at the end is **New worktree**.
 
-**Changes**, on the left: staged, unstaged and untracked files in three
-groups. Hover a row for stage / unstage / discard / open; the group headers
-stage or unstage everything at once. Click a row to see its diff. Below the
-groups: the commit message box (Ctrl+Enter commits), an **Amend** switch,
-and **Commit**. When Commit is disabled, its tooltip says why. A **Merge
+**Changes**, on the left: the commit message box (Ctrl+Enter commits), an
+**Amend** switch and **Commit** on top, then one list of every file that
+differs from the last commit. Each row's checkbox is its staging state
+(ticked = staged, half = partly staged, empty = not staged) and the way to
+change it; the header's **Stage all** / **Unstage all** do the whole list.
+Untracked files show a `?` and a dimmed name. Hover a row to discard its
+changes (or delete an untracked file); click it to see its diff against the
+last commit. When Commit is disabled, its tooltip says why. A **Merge
 conflicts** group appears above when a merge stops on conflicts.
 
 **History**, on the right: the whole repository's commits as a graph, newest

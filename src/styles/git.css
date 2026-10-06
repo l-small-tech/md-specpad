@@ -609,6 +609,50 @@
   gap: 8px;
 }
 
+/* The flat change list: the checkbox is the staging state AND the control;
+   a hairline at the row's left edge repeats it in the worktree cards' dirty
+   colours (staged / changed / untracked), so a glance reads the list. */
+.git-change-row {
+  padding-left: 8px;
+  gap: 6px;
+}
+
+.git-change-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--git-unstaged);
+}
+
+.git-change-row.is-staged::before {
+  background: var(--git-staged);
+}
+
+.git-change-row.is-partial::before {
+  background: linear-gradient(var(--git-staged) 50%, var(--git-unstaged) 50%);
+}
+
+.git-change-row.is-untracked::before {
+  background: var(--git-untracked);
+}
+
+.git-change-row.is-untracked .git-path-name {
+  color: var(--fg-muted);
+}
+
+.git-stage-box {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* ---- conflicts --------------------------------------------------------- */
 
 .git-conflicts .git-section-head {

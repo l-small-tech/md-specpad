@@ -56,6 +56,8 @@ export function diffLabels(
           return { left: '(none)', right: 'Working tree' };
         case 'conflicted':
           return { left: 'HEAD', right: 'Working tree (with markers)' };
+        case 'changed':
+          return { left: 'HEAD', right: 'Working tree' };
       }
       break;
     case 'commit':

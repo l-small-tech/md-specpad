@@ -34,6 +34,10 @@ describe('diff-text', () => {
       left: '(none)',
       right: 'Working tree',
     });
+    expect(diffLabels({ kind: 'file', group: 'changed', path: 'x' })).toEqual({
+      left: 'HEAD',
+      right: 'Working tree',
+    });
     expect(diffLabels({ kind: 'file', group: 'conflicted', path: 'x' })).toEqual({
       left: 'HEAD',
       right: 'Working tree (with markers)',

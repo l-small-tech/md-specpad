@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   dirtyCount,
+  flattenStatus,
   groupStatus,
   isTreeClean,
   mergingInto,
@@ -55,6 +56,35 @@ describe('groupStatus', () => {
     const groups = groupStatus([entry('x.md', '?', '?', 'untracked'), entry('y.md', '?', '?')]);
     expect(groups.untracked.map((e) => e.path)).toEqual(['x.md', 'y.md']);
     expect(groups.staged).toEqual([]);
+  });
+});
+
+describe('flattenStatus', () => {
+  test('one row per path, sorted, with its staging state and the working-tree letter first', () => {
+    const rows = flattenStatus([
+      entry('z-both.ts', 'M', 'M'),
+      entry('staged.ts', 'A', '.'),
+      entry('changed.ts', '.', 'M'),
+      entry('gone.ts', 'M', 'D'),
+      entry('new.md', '?', '?', 'untracked'),
+    ]);
+    expect(rows.map((r) => [r.entry.path, r.state, r.letter])).toEqual([
+      ['changed.ts', 'unstaged', 'M'],
+      ['gone.ts', 'partial', 'D'],
+      ['new.md', 'untracked', '?'],
+      ['staged.ts', 'staged', 'A'],
+      ['z-both.ts', 'partial', 'M'],
+    ]);
+  });
+
+  test('conflicted entries are left to the conflicts section; clean ones are dropped', () => {
+    const rows = flattenStatus([
+      entry('a.ts', 'U', 'U', 'unmerged'),
+      entry('b.ts', '.', '.'),
+      entry('c.ts', 'R', '.', 'renamed', 'old.ts'),
+    ]);
+    expect(rows.map((r) => r.entry.path)).toEqual(['c.ts']);
+    expect(rows[0]!.entry.origPath).toBe('old.ts');
   });
 });
 
