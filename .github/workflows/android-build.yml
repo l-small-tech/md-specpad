@@ -27,7 +27,12 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # The action's default `packages` is "tools platform-tools", and the
+      # legacy `tools` package is gone from cmdline-tools 16.0's repository:
+      # sdkmanager exits 1 and the job died here every week since 2026-09-21.
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
 
       - name: Install NDK
         run: sdkmanager "ndk;27.0.12077973"
@@ -42,6 +47,12 @@ jobs:
           key: android-apk
 
       - run: pnpm install --frozen-lockfile
+
+      # Same stale-cache guard as android-check in ci.yml: a cached
+      # CMakeCache.txt naming another compiler makes CMake drop
+      # whisper-rs-sys's -D defines and fail on the missing tests/ dir.
+      - name: Drop stale whisper.cpp CMake caches
+        run: rm -f src-tauri/target/*/*/build/whisper-rs-sys-*/out/build/CMakeCache.txt
 
       - name: Build debug APK
         run: pnpm tauri android build --debug --apk --target aarch64

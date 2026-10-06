@@ -216,6 +216,15 @@ jobs:
             } >> "$GITHUB_ENV"
           done
 
+      # rust-cache restores whisper.cpp's CMake build dir. If the cached
+      # CMakeCache.txt names a different compiler, CMake deletes the cache and
+      # re-configures WITHOUT whisper-rs-sys's -D defines — WHISPER_BUILD_TESTS
+      # and _EXAMPLES fall back to ON and configure dies on the tests/ and
+      # examples/ dirs the crate doesn't ship (v0.10.0). Drop just the cache
+      # file: configure starts clean, make still reuses the cached objects.
+      - name: Drop stale whisper.cpp CMake caches
+        run: rm -f src-tauri/target/*/*/build/whisper-rs-sys-*/out/build/CMakeCache.txt
+
       # `cargo build --lib`, not `cargo check`: a check never LINKS, and the
       # whisper ABI mismatch that broke the v0.8.0 APK is a link-time error.
       # The link args are the ones tauri's own android build passes.
