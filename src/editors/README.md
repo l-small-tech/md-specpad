@@ -138,9 +138,14 @@ tint it with `.heading-mark .heading-mark-<mark>` (app.css).
   through `crepe.editor.use`): a ProseMirror plugin with node decorations
   and the same menu; it replaces only the glyph tail with an unmarked text
   node and is NOT tagged programmatic, so the guard writes it back.
-- `heading-mark-menu.ts` is the shared menu, built on
-  `whiteboard-menu.ts`'s `openContextMenu`. Only heading right-clicks are
-  taken; everywhere else the native copy/paste menu stays.
+- `heading-mark-menu.ts` is the shared menu. On Windows it does NOT cancel
+  the native menu (that would hide the spell checker's suggestions, which no
+  web API exposes): it stashes the items on `window.__mdSpecpadNativeMenu`
+  and `src-tauri/src/native_menu.rs` appends them to WebView2's menu under a
+  deferral, calling `select(id)` on a pick. A capture-phase `contextmenu`
+  listener clears the stash on every right-click. Other platforms cancel the
+  native menu and open `whiteboard-menu.ts`'s `openContextMenu` instead. Only
+  heading right-clicks are touched; everywhere else the native menu stays.
 - `heading-fold-cm6.ts` (markdown only, behind the `collapsibleHeadings`
   setting via a Compartment in `cm6.ts`): CM6's `codeFolding` + `foldGutter`
   + `foldKeymap` — the markdown grammar's own fold service already folds a

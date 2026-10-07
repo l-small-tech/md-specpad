@@ -3,8 +3,9 @@
  *
  * - A line decoration tints every ATX heading that ends in a mark glyph
  *   (`core/heading-mark.ts`), so a running or complete section stands out.
- * - Right-clicking a heading line opens the mark menu instead of the native
- *   one and rewrites just that line — an ordinary user edit, so it lands in
+ * - Right-clicking a heading line offers the mark menu (folded into the
+ *   native one on Windows, so spelling suggestions stay; see
+ *   `heading-mark-menu.ts`) and rewrites just that line — an ordinary user edit, so it lands in
  *   undo history and writes back to the model like typing would.
  *
  * Heading detection goes through the markdown syntax tree, never a regex
@@ -93,8 +94,7 @@ const menu = EditorView.domEventHandlers({
     if (!parsed || !isAtxHeadingLine(view.state, line)) {
       return false;
     }
-    event.preventDefault();
-    openHeadingMarkMenu(parsed.mark, event.clientX, event.clientY, (mark) => {
+    return openHeadingMarkMenu(parsed.mark, event, (mark) => {
       // Re-read: the document may have changed while the menu was open.
       const current = view.state.doc.lineAt(Math.min(line.from, view.state.doc.length));
       const next = setHeadingLineMark(current.text, mark);
@@ -105,7 +105,6 @@ const menu = EditorView.domEventHandlers({
         });
       }
     });
-    return true;
   },
 });
 

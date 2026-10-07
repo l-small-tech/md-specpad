@@ -1108,6 +1108,13 @@ body.tab-drag-live * {
   display: none;
 }
 
+/* A git tab keeps its status bar while chrome-less: the bar IS the tool's
+   toolbar there (branch picker, Fetch / Pull / Push), not document chrome, and
+   the git tab has nowhere else to put them. */
+.app-fullscreen[data-tab-kind='git'] .statusbar {
+  display: flex;
+}
+
 /* A small DESKTOP cluster tucked just above the top-center edge that slides
    down when the pointer nears the top. Reveal is JS-driven (App toggles
    `is-revealed`) so the cluster survives the pointer overshooting the top edge

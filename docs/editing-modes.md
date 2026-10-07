@@ -47,7 +47,8 @@ other modes.
 In Raw, Split or Edit mode, right-click any heading (`#` through `######`)
 and choose **Mark running**, **Mark complete** or **Clear mark**. Handy for
 keeping track of which sections of a plan or task list are under way and
-which are done.
+which are done. On Windows these sit at the bottom of the usual right-click
+menu, so spelling suggestions for a misspelled heading word still show.
 
 A running heading gets an amber bar down its left edge; a complete one gets
 a green bar. The mark is saved in the file itself, as a ⏳ or ✅ at the end of

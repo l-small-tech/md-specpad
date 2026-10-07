@@ -1049,12 +1049,41 @@
 /* ---- worktree strip: one card per checkout ------------------------------- */
 
 .git-strip {
+  display: flex;
+  align-items: stretch;
   flex: 0 0 auto;
   background: var(--bg-alt);
   border-bottom: 1px solid var(--border);
 }
 
+/* The ribbon's ⤢ for a tab that has no ribbon: flush right of the cards,
+   outside the scroll row so it never scrolls away. */
+.git-strip-fullscreen {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  margin: 8px 8px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.git-strip-fullscreen:hover,
+.git-strip-fullscreen:focus-visible {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
 .git-strip-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: stretch;
   gap: 8px;

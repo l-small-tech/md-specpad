@@ -153,8 +153,10 @@ export function App() {
           below stays interactive. In Review mode it's tall (~3 lines of top
           whitespace); in edit modes it's titlebar-height so it doesn't swallow the
           first editor lines. Android has no draggable OS window, and a fullscreen
-          window has nowhere to go, so it's desktop-and-windowed only. */}
-      {distractionFree && !osFullscreen && !isAndroid() && (
+          window has nowhere to go, so it's desktop-and-windowed only. The git
+          tab's header is its own drag region (WorktreeStrip): the strip would
+          lie exactly on the worktree cards' top line and take their clicks. */}
+      {distractionFree && !osFullscreen && !isAndroid() && !toolActive && (
         <div
           className={`fullscreen-drag-strip${activeMode === 'read' ? ' fullscreen-drag-strip-read' : ''}`}
           data-tauri-drag-region=""
