@@ -37,6 +37,7 @@ export type IconName =
   | 'cloud'
   | 'arrow-up'
   | 'arrow-down'
+  | 'filter'
   | 'more';
 
 const PATHS: Record<IconName, ReactNode> = {
@@ -164,6 +165,7 @@ const PATHS: Record<IconName, ReactNode> = {
   cloud: <path d="M5 12.5h6.5a2.5 2.5 0 0 0 .3-5 3.5 3.5 0 0 0-6.8-.8A3 3 0 0 0 5 12.5z" />,
   'arrow-up': <path d="M8 13V3m0 0L4.5 6.5M8 3l3.5 3.5" />,
   'arrow-down': <path d="M8 3v10m0 0l-3.5-3.5M8 13l3.5-3.5" />,
+  filter: <path d="M2.5 3.5h11L9.5 8.5v4l-3 1.5v-5.5z" />,
   more: (
     <>
       <circle cx="4" cy="8" r="1.1" fill="currentColor" stroke="none" />

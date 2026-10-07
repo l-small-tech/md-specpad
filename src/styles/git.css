@@ -1124,16 +1124,27 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* The ribbon's ⤢ for a tab that has no ribbon: flush right of the cards,
-   outside the scroll row so it never scrolls away. */
-.git-strip-fullscreen {
+/* The strip's own buttons — the active-only filter and the ribbon's ⤢ for
+   a tab that has no ribbon — flush right of the cards, outside the scroll
+   row so they never scroll away. */
+.git-strip-tools {
   flex: 0 0 auto;
-  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 8px 8px 0 0;
+}
+
+.git-strip-tool {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
-  margin: 8px 8px 0 0;
   padding: 0;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--fg-muted);
@@ -1141,12 +1152,44 @@
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
-.git-strip-fullscreen:hover,
-.git-strip-fullscreen:focus-visible {
+.git-strip-tool:hover,
+.git-strip-tool:focus-visible {
   background: var(--bg-hover);
   color: var(--fg);
+}
+
+.git-strip-filter .git-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Lit while the clean cards are tucked away, like the pane toggle below. */
+.git-strip-filter.is-on {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 45%, transparent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+/* How many cards the funnel is holding back. */
+.git-strip-filter-n {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
 }
 
 .git-strip-scroll {
@@ -1211,6 +1254,34 @@
   justify-content: center;
   color: var(--fg-muted);
   cursor: default;
+}
+
+/* The tally standing in for the clean cards the filter hides: a slim,
+   dashed ghost that reads as "there is more", and brings it back on click. */
+.git-card-hidden {
+  width: auto;
+  min-width: 56px;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  border-style: dashed;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 11px;
+}
+
+.git-card-hidden-n {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  font-family: var(--font-mono);
+}
+
+.git-card-hidden:hover,
+.git-card-hidden:focus-visible {
+  color: var(--fg);
+  border-style: solid;
 }
 
 /* The accent stripe down the left of the selected card. */

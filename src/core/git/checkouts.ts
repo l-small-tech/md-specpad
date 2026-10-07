@@ -113,6 +113,26 @@ export function pickSelected(
   return (checkouts.find((c) => c.isMain) ?? checkouts[0])?.path ?? '';
 }
 
+/**
+ * Whether a checkout is ACTIVE — worth a card while the strip hides the
+ * clean ones. The main checkout always is (it is the repository); so is a
+ * checkout nobody has summarised yet (hiding it would be a guess), one whose
+ * folder is gone (something to clean up), one with uncommitted changes or an
+ * operation in progress, and one a terminal of this window stands in. Being
+ * merely ahead of the base is not enough: that is finished work waiting to
+ * be merged, which is what Finish… is for, not something to watch.
+ */
+export function isActiveCheckout(checkout: GitCheckout, terminalInside: boolean): boolean {
+  if (checkout.isMain || terminalInside) {
+    return true;
+  }
+  const s = checkout.summary;
+  if (s === null) {
+    return true;
+  }
+  return s.missing || s.state !== 'clean' || s.staged + s.unstaged + s.untracked + s.conflicted > 0;
+}
+
 /** A terminal tab as this module sees it. */
 export interface TerminalCwd {
   id: string;

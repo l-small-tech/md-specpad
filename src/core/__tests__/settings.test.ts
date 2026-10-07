@@ -118,6 +118,7 @@ describe('normalizeSettings', () => {
       hideUnsupportedDirs: ['C:/work/proj/bin'],
       showHiddenFiles: true,
       reviewBaseBranch: '',
+      gitActiveWorktreesOnly: false,
       scanPreset: 'balanced',
       scanSmoothing: 'precise',
       schemaVersion: SETTINGS_SCHEMA,

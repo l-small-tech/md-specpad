@@ -2,11 +2,12 @@ import { describe, expect, test } from 'vitest';
 import {
   buildCheckouts,
   extraGitWatchDirs,
+  isActiveCheckout,
   isInsideCheckout,
   pickSelected,
   terminalsInside,
 } from '../checkouts';
-import type { GitWorktreeSummary } from '../types';
+import type { GitCheckout, GitWorktreeSummary } from '../types';
 
 const summary = (path: string, branch: string | null, isMain = false): GitWorktreeSummary => ({
   path,
@@ -111,5 +112,37 @@ describe('extraGitWatchDirs', () => {
     ];
     expect(extraGitWatchDirs(repos, ['C:/repo'])).toEqual(['D:/wt/x', 'E:/other']);
     expect(extraGitWatchDirs(repos, ['C:/', 'D:/wt', 'E:/other'])).toEqual([]);
+  });
+});
+
+describe('isActiveCheckout', () => {
+  const checkout = (over: Partial<GitWorktreeSummary> | null, isMain = false): GitCheckout => ({
+    path: 'C:/repo/worktrees/a',
+    branch: 'feat/a',
+    head: 'abc',
+    isMain,
+    summary:
+      over === null ? null : { ...summary('C:/repo/worktrees/a', 'feat/a', isMain), ...over },
+  });
+
+  test('a clean linked worktree with no terminal is not active', () => {
+    expect(isActiveCheckout(checkout({}), false)).toBe(false);
+    // Ahead of the base is finished work, not activity.
+    expect(isActiveCheckout(checkout({ ahead: 3, behind: 1 }), false)).toBe(false);
+  });
+
+  test('the main checkout, an unsummarised one, and one with a terminal always are', () => {
+    expect(isActiveCheckout(checkout({}, true), false)).toBe(true);
+    expect(isActiveCheckout(checkout(null), false)).toBe(true);
+    expect(isActiveCheckout(checkout({}), true)).toBe(true);
+  });
+
+  test('anything dirty, mid-operation, or missing is active', () => {
+    expect(isActiveCheckout(checkout({ untracked: 1 }), false)).toBe(true);
+    expect(isActiveCheckout(checkout({ staged: 2 }), false)).toBe(true);
+    expect(isActiveCheckout(checkout({ unstaged: 1 }), false)).toBe(true);
+    expect(isActiveCheckout(checkout({ conflicted: 1 }), false)).toBe(true);
+    expect(isActiveCheckout(checkout({ state: 'merging' }), false)).toBe(true);
+    expect(isActiveCheckout(checkout({ missing: true }), false)).toBe(true);
   });
 });
