@@ -224,8 +224,13 @@ A **harness** is a terminal coding agent — the thing the new-tab menu's
 
 A harness tab renders a touch larger than your notes — two pixels over the
 editor's font size — since an agent's output is mostly read, not typed. It
-still follows Ctrl+= / Ctrl+-. (The **AI theme** button in ☰ Menu → Themes
-opens the same harness, in your themes folder.)
+still follows Ctrl+= / Ctrl+-. (**Open harness here** in ☰ Menu → Themes
+opens the same harness in your themes folder, and **Open harness in docs** in
+☰ Menu → Help opens it in this user guide's folder.)
+
+The app only ever *opens* a harness — in effect a `cd` into the folder and
+then the harness's own command. It never types a prompt into it or adds flags
+of its own; what the harness does next is up to you.
 
 ## Notes folder
 

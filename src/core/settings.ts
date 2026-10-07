@@ -9,7 +9,7 @@
  */
 
 import {
-  AI_THEME_PROFILE_ID,
+  LEGACY_AI_THEME_PROFILE_ID,
   HARNESS_IDS,
   HARNESS_PROFILE_ID,
   LEGACY_HARNESS_PROFILE_ID,
@@ -152,60 +152,6 @@ export function resolvedHarness(settings: Settings): HarnessId | 'custom' {
  */
 export function pickDefaultHarness(isInstalled: (id: HarnessId) => boolean): HarnessId | null {
   return HARNESS_IDS.find(isInstalled) ?? null;
-}
-
-/**
- * The opening prompt the "AI theme" terminal hands the agent, so the session
- * starts with the AGENT asking the user what to change. It points at the
- * AGENTS.md the app writes into the themes folder
- * (ipc/theme-loader.ts `ensureThemesAgentGuide`) — explicit, because only
- * some agents read that file on their own.
- */
-const AI_THEME_PROMPT =
-  'Read the AGENTS.md file in the current directory before doing anything else — ' +
-  "it explains this app's theme files and rules. Then ask me what changes I'd " +
-  'like to make to the themes, and edit the theme files here to match.';
-
-/**
- * The agent's launch args for the AI-theme session. Both agents are pinned to
- * a mid-tier model at low reasoning effort by default — theme edits are small
- * JSON changes, so this keeps the button cheap to press without dropping to a
- * model too small to follow the guide; the user can always `/model` up
- * mid-session.
- */
-function aiThemeArgs(agent: HarnessId | 'custom'): string[] {
-  switch (agent) {
-    case 'claude':
-      return ['--model', 'sonnet', '--effort', 'low', AI_THEME_PROMPT];
-    case 'chatgpt':
-      return ['-m', 'gpt-5-codex', '-c', 'model_reasoning_effort=low', AI_THEME_PROMPT];
-    case 'gemini':
-      // The Gemini CLI only starts INTERACTIVE with an opening prompt behind
-      // `-i`; a positional prompt would run headless and exit.
-      return ['-m', 'gemini-2.5-flash', '-i', AI_THEME_PROMPT];
-    case 'grok':
-      // The Grok CLI's `-p` is headless, so the prompt goes positionally the
-      // way Claude's does and the session stays interactive.
-      return ['--model', 'grok-code-fast-1', AI_THEME_PROMPT];
-    case 'copilot':
-      // Copilot CLI has no way to open its TUI with a prompt: `-p` runs
-      // headless and exits, a positional argument is not a prompt, and an
-      // `--initial-prompt` flag was declined upstream (github/copilot-cli
-      // #2028). So it starts empty — it reads the folder's AGENTS.md on its
-      // own, so the guide still reaches it — pinned to its cheapest model
-      // (`copilot --model claude-haiku-4.5`, the docs' own example).
-      return ['--model', 'claude-haiku-4.5'];
-    case 'opencode':
-      // opencode's `--prompt` is a flag of the TUI command and keeps the
-      // session interactive (`opencode run` is the headless one). No model
-      // pin: its ids are `provider/model`, and which providers the user has
-      // configured is unknowable here — the wrong one fails to start.
-      return ['--prompt', AI_THEME_PROMPT];
-    case 'custom':
-      // An unknown CLI: no model flags to pin — just hand it the prompt and
-      // hope it takes an opening argument the way the known agents do.
-      return [AI_THEME_PROMPT];
-  }
 }
 
 /**
@@ -745,43 +691,48 @@ export function normalizeSettings(raw: unknown): Settings {
 // Keyed by agent id — for 'custom', with the command line folded in, so an
 // edited command yields a NEW profile identity (TerminalPane re-applies).
 const HARNESS_PROFILES = new Map<string, TerminalProfile>();
-const AI_THEME_PROFILES = new Map<string, TerminalProfile>();
 
 /**
  * The profile with this id, or the default one, or the first that exists.
  * `HARNESS_PROFILE_ID` is virtual: unless the user shadowed it with a real
  * profile of that id, it resolves to the configured harness's command. The
- * pre-rename id (`LEGACY_HARNESS_PROFILE_ID`) means the same thing, so a
- * terminal snapshot written by an older build restores its harness pane.
+ * pre-rename id (`LEGACY_HARNESS_PROFILE_ID`) and the retired AI-theme id
+ * (`LEGACY_AI_THEME_PROFILE_ID`) mean the same thing, so a terminal snapshot
+ * written by an older build restores a plain harness pane.
+ *
+ * The harness is launched with the user's own command line and NOTHING else:
+ * no opening prompt, no model or effort flags. The app opens TUIs; it never
+ * feeds them input.
  */
 export function resolveTerminalProfile(settings: Settings, id?: string): TerminalProfile {
   const byId = id ? settings.terminalProfiles.find((p) => p.id === id) : undefined;
   if (byId) {
     return byId;
   }
-  const harnessProfile = id === HARNESS_PROFILE_ID || id === LEGACY_HARNESS_PROFILE_ID;
-  if (harnessProfile || id === AI_THEME_PROFILE_ID) {
+  if (
+    id === HARNESS_PROFILE_ID ||
+    id === LEGACY_HARNESS_PROFILE_ID ||
+    id === LEGACY_AI_THEME_PROFILE_ID
+  ) {
     const agentId = resolvedHarness(settings);
-    const cache = harnessProfile ? HARNESS_PROFILES : AI_THEME_PROFILES;
-    const key = agentId === 'custom' ? `custom ${settings.harnessCustomCommand}` : agentId;
-    let profile = cache.get(key);
+    const key = agentId === 'custom' ? `custom ${settings.harnessCustomCommand}` : agentId;
+    let profile = HARNESS_PROFILES.get(key);
     if (!profile) {
       const custom = agentId === 'custom' ? parseCommandLine(settings.harnessCustomCommand) : null;
       const name = custom ? harnessName(settings) : HARNESSES[agentId as HarnessId].name;
       const program = custom ? custom.program : HARNESSES[agentId as HarnessId].program;
-      const baseArgs = custom ? custom.args : [];
       profile = {
-        id,
-        name: harnessProfile ? name : 'AI theme',
+        id: HARNESS_PROFILE_ID,
+        name,
         // An empty custom command leaves program undefined → the plain shell,
         // which surfaces the misconfiguration without crashing the spawn.
         ...(program !== undefined ? { program } : {}),
-        args: harnessProfile ? baseArgs : [...baseArgs, ...aiThemeArgs(agentId)],
+        args: custom ? custom.args : [],
         env: {},
         // Slightly larger cells than the editor (see HARNESS_FONT_SIZE_DELTA).
         fontSizeDelta: HARNESS_FONT_SIZE_DELTA,
       };
-      cache.set(key, profile);
+      HARNESS_PROFILES.set(key, profile);
     }
     return profile;
   }

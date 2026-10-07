@@ -72,6 +72,7 @@ import {
   setPasteEntryDispatch,
   setMoveTabToNewWindowDispatch,
   setMoveTabToWindowDispatch,
+  setDocsDirDispatch,
   setOpenDocsDispatch,
   setOpenExportPreviewDispatch,
   setOpenExportPreviewForFileDispatch,
@@ -128,6 +129,7 @@ export {
   enrichCopiedText,
   getCursor,
   getDefaultWorkspacePath,
+  getDocsDir,
   importDocumentInto,
   importFilesInto,
   insertFileLink,
@@ -391,6 +393,7 @@ export function createSessionController(deps: SessionControllerDeps): SessionCon
   setAddCloudWorkspaceDispatch(() => void workspaces.addCloudWorkspaceFromDialog());
   setRemoveSyncedWorkspaceDispatch((path) => void workspaces.removeSyncedWorkspace(path));
   setOpenDocsDispatch((page) => void workspaces.openDocsWorkspace(page));
+  setDocsDirDispatch(() => ctx.deps.docsDir ?? null);
   setImportFilesDispatch(importImages.importFiles);
   setImportDocumentDispatch(importImages.importDocument);
   setImportStatusDispatch(importImages.importStatusFor);

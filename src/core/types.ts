@@ -345,12 +345,13 @@ export const HARNESS_PROFILE_ID = 'harness';
 export const LEGACY_HARNESS_PROFILE_ID = 'ai-tui';
 
 /**
- * The virtual profile the Themes menu's "AI theme" row opens: the configured
- * harness, started in the THEMES folder with an opening prompt that has
- * it read the folder's AGENTS.md guide and ask what to change. Synthesized by
- * `resolveTerminalProfile` like `HARNESS_PROFILE_ID`.
+ * The id the retired "AI theme" row used to open: the harness launched with an
+ * opening prompt and pinned model flags. The app no longer feeds a harness any
+ * input, so a terminal snapshot that still names it restores as the plain
+ * harness (`resolveTerminalProfile` treats it as an alias of
+ * `HARNESS_PROFILE_ID`).
  */
-export const AI_THEME_PROFILE_ID = 'ai-theme';
+export const LEGACY_AI_THEME_PROFILE_ID = 'ai-theme';
 
 /**
  * A terminal tab's persistable layout: enough to respawn the same shells in

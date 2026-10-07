@@ -20,6 +20,7 @@ import { detectPlatform } from '../keymap';
 import { runNewTabChoice, terminalsAvailable } from '../new-tab';
 import { isAndroid } from '../platform';
 import { openTerminal } from '../terminal-open';
+import { openHarnessInDocs } from '../harness-open';
 import { copyPrompt, openPromptsDocs, PROMPTS } from '../prompts';
 import { openDocs } from '../session';
 import { harnessName } from '../../core/settings';
@@ -31,7 +32,7 @@ import { uiStore, useUiStore } from '../stores/ui';
 import { currentThemeValue, themePickerGroups, useThemeRegistry } from '../stores/theme-registry';
 import { useWindowTheme } from '../stores/window-theme';
 import {
-  openAiThemeTerminal,
+  openHarnessInThemes,
   openThemesHelp,
   reloadThemes,
   selectTheme,
@@ -108,8 +109,8 @@ export function AppMenuDivider() {
 
 /**
  * The Themes page — every installed theme (same grouping and order as the
- * Settings dropdown, ✓ on the current one), then AI theme (an agent terminal
- * in the themes folder) / Reload, plus Help, which opens the bundled themes
+ * Settings dropdown, ✓ on the current one), then Open harness here (the
+ * configured harness, started in the themes folder) / Reload, plus Help, which opens the bundled themes
  * guide.
  *
  * It's a drill-in page of its popover rather than a flyout: one panel works
@@ -168,14 +169,14 @@ export function ThemesMenuPage({ onBack, onClose }: { onBack: () => void; onClos
         </Fragment>
       ))}
       <AppMenuDivider />
-      {/* The AI-theme terminal replaced "Open folder" and "New theme…": the
-          agent edits, creates and reveals theme files by conversation. */}
+      {/* The harness, standing in the themes folder: it edits, creates and
+          reveals theme files by conversation. Nothing is typed into it. */}
       {terminalsAvailable() && (
         <AppMenuItem
           glyph={<AiGlyph />}
-          label="AI theme"
-          title="Open an AI agent in the themes folder — describe the theme changes you want"
-          onPick={() => void openAiThemeTerminal()}
+          label="Open harness here"
+          title="Open the configured harness in the themes folder"
+          onPick={() => void openHarnessInThemes()}
           onClose={onClose}
         />
       )}
@@ -427,8 +428,8 @@ export function AppActionRows({
 }
 
 /**
- * The Help page — the bundled user guide, the shortcuts page, and the Prompts
- * page (a further drill-in). A page rather than a flyout for the same reason
+ * The Help page — the bundled user guide, the shortcuts page, the harness
+ * opened in the docs folder, and the Prompts page (a further drill-in). A page rather than a flyout for the same reason
  * Themes is one (mouse and finger alike).
  */
 export function HelpMenuPage({
@@ -458,6 +459,15 @@ export function HelpMenuPage({
         onPick={() => openDocs('keyboard-shortcuts.md')}
         onClose={onClose}
       />
+      {terminalsAvailable() && (
+        <AppMenuItem
+          glyph={<AiGlyph />}
+          label="Open harness in docs"
+          title="Open the configured harness in the documentation folder — ask it about the app"
+          onPick={openHarnessInDocs}
+          onClose={onClose}
+        />
+      )}
       <AppMenuDivider />
       <AppMenuItem
         glyph={<AiGlyph />}

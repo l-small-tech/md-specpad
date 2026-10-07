@@ -19,9 +19,9 @@ import {
   resolvedHarness,
 } from '../settings';
 import {
-  AI_THEME_PROFILE_ID,
   HARNESS_IDS,
   HARNESS_PROFILE_ID,
+  LEGACY_AI_THEME_PROFILE_ID,
   LEGACY_HARNESS_PROFILE_ID,
 } from '../types';
 import {
@@ -575,29 +575,29 @@ describe('the Harness virtual profile', () => {
     expect(HARNESSES.opencode).toEqual({ name: 'opencode', program: 'opencode' });
   });
 
-  test('ai-theme for Copilot pins a cheap model and passes no prompt; opencode uses --prompt', () => {
-    // Copilot CLI cannot open its TUI with a prompt (`-p` is headless), so
-    // the args carry only the model pin.
-    const copilot = resolveTerminalProfile(
-      { ...DEFAULT_SETTINGS, harness: 'copilot' },
-      AI_THEME_PROFILE_ID,
-    );
-    expect(copilot.program).toBe('copilot');
-    expect(copilot.args).toEqual(['--model', 'claude-haiku-4.5']);
-    expect(copilot.args.some((a) => /AGENTS\.md/.test(a))).toBe(false);
+  test('the harness is launched with no injected args — no prompt, no model pins', () => {
+    for (const harness of HARNESS_IDS) {
+      const settings = { ...DEFAULT_SETTINGS, harness };
+      for (const id of [
+        HARNESS_PROFILE_ID,
+        LEGACY_HARNESS_PROFILE_ID,
+        LEGACY_AI_THEME_PROFILE_ID,
+      ]) {
+        const profile = resolveTerminalProfile(settings, id);
+        expect(profile.program).toBe(HARNESSES[harness].program);
+        expect(profile.args).toEqual([]);
+      }
+    }
+  });
 
-    const opencode = resolveTerminalProfile(
-      { ...DEFAULT_SETTINGS, harness: 'opencode' },
-      AI_THEME_PROFILE_ID,
-    );
-    expect(opencode.program).toBe('opencode');
-    expect(opencode.args[0]).toBe('--prompt');
-    expect(opencode.args[1]).toMatch(/AGENTS\.md/);
-    expect(opencode.args).toHaveLength(2);
+  test('a snapshot naming the retired ai-theme id restores the plain harness', () => {
+    const legacy = resolveTerminalProfile(DEFAULT_SETTINGS, LEGACY_AI_THEME_PROFILE_ID);
+    expect(legacy).toBe(resolveTerminalProfile(DEFAULT_SETTINGS, HARNESS_PROFILE_ID));
+    expect(legacy.name).toBe('Claude');
   });
 
   test('the virtual AI profiles render slightly larger than the editor', () => {
-    for (const id of [HARNESS_PROFILE_ID, AI_THEME_PROFILE_ID]) {
+    for (const id of [HARNESS_PROFILE_ID, LEGACY_AI_THEME_PROFILE_ID]) {
       const profile = resolveTerminalProfile(DEFAULT_SETTINGS, id);
       expect(profile.fontSize).toBeUndefined();
       expect(profile.fontSizeDelta).toBe(HARNESS_FONT_SIZE_DELTA);
@@ -639,40 +639,6 @@ describe('the Harness virtual profile', () => {
     );
   });
 
-  test('ai-theme resolves to the agent with its opening prompt; pinned to a mid model at low effort', () => {
-    const claude = resolveTerminalProfile(DEFAULT_SETTINGS, AI_THEME_PROFILE_ID);
-    expect(claude.program).toBe('claude');
-    expect(claude.name).toBe('AI theme');
-    expect(claude.args.slice(0, 4)).toEqual(['--model', 'sonnet', '--effort', 'low']);
-    expect(claude.args[4]).toMatch(/AGENTS\.md/);
-    const chatgpt = resolveTerminalProfile(
-      { ...DEFAULT_SETTINGS, harness: 'chatgpt' },
-      AI_THEME_PROFILE_ID,
-    );
-    expect(chatgpt.program).toBe('codex');
-    expect(chatgpt.args.slice(0, 4)).toEqual([
-      '-m',
-      'gpt-5-codex',
-      '-c',
-      'model_reasoning_effort=low',
-    ]);
-    expect(chatgpt.args[4]).toMatch(/AGENTS\.md/);
-    const gemini = resolveTerminalProfile(
-      { ...DEFAULT_SETTINGS, harness: 'gemini' },
-      AI_THEME_PROFILE_ID,
-    );
-    expect(gemini.program).toBe('gemini');
-    expect(gemini.args.slice(0, 3)).toEqual(['-m', 'gemini-2.5-flash', '-i']);
-    expect(gemini.args[3]).toMatch(/AGENTS\.md/);
-    const grok = resolveTerminalProfile(
-      { ...DEFAULT_SETTINGS, harness: 'grok' },
-      AI_THEME_PROFILE_ID,
-    );
-    expect(grok.program).toBe('grok');
-    expect(grok.args.slice(0, 2)).toEqual(['--model', 'grok-code-fast-1']);
-    expect(grok.args[2]).toMatch(/AGENTS\.md/);
-  });
-
   test('a real profile with the harness id shadows the virtual one', () => {
     const shadow = { id: HARNESS_PROFILE_ID, name: 'Mine', program: 'aider', args: [], env: {} };
     const s = {
@@ -704,16 +670,15 @@ describe('the Harness virtual profile', () => {
     expect(resolveTerminalProfile(edited, HARNESS_PROFILE_ID)).not.toBe(profile);
   });
 
-  test('custom ai-theme appends the opening prompt after the custom args', () => {
+  test('custom harness under the retired ai-theme id carries only the custom args', () => {
     const s = {
       ...DEFAULT_SETTINGS,
       harness: 'custom' as const,
       harnessCustomCommand: 'aider --pro',
     };
-    const profile = resolveTerminalProfile(s, AI_THEME_PROFILE_ID);
+    const profile = resolveTerminalProfile(s, LEGACY_AI_THEME_PROFILE_ID);
     expect(profile.program).toBe('aider');
-    expect(profile.args[0]).toBe('--pro');
-    expect(profile.args[1]).toMatch(/AGENTS\.md/);
+    expect(profile.args).toEqual(['--pro']);
   });
 
   test('an empty custom command resolves to no program (falls back to the shell)', () => {

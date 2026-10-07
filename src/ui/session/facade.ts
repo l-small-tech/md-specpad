@@ -535,6 +535,8 @@ let addWorkspaceDispatch: () => void = () => {};
 let addCloudWorkspaceDispatch: () => void = () => {};
 let removeSyncedWorkspaceDispatch: (path: string) => void = () => {};
 let openDocsDispatch: (page?: string) => void = () => {};
+// The bundled documentation folder. Null pre-boot and in builds without docs.
+let docsDirDispatch: () => string | null = () => null;
 let insertFileLinkDispatch: (opts: { image: boolean; absolute: boolean }) => void = () => {};
 // Default (pre-boot / tests): a plain label change. The controller swaps in
 // the file-aware variant that also renames a file tab's file on disk.
@@ -561,6 +563,9 @@ export function setRemoveSyncedWorkspaceDispatch(fn: (path: string) => void): vo
 }
 export function setOpenDocsDispatch(fn: (page?: string) => void): void {
   openDocsDispatch = fn;
+}
+export function setDocsDirDispatch(fn: () => string | null): void {
+  docsDirDispatch = fn;
 }
 export function setInsertFileLinkDispatch(
   fn: (opts: { image: boolean; absolute: boolean }) => void,
@@ -844,6 +849,11 @@ export function addCloudWorkspace(): void {
  */
 export function openDocs(page?: string): void {
   openDocsDispatch(page);
+}
+
+/** The bundled documentation folder, or null when this build has none. */
+export function getDocsDir(): string | null {
+  return docsDirDispatch();
 }
 /**
  * FileExplorer → settings: forget a workspace. For a local workspace this is

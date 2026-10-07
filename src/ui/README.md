@@ -302,8 +302,8 @@ per-profile launch configs.
   FAMILY is separate: the size still follows `--editor-font-size`, so mod+=/-/0
   keeps driving terminal cells. A profile may still shift that size:
   `fontSize` (absolute) or `fontSizeDelta` (relative to the editor) —
-  `core/settings.ts`'s `profileFontSize` resolves them; the virtual harness /
-  AI theme profiles carry `fontSizeDelta: 2` so an agent's output reads a
+  `core/settings.ts`'s `profileFontSize` resolves them; the virtual harness
+  profile carries `fontSizeDelta: 2` so an agent's output reads a
   touch larger than the note beside it.
 
 ### Which harnesses are installed, and installing one
