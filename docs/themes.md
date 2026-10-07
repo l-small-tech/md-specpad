@@ -43,10 +43,11 @@ seconds. Read on.
 Every theme is one small `.json` file in your **themes folder**. Below the
 theme list in **⌄ menu → Themes** are the buttons for managing it:
 
-- **AI theme** — opens an AI agent (Claude, ChatGPT, Gemini, Grok, Copilot or
-  opencode — pick which in **Settings → Harness**, which also installs one for
-  you if it isn't yet) in a terminal tab, already standing in the themes
-  folder and briefed on the file format. Just tell it what you want — "make
+- **Open harness here** — opens your AI agent (Claude, ChatGPT, Gemini, Grok,
+  Copilot or opencode — pick which in **Settings → Harness**, which also
+  installs one for you if it isn't yet) in a terminal tab, already standing in
+  the themes folder. The folder holds an `AGENTS.md` that explains the file
+  format; ask the agent to read it, then tell it what you want — "make
   Lagoon's background a touch darker", "create a warm sepia light theme" —
   and it edits or creates the files for you. *(Desktop only.)*
 - **Reload** — re-reads the folder after you (or the AI) have edited or added
@@ -292,9 +293,10 @@ know CSS.
 
 ## Let an AI build your theme
 
-You don't have to pick the colors yourself. The **AI theme** button above is
-the fast path: it opens an agent right in the themes folder, which asks what
-you'd like and edits the files itself — you just click **Reload** after.
+You don't have to pick the colors yourself. **Open harness here** above is
+the fast path: it opens your agent right in the themes folder — point it at
+`AGENTS.md`, say what you'd like, and it edits the files itself; you just
+click **Reload** after.
 
 No agent CLI installed? Paste the prompt below into any AI assistant (ChatGPT,
 Claude, Gemini, …), describe the mood you want, and drop the result into your

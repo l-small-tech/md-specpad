@@ -3,15 +3,14 @@
  * ☰ menu's Themes submenu (the primary surface) and the Settings dropdown.
  *
  * Kept out of both components so the two can't drift: selecting a theme,
- * opening the AI-theme terminal, reloading the folder, and opening the themes
+ * opening the harness in the themes folder, reloading the folder, and opening the themes
  * guide all live here. The pure "which entry is
  * current / what does this choice mean" logic stays in stores/theme-registry.
  */
 
 import { ensureThemesAgentGuide } from '../ipc/theme-loader';
-import { AI_THEME_PROFILE_ID } from '../core/types';
+import { openHarnessIn } from './harness-open';
 import { openDocs } from './session';
-import { openTerminal } from './terminal-open';
 import { settingsStore } from './stores/settings';
 import { themeRegistryStore, themeSelectionPatch } from './stores/theme-registry';
 import { themeSelectionOf, windowThemeStore } from './stores/window-theme';
@@ -56,19 +55,18 @@ export function unpinThemeFromWindow(): void {
 }
 
 /**
- * "AI theme" — open the configured harness in the themes folder, primed
- * to edit themes. The folder's AGENTS.md guide is (re)written first so even a
- * small model has the file format and the reload step in front of it; the
- * launch prompt (core/settings.ts) makes the agent read it and then ask the
- * user what to change.
+ * "Open harness here" — the configured harness, started in the themes folder
+ * and handed nothing (see ui/harness-open.ts). The folder's AGENTS.md guide is
+ * (re)written first, so a harness that reads AGENTS.md on its own finds the
+ * file format and the reload step there.
  */
-export async function openAiThemeTerminal(): Promise<void> {
+export async function openHarnessInThemes(): Promise<void> {
   const { themesDir } = themeRegistryStore.getState();
   if (!themesDir) {
     return;
   }
   await ensureThemesAgentGuide(themesDir);
-  openTerminal(AI_THEME_PROFILE_ID, themesDir);
+  openHarnessIn(themesDir);
 }
 
 /** Re-read the themes folder after the user edited or added files. */

@@ -406,8 +406,9 @@ polished result.
 `;
 
 /**
- * Write (or refresh) the AGENTS.md guide the "AI theme" terminal points its
- * agent at. Regenerated only when the version marker on line 1 is absent or
+ * Write (or refresh) the AGENTS.md guide in the themes folder, for whatever
+ * harness the user opens there ("Open harness here" in the Themes menu) to
+ * find on its own — the app hands the harness no prompt. Regenerated only when the version marker on line 1 is absent or
  * stale, so a file the user de-marked stays theirs. Failures are swallowed —
  * the agent session still works, just with less context.
  */
