@@ -301,6 +301,8 @@ function rootExtrasOf(root: XmlElement): SceneAttr[] {
 
 function readLayer(source: string, group: XmlElement): { layer: Layer; spans: ElementSpan[] } {
   const kindAttr = attr(group, 'wb:kind');
+  const kind: LayerKind =
+    kindAttr === 'scan' ? 'scan' : kindAttr === 'foreign' ? 'foreign' : 'draw';
   const id = attr(group, 'wb:layer') ?? 'layer';
   const elements: SceneElement[] = [];
   const spans: ElementSpan[] = [];
@@ -309,7 +311,15 @@ function readLayer(source: string, group: XmlElement): { layer: Layer; spans: El
       continue;
     }
     spans.push({ layerId: id, index: elements.length, start: node.start, end: node.end });
-    elements.push(readElement(source, node));
+    // A foreign layer's body is somebody else's markup, read verbatim exactly
+    // as it was on the first open. Modeling it here would hand it to the
+    // element writers on the next save, which know only our own attributes and
+    // would drop its transforms, styles and ids.
+    elements.push(
+      kind === 'foreign'
+        ? { kind: 'raw', xml: rawSource(source, node) }
+        : readElement(source, node),
+    );
   }
   return {
     layer: {
@@ -320,7 +330,7 @@ function readLayer(source: string, group: XmlElement): { layer: Layer; spans: El
       // 'foreign' matters on re-read: once we have wrapped an imported SVG's
       // body in an Imported layer, re-opening the saved file must recognize it
       // as still-foreign (locked, not tool-owned), not demote it to a draw layer.
-      kind: kindAttr === 'scan' ? 'scan' : kindAttr === 'foreign' ? 'foreign' : 'draw',
+      kind,
       elements,
       extras: extrasOf(group, OWNED_LAYER_ATTRS),
     },

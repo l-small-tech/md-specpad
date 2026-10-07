@@ -398,6 +398,40 @@ describe('foreign SVGs', () => {
     expect(first).toContain('version="1.1"');
   });
 
+  it('keeps the Imported layer verbatim across any number of open/save cycles', () => {
+    // Modelable elements (rect, circle, line, text, a pen-looking path) with
+    // attributes our own element writer does not carry. The first save wraps
+    // them in the Imported layer; every later open must still treat that layer
+    // as foreign content, not re-model it through the draw-layer writer.
+    const foreign = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect id="box" x="1" y="2" width="30" height="40" transform="rotate(15 10 10)" style="fill:#00f;stroke:#f00" class="mine"/>
+  <circle id="dot" cx="50" cy="50" r="5" style="fill:red"/>
+  <line x1="0" y1="0" x2="9" y2="9" stroke="#000" vector-effect="non-scaling-stroke"/>
+  <text x="5" y="90" transform="translate(1 1)" style="font-weight:bold">Hi</text>
+  <path wb:tool="pen" d="M 1 1 L 2 2" stroke="#000" stroke-linecap="square" id="p1"/>
+</svg>
+`;
+    const imported = (doc: SceneDoc) => doc.layers.find((l) => l.kind === 'foreign')!;
+
+    const first = serializeWhiteboard(parseWhiteboard(foreign));
+    const reopened = parseWhiteboard(first);
+    // Still foreign, still nothing but verbatim RawElements.
+    expect(imported(reopened).elements.every((e) => e.kind === 'raw')).toBe(true);
+    const second = serializeWhiteboard(reopened);
+    const third = serializeWhiteboard(parseWhiteboard(second));
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+    for (const markup of [
+      '<rect id="box" x="1" y="2" width="30" height="40" transform="rotate(15 10 10)" style="fill:#00f;stroke:#f00" class="mine"/>',
+      '<circle id="dot" cx="50" cy="50" r="5" style="fill:red"/>',
+      '<line x1="0" y1="0" x2="9" y2="9" stroke="#000" vector-effect="non-scaling-stroke"/>',
+      '<text x="5" y="90" transform="translate(1 1)" style="font-weight:bold">Hi</text>',
+      '<path wb:tool="pen" d="M 1 1 L 2 2" stroke="#000" stroke-linecap="square" id="p1"/>',
+    ]) {
+      expect(third).toContain(markup);
+    }
+  });
+
   it('takes the board size from the viewBox when width/height carry units', () => {
     const doc = parseWhiteboard(INKSCAPE);
     // '210mm' parses to 210, which matches the viewBox — the units are dropped
