@@ -1961,6 +1961,12 @@ button.git-pill:hover {
   padding: 0 5px;
 }
 
+/* The pane toggle reads as "on" while the pane is out, like a pressed key. */
+.git-sb-btn.is-on {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
 .git-sb-btn.is-accent:not(:disabled) {
   color: var(--accent);
 }
