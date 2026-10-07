@@ -597,6 +597,46 @@ describe('changes and commit', () => {
     );
     expect(h.ipc.gitDiscard).toHaveBeenCalledWith(MAIN, ['a.ts'], ['new.md']);
   });
+
+  test('discard wording: a delete says so; a staged version is said to be kept', async () => {
+    const h = harness();
+    h.ipc.gitStatus.mockResolvedValue(
+      statusFor(MAIN, {
+        entries: [
+          entry('a.ts', '.', 'M'),
+          entry('new.md', '?', '?', 'untracked'),
+          entry('added.md', 'A', 'M'),
+          { ...entry('moved.ts', 'R', 'M', 'renamed'), origPath: 'old.ts' },
+        ],
+      }),
+    );
+    await h.open();
+    const confirm = h.deps.confirm as Mock;
+    const asked = async (paths: string[]) => {
+      await h.s().discard(MAIN, paths);
+      return confirm.mock.calls.at(-1) as [string, string];
+    };
+
+    expect(await asked(['new.md'])).toEqual([
+      'Delete new.md? It is new and has never been committed.\n\nThis cannot be undone.',
+      'Delete file',
+    ]);
+    expect(await asked(['added.md'])).toEqual([
+      'Discard the unstaged changes to added.md? Its staged version is kept.\n\nThis cannot be undone.',
+      'Discard changes',
+    ]);
+    expect((await asked(['moved.ts']))[0]).toContain('Its staged version is kept.');
+    expect(await asked(['a.ts'])).toEqual([
+      'Discard changes to a.ts?\n\nThis cannot be undone.',
+      'Discard changes',
+    ]);
+    expect((await asked(['a.ts', 'new.md', 'added.md']))[0]).toBe(
+      'Discard changes to 3 files?\n\n1 untracked file will be deleted — it has never been committed.\n\nStaged changes are kept.\n\nThis cannot be undone.',
+    );
+    // Staged-new and staged-rename paths go as tracked: restored from the index, never deleted.
+    expect(h.ipc.gitDiscard).toHaveBeenCalledWith(MAIN, ['added.md'], []);
+    expect(h.ipc.gitDiscard).toHaveBeenCalledWith(MAIN, ['moved.ts'], []);
+  });
 });
 
 describe('branches', () => {

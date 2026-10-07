@@ -358,7 +358,10 @@ export interface GitState {
   /* changes + commit (in the selected checkout) */
   stage: (mainRoot: string, paths: string[]) => Promise<void>;
   unstage: (mainRoot: string, paths: string[]) => Promise<void>;
-  /** Confirms, then restores tracked paths and deletes untracked ones. */
+  /**
+   * Confirms, then restores tracked paths from the index (staged changes
+   * stay) and deletes untracked ones — the question names a delete as one.
+   */
   discard: (mainRoot: string, paths: string[]) => Promise<void>;
   setCommitDraft: (mainRoot: string, text: string) => void;
   toggleAmend: (mainRoot: string) => void;
@@ -1641,18 +1644,38 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         const untrackedSet = new Set(r.groups.untracked.map((e) => e.path));
         const tracked = paths.filter((p) => !untrackedSet.has(p));
         const untracked = paths.filter((p) => untrackedSet.has(p));
-        const lines = [
-          paths.length === 1
-            ? `Discard changes to ${paths[0]}?`
-            : `Discard changes to ${paths.length} files?`,
-        ];
-        if (untracked.length > 0) {
+        // Tracked paths are restored from the INDEX (Rust `discard`), so a
+        // staged version — a file added or renamed in the index, then edited
+        // — survives. Only untracked files are deleted, and the question
+        // says so in as many words.
+        const stagedSet = new Set(r.groups.staged.map((e) => e.path));
+        const keepsStaged = tracked.some((p) => stagedSet.has(p));
+        const lines: string[] = [];
+        let title = 'Discard changes';
+        if (paths.length === 1 && untracked.length === 1) {
+          lines.push(`Delete ${paths[0]}? It is new and has never been committed.`);
+          title = 'Delete file';
+        } else if (paths.length === 1) {
           lines.push(
-            `${untracked.length} untracked ${untracked.length === 1 ? 'file' : 'files'} will be deleted.`,
+            keepsStaged
+              ? `Discard the unstaged changes to ${paths[0]}? Its staged version is kept.`
+              : `Discard changes to ${paths[0]}?`,
           );
+        } else {
+          lines.push(`Discard changes to ${paths.length} files?`);
+          if (untracked.length > 0) {
+            lines.push(
+              untracked.length === 1
+                ? '1 untracked file will be deleted — it has never been committed.'
+                : `${untracked.length} untracked files will be deleted — they have never been committed.`,
+            );
+          }
+          if (keepsStaged) {
+            lines.push('Staged changes are kept.');
+          }
         }
         lines.push('This cannot be undone.');
-        if (!(await getDeps().confirm(lines.join('\n\n'), 'Discard changes'))) {
+        if (!(await getDeps().confirm(lines.join('\n\n'), title))) {
           return;
         }
         const root = r.selectedCheckout;

@@ -66,14 +66,18 @@ pub(super) fn unstage(root: &Path, paths: &[String]) -> GitResult<()> {
     Ok(())
 }
 
-/// Throw away working-tree changes: `tracked` paths are restored from HEAD,
-/// `untracked` ones deleted (`clean`; a `dir/` entry, as status lists an
-/// untracked directory, gets `-d`). Each half runs only when it has paths.
+/// Throw away the UNSTAGED changes: `tracked` paths are restored from the
+/// index (`restore --worktree`, no `--source`), so whatever is staged stays —
+/// a file added or renamed in the index and then edited goes back to its
+/// staged copy instead of being deleted, as a restore from HEAD (which has
+/// no such path) would do. `untracked` ones are deleted (`clean`; a `dir/`
+/// entry, as status lists an untracked directory, gets `-d`). Each half runs
+/// only when it has paths.
 pub(super) fn discard(root: &Path, tracked: &[String], untracked: &[String]) -> GitResult<()> {
     let tracked = rels(tracked)?;
     let untracked = rels(untracked)?;
     if !tracked.is_empty() {
-        let mut args = vec!["restore", "--worktree", "--source=HEAD", "--"];
+        let mut args = vec!["restore", "--worktree", "--"];
         args.extend(tracked);
         checked(root, GitMode::Mutate, &args)?;
     }
@@ -285,8 +289,8 @@ pub async fn git_unstage(root: String, rels: Vec<String>) -> GitResult<()> {
     blocking(move || unstage(Path::new(&root), &rels)).await
 }
 
-/// Restore `tracked` from HEAD and delete `untracked`. Irreversible — the
-/// caller confirms first.
+/// Restore `tracked` from the index (staged changes stay) and delete
+/// `untracked`. Irreversible — the caller confirms first.
 #[tauri::command]
 pub async fn git_discard(
     root: String,
@@ -449,6 +453,78 @@ mod tests {
         std::fs::remove_file(root.join("a.ts")).unwrap();
         discard(&root, &v(&["a.ts"]), &[]).unwrap();
         assert!(root.join("a.ts").exists());
+    }
+
+    #[test]
+    fn real_discard_keeps_the_staged_version_of_a_new_or_renamed_file() {
+        if !have_git() {
+            eprintln!("skipping: no git on PATH");
+            return;
+        }
+        let (_g, root) = temp_repo();
+        // Staged as new, then edited: `AM`. HEAD has no such file, so a
+        // restore from HEAD would delete it; discard goes back to the index.
+        write(&root, "new.md", "staged\n");
+        stage(&root, &v(&["new.md"])).unwrap();
+        write(&root, "new.md", "staged\nthen edited\n");
+        assert_eq!(entry_xy(&root, "new.md"), Some(("A".into(), "M".into())));
+        discard(&root, &v(&["new.md"]), &[]).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(root.join("new.md")).unwrap(),
+            "staged\n",
+            "the staged copy survives"
+        );
+        assert_eq!(entry_xy(&root, "new.md"), Some(("A".into(), ".".into())));
+
+        // Staged as a rename, then edited: `RM` under the new name.
+        git_ok(&root, &["mv", "a.ts", "b.ts"]);
+        write(
+            &root,
+            "b.ts",
+            "export const a = 1;\n// edited after the rename\n",
+        );
+        assert_eq!(entry_xy(&root, "b.ts"), Some(("R".into(), "M".into())));
+        discard(&root, &v(&["b.ts"]), &[]).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(root.join("b.ts")).unwrap(),
+            "export const a = 1;\n"
+        );
+        assert_eq!(entry_xy(&root, "b.ts"), Some(("R".into(), ".".into())));
+        assert!(
+            !root.join("a.ts").exists(),
+            "the rename itself stays staged"
+        );
+
+        // Partly staged (`MM`): only the unstaged half goes.
+        write(&root, "c.md", "base\n");
+        stage(&root, &v(&["c.md"])).unwrap();
+        git_ok(&root, &["commit", "-q", "-m", "c"]);
+        write(&root, "c.md", "base\nstaged line\n");
+        stage(&root, &v(&["c.md"])).unwrap();
+        write(&root, "c.md", "base\nstaged line\nunstaged line\n");
+        assert_eq!(entry_xy(&root, "c.md"), Some(("M".into(), "M".into())));
+        discard(&root, &v(&["c.md"]), &[]).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(root.join("c.md")).unwrap(),
+            "base\nstaged line\n"
+        );
+        assert_eq!(entry_xy(&root, "c.md"), Some(("M".into(), ".".into())));
+    }
+
+    #[test]
+    fn real_discard_works_on_an_unborn_branch() {
+        if !have_git() {
+            eprintln!("skipping: no git on PATH");
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        init_repo(root);
+        write(root, "x.md", "x\n");
+        stage(root, &v(&["x.md"])).unwrap();
+        write(root, "x.md", "x\ny\n");
+        discard(root, &v(&["x.md"]), &[]).unwrap();
+        assert_eq!(std::fs::read_to_string(root.join("x.md")).unwrap(), "x\n");
     }
 
     #[test]

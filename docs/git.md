@@ -63,9 +63,13 @@ list of every file that differs from the last commit. Each row's checkbox
 is its staging state (ticked = staged, half = partly staged, empty = not
 staged) and the way to change it; the header's **Stage all** / **Unstage
 all** do the whole list. Untracked files show a `?` and a dimmed name. Hover
-a row to discard its changes (or delete an untracked file) — note that a
-brand-new file you have staged and then edited is removed from disk by
-Discard rather than reverted to the staged copy; click a row to see
+a row to discard its changes (or delete an untracked file). Discard throws
+away only what is not staged: a partly staged file goes back to its staged
+version — including a brand-new or renamed file you staged and then edited,
+which keeps its staged copy rather than disappearing. To throw the staged
+part away too, unstage the file first (its box empty), then discard. Only
+untracked files are ever deleted, and the question
+says so (*Delete … ? It is new and has never been committed*). Click a row to see
 its diff against the last commit. When Commit is disabled, its tooltip says
 why. A **Merge conflicts** group appears above when a merge stops on
 conflicts. Select a commit and the same column shows that commit instead —

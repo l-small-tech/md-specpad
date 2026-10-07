@@ -76,7 +76,8 @@ session concepts in Rust, stop and move it to `src/core`.
     a vanished directory is `missing: true`, not an error), `git_check_ignore`,
     `git_worktree_add`, `git_worktree_remove` (+ `worktree prune`).
   - `ops.rs` — `git_stage` / `git_unstage` (`rm --cached` on an unborn branch)
-    / `git_discard` (`restore --worktree --source=HEAD` + `clean -f [-d]`),
+    / `git_discard` (`restore --worktree` from the index — staged changes
+    stay, a staged-new file is never deleted — + `clean -f [-d]`),
     `git_commit` (`--cleanup=strip -F <tmp>` | `--no-edit`; returns the new
     sha), `git_switch`, `git_create_branch` (`check-ref-format` first),
     `git_delete_branch`, `git_merge` (a conflict is the OUTCOME `conflicts`
