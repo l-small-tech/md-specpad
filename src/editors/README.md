@@ -39,9 +39,10 @@ import { tags } from '@lezer/highlight';
   default (Notepad feel) — the "Line numbers" setting toggles it live via
   `setLineNumbers`, `EditorView.lineWrapping` behind a **Compartment** (M6
   toggles it), theme + font size each behind their own Compartment.
-- Editor → model: `EditorView.updateListener.of((u) => { if (u.docChanged) pushSelf(u.state.doc.toString()) })`
+- Editor → model: `EditorView.updateListener.of((u) => { if (u.docChanged) pushSelf(u.state.doc.sliceString(0, undefined, lineBreak)) })`
   where `pushSelf` wraps `model.pushText(text, 'cm6')` in the reentrancy
-  flag.
+  flag and `lineBreak` is the model text's own separator (see Pitfalls:
+  line endings).
 - Model → editor (external change: file reload, wysiwyg write-back, a Live
   Edit merge): subscribe in `attach`; unless suppressed by the flag, apply
   the change as ONE transaction of minimal line-level edits —
@@ -120,6 +121,17 @@ code, comments → quote), so themes need nothing new. Like `'xml'` and
   opens the git tab (`ui/keymap.ts`) and has to reach the window listener
   from a focused editor. F3 / Shift+F3 and the search panel's Enter still
   step through matches. Don't add `Mod-g` back without moving the chord.
+- **Line endings.** CM6 splits on `\r\n`, `\r` and `\n` alike and its
+  `doc.toString()` joins with `\n`, so pushing that would turn a CRLF file
+  into an all-LF whole-file rewrite on the first keystroke. The adapter edits
+  LF text, remembers the model text's separator (CRLF when most breaks are
+  CRLF — re-read on every external change) and pushes in it; external text is
+  diffed in its `\n` form so the offsets are CM6 positions. A line break is ONE
+  position, so a restored caret is clamped to the EDITOR's length, never the
+  model text's. The `EditorState.lineSeparator` facet is the wrong tool: with
+  it set, inserted text (a paste, a ribbon snippet, a model diff) splits on
+  that separator only and a bare `\n` lands inside a line. Pinned by
+  `__tests__/cm6-line-endings.test.ts`, which mounts the adapter under jsdom.
 
 ---
 

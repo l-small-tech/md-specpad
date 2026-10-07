@@ -693,6 +693,29 @@ function applyFormat(view: EditorView, action: FormatAction): void {
  */
 const noParagraphFolds = { props: [foldNodeProp.add({ Paragraph: () => null })] };
 
+/**
+ * The line separator a text is written in: CRLF when most of its line breaks
+ * are CRLF, LF otherwise. CM6 splits on `\r\n`, `\r` and `\n` alike and joins
+ * with `\n`, so the adapter edits LF text and hands it back to the model in
+ * the file's own separator — a CRLF file must not become an all-LF rewrite on
+ * its first keystroke. (CM6's `EditorState.lineSeparator` facet was rejected:
+ * with it set, inserted text — a paste, a ribbon snippet, a model diff —
+ * splits on that separator only, so a bare `\n` would land INSIDE a line.)
+ */
+function lineSeparatorOf(text: string): '\n' | '\r\n' {
+  const crlf = text.match(/\r\n/g)?.length ?? 0;
+  if (crlf === 0) {
+    return '\n';
+  }
+  const lf = (text.match(/\n/g)?.length ?? 0) - crlf;
+  return crlf >= lf ? '\r\n' : '\n';
+}
+
+/** The text exactly as CM6 holds it: every line break a single `\n`. */
+function toEditorText(text: string): string {
+  return text.replace(/\r\n?/g, '\n');
+}
+
 export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
   const wrapCompartment = new Compartment();
   const lineNumbersCompartment = new Compartment();
@@ -735,6 +758,8 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
   // we are pushing INTO the editor from the model.
   let pushingSelf = false;
   let applyingExternal = false;
+  /** The model text's line separator — see lineSeparatorOf. */
+  let lineBreak: '\n' | '\r\n' = '\n';
   const flashTimers: Record<FlashKind, ReturnType<typeof setTimeout> | null> = {
     added: null,
     removed: null,
@@ -818,7 +843,7 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
       if (update.docChanged && !applyingExternal) {
         pushingSelf = true;
         try {
-          model.pushText(update.state.doc.toString(), 'cm6');
+          model.pushText(update.state.doc.sliceString(0, undefined, lineBreak), 'cm6');
         } finally {
           pushingSelf = false;
         }
@@ -828,9 +853,13 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
       }
     });
 
-    const docText = model.getText();
+    const modelText = model.getText();
+    lineBreak = lineSeparatorOf(modelText);
+    const docText = toEditorText(modelText);
     // Clamp a restored caret to the current document — the note file could
-    // have shrunk on disk since the selection was saved.
+    // have shrunk on disk since the selection was saved. Clamp to the EDITOR's
+    // length: a CRLF file's model text is longer than the document CM6 holds,
+    // and a selection past its end throws inside attach.
     const initial = options.initialSelection;
     const selection = initial
       ? {
@@ -894,13 +923,17 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
       if (pushingSelf || !view) {
         return;
       }
+      // Follow the incoming text's separator (a reload may have changed it);
+      // diff in the editor's own `\n` form so the offsets are CM6 positions.
+      lineBreak = lineSeparatorOf(change.text);
       const current = view.state.doc.toString();
-      if (change.text === current) {
+      const next = toEditorText(change.text);
+      if (next === current) {
         return;
       }
       applyingExternal = true;
       try {
-        view.dispatch({ changes: diffToChanges(current, change.text) });
+        view.dispatch({ changes: diffToChanges(current, next) });
       } finally {
         applyingExternal = false;
       }
