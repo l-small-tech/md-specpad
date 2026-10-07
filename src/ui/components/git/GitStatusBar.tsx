@@ -1,16 +1,19 @@
 /**
  * GitStatusBar — what the status bar holds while a git tab is active, in
- * the room the mode segments leave empty: the branch button (its upstream,
- * ahead/behind, and the state chip), which opens the BranchPicker above
- * it; Fetch / Pull / Push ("Publish" when the branch has no upstream yet,
- * a count badge when there is something to push or pull); Refresh; and the
- * last error. Every click is a store action; fetch / pull / push stream into
+ * the room the mode segments leave empty: the workspace-pane toggle (the
+ * ribbon's folder button — the git tab has no ribbon, and without it the
+ * pane could be opened but never put away from here); the branch button
+ * (its upstream, ahead/behind, and the state chip), which opens the
+ * BranchPicker above it; Fetch / Pull / Push ("Publish" when the branch has
+ * no upstream yet, a count badge when there is something to push or pull);
+ * Refresh; and the last error. Every click is a store action; fetch / pull / push stream into
  * the tab's OutputDrawer.
  */
 
 import { useState } from 'react';
 import type { GitRepoState } from '../../../core/git/types';
 import { gitStore, repoKey, useGitStore } from '../../stores/git';
+import { uiStore, useUiStore } from '../../stores/ui';
 import { BranchPicker } from './BranchPicker';
 import { anchorFor, type MenuAnchor } from './GitMenu';
 import { Icon, Spinner } from './icons';
@@ -40,10 +43,31 @@ export function GitStatusBar({ root }: { root: string }) {
   const op = useRepoSlice(root, (r) => r.op) ?? null;
   const error = useRepoSlice(root, (r) => r.error) ?? null;
   const [picker, setPicker] = useState<MenuAnchor | null>(null);
+  const explorerOpen = useUiStore((s) => s.explorerOpen);
   const actions = gitStore.getState();
 
+  const explorerToggle = (
+    <button
+      type="button"
+      className={`git-sb-btn is-icon${explorerOpen ? ' is-on' : ''}`}
+      title={explorerOpen ? 'Hide the file explorer' : 'Show the file explorer'}
+      aria-label="Toggle file explorer"
+      aria-pressed={explorerOpen}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => uiStore.getState().toggleExplorer()}
+    >
+      <Icon name="folder" />
+    </button>
+  );
+
+  // No git on this machine: the tab body says so; the pane toggle is the one
+  // control that still means something here.
   if (unavailable !== null) {
-    return null;
+    return (
+      <div className="git-sb" role="group" aria-label="Git">
+        {explorerToggle}
+      </div>
+    );
   }
   const busy =
     op?.running === true ||
@@ -63,6 +87,8 @@ export function GitStatusBar({ root }: { root: string }) {
 
   return (
     <div className="git-sb" role="group" aria-label="Git">
+      {explorerToggle}
+      <span className="git-sb-sep" />
       <button
         type="button"
         className={`git-sb-branch${detached ? ' is-detached' : ''}`}
