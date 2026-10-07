@@ -243,16 +243,23 @@ function codeBlock(value: string, state: BlockState): Paragraph[] {
 }
 
 async function tableFrom(node: MdTable, ctx: Ctx): Promise<Table> {
+  // GFM lets a body row have fewer or more cells than the header. Square every
+  // row to the header, as the preview does — pad a short row with empty cells,
+  // drop cells past the header's count — rather than write a ragged Word table.
+  const columns = Math.max(1, node.children[0]?.children.length ?? 1);
   const rows: TableRow[] = [];
   for (const [rowIndex, row] of node.children.entries()) {
     const cells: TableCell[] = [];
-    for (const cell of row.children) {
+    for (const cell of row.children.slice(0, columns)) {
       const style: InlineStyle = rowIndex === 0 ? { bold: true } : {};
       cells.push(
         new TableCell({
           children: [new Paragraph({ children: await runsFrom(cell.children, style, ctx) })],
         }),
       );
+    }
+    while (cells.length < columns) {
+      cells.push(new TableCell({ children: [new Paragraph({})] }));
     }
     rows.push(new TableRow({ children: cells, tableHeader: rowIndex === 0 }));
   }

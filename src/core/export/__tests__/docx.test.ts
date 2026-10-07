@@ -87,6 +87,16 @@ describe('markdownToDocxBase64', () => {
     expect(html).toContain('2');
   });
 
+  test('squares table rows to the header: short rows padded, extra cells dropped', async () => {
+    // GFM lets body rows disagree with the header; the preview pads a short
+    // row with empty cells and drops cells past the header's count. A ragged
+    // Word table (cells off the grid) must not be the export's version of it.
+    const html = await roundTrip('| A | B | C |\n| - | - | - |\n| 1 | 2 |\n| x | y | z | extra |');
+    const rows = html.match(/<tr>.*?<\/tr>/g) ?? [];
+    expect(rows.map((row) => row.match(/<t[hd]>/g)?.length)).toEqual([3, 3, 3]);
+    expect(html).not.toContain('extra');
+  });
+
   test('keeps fenced code blocks line by line', async () => {
     const html = await roundTrip('```js\nconst x = 1;\nconst y = 2;\n```');
     expect(html).toContain('const x = 1;');

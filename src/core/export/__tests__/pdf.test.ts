@@ -215,6 +215,21 @@ describe('markdownToPdfDocDef', () => {
     expect(layout.hLineColor()).toBe(DEFAULT_PDF_THEME.border);
   });
 
+  test('table rows are squared to the header: short rows padded, extra cells dropped', async () => {
+    // GFM lets body rows disagree with the header; pdfmake throws on a row
+    // with a missing cell ("Malformed table row"). Same shape as the preview:
+    // pad with empty cells, drop cells past the header's count.
+    const def = await markdownToPdfDocDef(
+      '| A | B | C |\n| - | - | - |\n| 1 | 2 |\n| x | y | z | extra |',
+    );
+    const block = (def.content as Record<string, unknown>[]).find((b) => 'table' in b)!;
+    const table = block.table as { widths: unknown[]; body: Record<string, unknown>[][] };
+    expect(table.widths).toHaveLength(3);
+    expect(table.body.map((row) => row.length)).toEqual([3, 3, 3]);
+    expect(table.body[1]![2]).toEqual({ text: ' ' });
+    expect(fullText(table.body[2])).not.toContain('extra');
+  });
+
   test('blockquotes draw only a left rule and contain their blocks', async () => {
     const def = await markdownToPdfDocDef('> quoted **text**');
     const block = (def.content as Record<string, unknown>[]).find((b) => 'table' in b)!;
@@ -324,6 +339,13 @@ describe('markdownToPdfBase64 (round-trip)', () => {
     expect(text).toContain('constx=42;');
     expect(text).toContain('c1');
   });
+
+  test('a table with a short row generates instead of failing', async () => {
+    // No pdfjs read-back: generation alone was what broke (pdfmake threw on
+    // the missing cell and the promise never settled).
+    const base64 = await markdownToPdfBase64('| A | B | C |\n| - | - | - |\n| 1 | 2 |');
+    expect(Buffer.from(base64, 'base64').subarray(0, 5).toString()).toBe('%PDF-');
+  }, 20_000);
 
   test('embeds a resolved PNG without failing', async () => {
     const base64 = await markdownToPdfBase64('![p](img.png)', {

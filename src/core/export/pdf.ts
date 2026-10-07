@@ -410,10 +410,14 @@ function quoteBlock(children: PdfBlock[], ctx: Ctx): PdfBlock {
 }
 
 async function tableBlock(node: MdTable, ctx: Ctx): Promise<PdfBlock> {
+  // GFM lets a body row have fewer or more cells than the header, and pdfmake
+  // throws on a missing cell. Square every row to the header, as the preview
+  // does: pad a short row with empty cells, drop cells past the header's count.
+  const columns = Math.max(1, node.children[0]?.children.length ?? 1);
   const body: PdfBlock[][] = [];
   for (const [rowIndex, row] of node.children.entries()) {
     const cells: PdfBlock[] = [];
-    for (const cell of row.children) {
+    for (const cell of row.children.slice(0, columns)) {
       const style: InlineStyle = rowIndex === 0 ? { bold: true } : {};
       const extraBlocks: PdfBlock[] = [];
       const runs = await runsFrom(cell.children, style, ctx, extraBlocks);
@@ -422,9 +426,11 @@ async function tableBlock(node: MdTable, ctx: Ctx): Promise<PdfBlock> {
         fillColor: rowIndex === 0 ? ctx.theme.codeBg : undefined,
       });
     }
+    while (cells.length < columns) {
+      cells.push({ text: ' ' });
+    }
     body.push(cells);
   }
-  const columns = node.children[0]?.children.length ?? 1;
   return {
     table: { headerRows: 1, widths: Array.from({ length: columns }, () => 'auto'), body },
     layout: {
