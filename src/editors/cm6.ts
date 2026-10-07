@@ -362,6 +362,10 @@ const baseTheme = EditorView.theme({
   // left margin tight when it is showing (default content padding is 12px).
   '.cm-scroller:has(.cm-foldGutter) .cm-content': { paddingLeft: '4px' },
   '.cm-fold-marker-closed': { transform: 'rotate(-90deg)' },
+  // VS Code behaviour: arrows for open sections stay hidden until the
+  // pointer is over the gutter column; a folded section's arrow always shows.
+  '.cm-fold-marker-open': { opacity: '0', transition: 'opacity 120ms ease' },
+  '.cm-foldGutter:hover .cm-fold-marker-open': { opacity: '1' },
   '.cm-foldGutter .cm-gutterElement:hover .cm-fold-marker': {
     color: 'var(--fg)',
     backgroundColor: 'var(--bg-hover)',

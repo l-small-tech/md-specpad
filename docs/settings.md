@@ -53,9 +53,11 @@ remembered. Press Esc or click outside the panel to close it.
 - **Word wrap** — when on (the default), long lines wrap to fit the window.
   When off, long lines run sideways and you scroll horizontally.
 - **Collapsible headings** — off by default. When on, Raw and Split modes
-  get a fold gutter next to the text: click the arrow beside a heading to
-  collapse everything under it up to the next heading of the same level (code
-  blocks and lists fold too), just like functions in a code editor. Ctrl+Shift+[
+  get a fold gutter next to the text: move the mouse over the gutter column
+  and click the arrow beside a heading to collapse everything under it up to
+  the next heading of the same level (code blocks and lists fold too), just
+  like functions in a code editor. The arrows stay out of sight until the
+  pointer is over the gutter; a collapsed section's arrow always shows. Ctrl+Shift+[
   and Ctrl+Shift+] fold and unfold the section the caret is in; Ctrl+Alt+[ and
   Ctrl+Alt+] fold and unfold them all. A heading you mark **running** (see
   [Editing modes](editing-modes.md#marking-headings-as-running-or-complete))
