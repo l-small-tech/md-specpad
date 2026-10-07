@@ -28,6 +28,39 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 - The app only ever *opens* a harness: the Themes menu's **Open harness here**
   and the Help menu's **Open harness in docs** start it in a folder with no
   prompt or flags. The old "AI theme" row is gone.
+- **Fixed: Save As on a note could delete the file it had just saved.** Saving
+  a note under its own name in the notes folder now keeps the file; no flush
+  ever deletes a file that is open in a tab or being written.
+- **Fixed: typing during a slow save could be lost.** A save now marks only the
+  text it actually wrote as saved, so anything typed meanwhile stays unsaved
+  and is written next.
+- **Fixed: a note whose rename failed could be overwritten** by a new note
+  given the same title.
+- **Fixed: a save that keeps failing no longer locks up the app.** Tearing off
+  or moving a tab, and restarting for an update, stop with a notice instead of
+  retrying forever; nothing moves until the work is saved.
+- **Fixed: Discard in the Git tab could delete a file.** Discarding the edits
+  to a staged new or renamed file now keeps its staged version; only an
+  untracked file is deleted, and the confirm says so.
+- **Fixed: Remove worktree closed its terminals before git refused.** A
+  worktree with uncommitted changes is now refused up front, before anything
+  is closed.
+- **Fixed: removing a synced (Android) workspace discarded unsaved edits**
+  without asking; its tabs now close through the usual save prompt.
+- **Fixed: CRLF files turned LF on the first edit in Raw mode**, and a saved
+  caret could stop Raw mode opening at all.
+- **Fixed: imported SVG drawings lost attributes on the second save.** The
+  Imported layer is now kept exactly as written.
+- **Fixed: PDF export failed on a table with a short row**; PDF and DOCX now
+  pad short rows like the preview.
+- **Fixed: AltGr characters in the terminal.** On German, French and other
+  AltGr layouts, `@ { [ ] } \ | ~ €` reach the shell as text instead of escape
+  codes, and AltGr brackets no longer fold every section in the editor.
+- **Fixed (macOS): Ctrl+Tab / Ctrl+Shift+Tab switch tabs**, and torn-off
+  windows get the same title bar and resizable edges as the main window.
+- **Fixed (Windows/Linux): the window edges resize again.**
+- **Fixed: offline dictation in installed builds.** The audio capture module
+  no longer loads from a source the app's security policy blocks.
 
 ## [0.10.6] — 2026-10-06
 
