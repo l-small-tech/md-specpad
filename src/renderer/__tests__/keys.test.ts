@@ -197,6 +197,94 @@ describe('modifyOtherKeys', () => {
   });
 });
 
+describe('AltGr on non-US layouts', () => {
+  // Windows reports AltGr as Ctrl+Alt (ctrlKey && altKey) while `key` is the
+  // character the layout produced. Those are typed text, not Meta+Ctrl chords.
+  const altGr = (k: string, code: string, extra: { shift?: boolean; altGraph?: boolean } = {}) => ({
+    key: k,
+    code,
+    ctrl: true,
+    alt: true,
+    ...extra,
+  });
+
+  it('sends German AltGr characters as typed (Windows: Ctrl+Alt, no AltGraph flag)', () => {
+    expect(enc(altGr('@', 'KeyQ'))).toBe('@');
+    expect(enc(altGr('{', 'Digit7'))).toBe('{');
+    expect(enc(altGr('[', 'Digit8'))).toBe('[');
+    expect(enc(altGr(']', 'Digit9'))).toBe(']');
+    expect(enc(altGr('}', 'Digit0'))).toBe('}');
+    expect(enc(altGr('\\', 'Minus'))).toBe('\\');
+    expect(enc(altGr('~', 'BracketRight'))).toBe('~');
+    expect(enc(altGr('|', 'IntlBackslash'))).toBe('|');
+    expect(enc(altGr('€', 'KeyE'))).toBe('€');
+  });
+
+  it('sends French AZERTY AltGr characters as typed', () => {
+    expect(enc(altGr('~', 'Digit2'))).toBe('~');
+    // US Shift+3 is '#', but Shift is not held, so this is AltGr+3, not a chord.
+    expect(enc(altGr('#', 'Digit3'))).toBe('#');
+    expect(enc(altGr('{', 'Digit4'))).toBe('{');
+    expect(enc(altGr('[', 'Digit5'))).toBe('[');
+    expect(enc(altGr('|', 'Digit6'))).toBe('|');
+    expect(enc(altGr('\\', 'Digit8'))).toBe('\\');
+    expect(enc(altGr('@', 'Digit0'))).toBe('@');
+    expect(enc(altGr(']', 'Minus'))).toBe(']');
+    expect(enc(altGr('}', 'Equal'))).toBe('}');
+  });
+
+  it('trusts the AltGraph modifier state for keys a US chord could also produce', () => {
+    // Swiss German AltGr+ü / AltGr+¨ sit on the US [ and ] keys.
+    expect(enc(altGr('[', 'BracketLeft', { altGraph: true }))).toBe('[');
+    expect(enc(altGr(']', 'BracketRight', { altGraph: true }))).toBe(']');
+  });
+
+  it('ignores every other modifier setting for AltGr text', () => {
+    expect(enc(altGr('@', 'KeyQ'), { altSendsEscape: false })).toBe('@');
+    expect(enc(altGr('@', 'KeyQ'), { modifyOtherKeys: 2 })).toBe('@');
+    expect(enc(altGr('{', 'Digit7', { shift: true }), { modifyOtherKeys: 2 })).toBe('{');
+  });
+
+  it('keeps real Ctrl+Alt chords on a US layout exactly as before', () => {
+    expect(enc(altGr('a', 'KeyA'))).toBe('\x1b\x01');
+    expect(enc(altGr('c', 'KeyC'))).toBe('\x1b\x03');
+    expect(enc(altGr('[', 'BracketLeft'))).toBe('\x1b\x1b');
+    expect(enc(altGr(']', 'BracketRight'))).toBe('\x1b\x1d');
+    expect(enc(altGr('\\', 'Backslash'))).toBe('\x1b\x1c');
+    expect(enc(altGr('/', 'Slash'))).toBe('\x1b\x1f');
+    expect(enc(altGr('2', 'Digit2'))).toBe('\x1b\x00');
+    expect(enc(altGr(' ', 'Space'))).toBe('\x1b\x00');
+    expect(enc(altGr('-', 'Minus'))).toBe('\x1b-');
+    // Shifted: Ctrl+Alt+Shift+2 reports '@', which US Shift+2 produces.
+    expect(enc(altGr('@', 'Digit2', { shift: true }))).toBe('\x1b\x00');
+    expect(enc(altGr('_', 'Minus', { shift: true }))).toBe('\x1b\x1f');
+    expect(enc(altGr('Backspace', 'Backspace'))).toBe('\x1b\x08');
+    expect(enc(altGr('ArrowUp', 'ArrowUp'))).toBe('\x1b[1;7A');
+  });
+
+  it('keeps Ctrl+Alt+letter a chord on any layout, AltGraph flag or not', () => {
+    // German Ctrl+Alt+Z sits on the US Y key; French Ctrl+Alt+A on the US Q key.
+    expect(enc(altGr('z', 'KeyY'))).toBe('\x1b\x1a');
+    expect(enc(altGr('a', 'KeyQ'))).toBe('\x1b\x01');
+    expect(enc(altGr('a', 'KeyA', { altGraph: true }))).toBe('\x1b\x01');
+  });
+
+  it('falls back to the chord when a key event carries no code', () => {
+    expect(enc(key('[', { ctrl: true, alt: true }))).toBe('\x1b\x1b');
+    expect(enc(key('@', { ctrl: true, alt: true }))).toBe('\x1b\x00');
+    expect(enc(key('€', { ctrl: true, alt: true }))).toBe('€');
+  });
+
+  it('leaves Cmd chords, dead keys and Alt-only keys alone', () => {
+    // Cmd/Win held as well: not AltGr, so the chord encodes as it always did.
+    expect(enc({ ...altGr('@', 'KeyQ'), meta: true })).toBe('\x1b\x00');
+    expect(enc(altGr('Dead', 'BracketRight'))).toBeNull();
+    // Alt without Ctrl is Meta (or macOS Option-as-Meta), never AltGr.
+    expect(enc({ key: '@', code: 'KeyQ', alt: true })).toBe('\x1b@');
+    expect(enc({ key: '@', code: 'KeyQ', alt: true, altGraph: true })).toBe('\x1b@');
+  });
+});
+
 describe('keyStateFromModes', () => {
   it('carries the engine modes and the settings through', () => {
     const state = keyStateFromModes(

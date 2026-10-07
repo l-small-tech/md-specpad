@@ -21,7 +21,7 @@ reads CSS variables or the DOM for configuration — everything is passed in.
 | `metrics.ts` | Font measurement and cell geometry — measured from the real font once per font/size change, never guessed. |
 | `selection.ts` | Selection model in absolute buffer lines (so it stays anchored while output scrolls), plus text extraction. |
 | `links.ts` | OSC 8 hyperlinks and implicit URL detection under the pointer. |
-| `keys.ts` | Pure keyboard encoding: a `KeyInput` description → the bytes xterm would send. Legacy/modifyOtherKeys encoding by default. |
+| `keys.ts` | Pure keyboard encoding: a `KeyInput` description → the bytes xterm would send. Legacy/modifyOtherKeys encoding by default. AltGr characters (Windows reports AltGr as Ctrl+Alt) go out as plain text — `core/altgr.ts` decides. |
 | `mouse.ts` | Pointer events → mouse-tracking escape sequences. Byte-oriented (X10 puts coordinates above 0x7f). |
 | `paste.ts` | Paste sanitizing + chunked writes. The one path where the terminal sends text the user did not type key by key. |
 | `input.ts` | `TermInput` — the only DOM-event file. Owns the hidden textarea (the only way a web view runs IME composition) and glues events onto the pure modules above. |

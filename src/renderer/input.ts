@@ -190,6 +190,7 @@ export class TermInput {
         alt: event.altKey,
         shift: event.shiftKey,
         meta: event.metaKey,
+        altGraph: event.getModifierState?.('AltGraph') ?? false,
       },
       this.keyState(),
     );

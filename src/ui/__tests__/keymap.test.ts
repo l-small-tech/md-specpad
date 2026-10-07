@@ -353,3 +353,18 @@ describe('keyEventToAction — terminal context', () => {
     }
   });
 });
+
+describe('keyEventToAction — AltGr characters', () => {
+  // Windows reports AltGr as Ctrl+Alt with `key` set to the typed character
+  // (German AltGr+7/8/9/0 are { [ ] }). The Alt guard keeps every app chord,
+  // the bracket ones included, from claiming them in either context.
+  test('Ctrl+Alt (+Shift) brackets and braces are never an app shortcut', () => {
+    for (const k of ['[', ']', '{', '}', '@', '+', '-', '0']) {
+      for (const shiftKey of [false, true]) {
+        const e = key({ key: k, ctrlKey: true, altKey: true, shiftKey });
+        expect(keyEventToAction(e, 'other', 'terminal')).toBeNull();
+        expect(keyEventToAction(e, 'other')).toBeNull();
+      }
+    }
+  });
+});

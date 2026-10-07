@@ -165,7 +165,10 @@ small gaps in the bar; in CM6 lines are contiguous.
   file collapse the section too; the fold is dispatched from a microtask
   because CM6 forbids dispatching inside an update. Turning the setting off
   reconfigures the compartment to `[]`, which drops the fold state (unfolds
-  everything) with it.
+  everything) with it. `foldKeymap`'s fold-all chords (Ctrl+Alt+[ / ]) are
+  swapped for an `any` binding that declines AltGr (`core/altgr.ts`):
+  Windows reports German AltGr+8 as Ctrl+Alt+"[", which would otherwise fold
+  everything instead of typing the bracket.
 
 ---
 

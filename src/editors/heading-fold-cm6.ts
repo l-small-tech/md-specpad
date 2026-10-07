@@ -20,14 +20,17 @@
 
 import {
   codeFolding,
+  foldAll,
   foldGutter,
   foldKeymap,
   foldable,
   foldEffect,
   foldedRanges,
+  unfoldAll,
 } from '@codemirror/language';
 import type { ChangeSet, EditorState, Extension, Text } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
+import { EditorView, keymap, type KeyBinding } from '@codemirror/view';
+import { isAltGraphText } from '../core/altgr';
 import { parseHeadingLine } from '../core/heading-mark';
 import { isAtxHeadingLine } from './heading-marks-cm6';
 
@@ -136,9 +139,44 @@ function foldMarker(open: boolean): HTMLElement {
   return span;
 }
 
+/** CM6's fold-all / unfold-all chords, which collide with AltGr+8 / AltGr+9. */
+const FOLD_ALL_KEYS = new Set(['Ctrl-Alt-[', 'Ctrl-Alt-]']);
+
+/**
+ * Ctrl+Alt+[ / ] fold and unfold every section — unless the keypress is AltGr
+ * typing a bracket (Windows reports AltGr as Ctrl+Alt, so German AltGr+8
+ * arrives as Ctrl+Alt+"["). Then it declines, and the bracket is typed. A
+ * named binding never sees the event, so this is an `any` binding.
+ */
+function foldAllChord(view: EditorView, event: KeyboardEvent): boolean {
+  if (!event.ctrlKey || !event.altKey || event.shiftKey || event.metaKey) {
+    return false;
+  }
+  if (event.key !== '[' && event.key !== ']') {
+    return false;
+  }
+  const altGraph = isAltGraphText({
+    key: event.key,
+    code: event.code,
+    ctrl: true,
+    alt: true,
+    altGraph: event.getModifierState?.('AltGraph') ?? false,
+  });
+  if (altGraph) {
+    return false;
+  }
+  return event.key === '[' ? foldAll(view) : unfoldAll(view);
+}
+
+/** `foldKeymap` with the fold-all chords swapped for the AltGr-aware binding. */
+export const sectionFoldKeymap: readonly KeyBinding[] = [
+  ...foldKeymap.filter((binding) => !FOLD_ALL_KEYS.has(binding.key ?? '')),
+  { any: foldAllChord },
+];
+
 export const headingFoldExtension: Extension = [
   codeFolding(),
   foldGutter({ markerDOM: foldMarker }),
-  keymap.of(foldKeymap),
+  keymap.of(sectionFoldKeymap),
   autoCollapseRunning,
 ];

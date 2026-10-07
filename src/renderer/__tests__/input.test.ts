@@ -176,6 +176,22 @@ describe('keyboard', () => {
     expect(claimed).toEqual(['C']);
     expect(h.written).toEqual(['\x03']);
   });
+
+  it('types AltGr characters (Windows reports Ctrl+Alt) instead of escape chords', () => {
+    // German AltGr+Q and AltGr+7, as WebView2 delivers them.
+    keydown(h.textarea, '@', { code: 'KeyQ', ctrlKey: true, altKey: true });
+    keydown(h.textarea, '{', { code: 'Digit7', ctrlKey: true, altKey: true });
+    // Swiss AltGr+ü is on the US [ key: only the AltGraph state tells it apart.
+    keydown(h.textarea, '[', {
+      code: 'BracketLeft',
+      ctrlKey: true,
+      altKey: true,
+      modifierAltGraph: true,
+    } as KeyboardEventInit);
+    // A real US Ctrl+Alt chord is still a chord.
+    keydown(h.textarea, 'a', { code: 'KeyA', ctrlKey: true, altKey: true });
+    expect(h.written).toEqual(['@', '{', '[', '\x1b\x01']);
+  });
 });
 
 describe('IME composition', () => {

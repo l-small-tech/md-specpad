@@ -30,7 +30,7 @@ which are the same everywhere).
 | Tab (on a list line) | Indent one level, with any nested items below it |
 | Shift+Tab (on a list line) | Un-indent one level, with any nested items below it |
 | Ctrl+Shift+[ / Ctrl+Shift+] (Mac: Cmd+Alt+[ / ]) | Collapse / expand the section under the caret (with **Collapsible headings** on in Settings) |
-| Ctrl+Alt+[ / Ctrl+Alt+] | Collapse / expand every section |
+| Ctrl+Alt+[ / Ctrl+Alt+] | Collapse / expand every section (where AltGr types the brackets, as on a German keyboard, AltGr still just types them) |
 
 Indenting works like a word processor. Bullet markers change with depth — `*` at
 the left margin, `-` one level in, `+` two levels in, then repeating — so
@@ -88,6 +88,11 @@ exceptions.
 Still available from a terminal: new window (Ctrl+N), the new-tab picker
 (Ctrl+Shift+N), close tab, next/previous tab, rename tab, Settings, the
 command palette, the Git tab (Ctrl+Shift+G), and full screen.
+
+On keyboards with an AltGr key (German, French, Spanish, Nordic and others),
+AltGr types its character into the terminal as usual: `@`, `{`, `[`, `\`,
+`|`, `~` and `€` reach the shell as text, even though Windows reports AltGr
+as Ctrl+Alt. Ctrl+Alt with a letter is still a Ctrl+Alt chord.
 
 ## Drawing tabs (whiteboards)
 

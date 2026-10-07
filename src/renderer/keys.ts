@@ -12,16 +12,24 @@
  * kitty keyboard protocol is a deliberate post-v1 item.
  */
 
+import { isAltGraphText } from '../core/altgr';
+
 /** What the encoder needs from a key event. */
 export interface KeyInput {
   /** `KeyboardEvent.key`. */
   key: string;
-  /** `KeyboardEvent.code` — consulted only to tell the numeric keypad apart. */
+  /** `KeyboardEvent.code` — tells the numeric keypad and AltGr characters apart. */
   code?: string;
   ctrl?: boolean;
   alt?: boolean;
   shift?: boolean;
   meta?: boolean;
+  /**
+   * `KeyboardEvent.getModifierState('AltGraph')`. Windows reports AltGr as
+   * Ctrl+Alt; this (with `code`) is how its characters are told apart from
+   * real Ctrl+Alt chords — see `core/altgr.ts`.
+   */
+  altGraph?: boolean;
 }
 
 /** Terminal state the encoding depends on (all of it from `Terminal.modes()`). */
@@ -234,6 +242,10 @@ function controlCode(key: string): number | null {
 function encodePrintable(input: KeyInput, state: KeyEncodeState): string | null {
   const key = input.key;
   const codepoint = key.codePointAt(0) ?? 0;
+
+  // AltGr arrives as Ctrl+Alt on Windows, but the key is the character the
+  // layout typed (German AltGr+Q is "@"): text, not a Meta+Ctrl chord.
+  if (isAltGraphText(input)) return key;
 
   // Cmd on macOS is the application's modifier, never the shell's; anything
   // the app keymap did not claim is dropped rather than mis-sent.
