@@ -13,11 +13,19 @@
  * capture codes `core/dictation-errors.ts` knows (`WHISPER_MIC_DENIED`,
  * `WHISPER_NO_MIC`, `WHISPER_FAILED:<why>`).
  *
- * The worklet source is an inline Blob URL, so Vite needs no worker config
- * and the module works from the packaged app's custom protocol alike.
+ * The worklet is its own file, `pcm-tap.worklet.js`, emitted by the build as
+ * a same-origin asset and loaded by URL. It must not be a Blob or data: URL:
+ * Chromium checks `audioWorklet.addModule` fetches against `script-src`
+ * (worklets are script-like destinations; `worker-src` covers only
+ * Worker/SharedWorker/ServiceWorker), which falls back to the release CSP's
+ * `default-src 'self'` — so `blob:`/`data:` would be refused in installed
+ * builds only, `tauri dev` applying no CSP. `no-inline` stops Vite from
+ * turning the small file into a data: URL; `__tests__/pcm-worklet-asset.test.ts`
+ * builds this module and checks the output.
  */
 
 import { captureLimitReached, concatPcm, WHISPER_SAMPLE_RATE } from '../core/whisper-models';
+import pcmTapWorkletUrl from './pcm-tap.worklet.js?url&no-inline';
 
 export interface PcmCapture {
   /** The rate the graph actually runs at — 16 000 unless the backend refused it. */
@@ -34,29 +42,6 @@ export interface PcmCaptureOptions {
    * `MAX_CAPTURE_SECONDS`. Frames after it are dropped; the caller stops.
    */
   onLimit?: () => void;
-}
-
-/** Posts every input frame (128 samples) to the main thread, verbatim. */
-const WORKLET_SOURCE = `
-class PcmTap extends AudioWorkletProcessor {
-  process(inputs) {
-    const channel = inputs[0] && inputs[0][0];
-    if (channel && channel.length > 0) {
-      this.port.postMessage(channel.slice(0));
-    }
-    return true;
-  }
-}
-registerProcessor('pcm-tap', PcmTap);
-`;
-
-let workletUrl: string | null = null;
-
-function workletModuleUrl(): string {
-  workletUrl ??= URL.createObjectURL(
-    new Blob([WORKLET_SOURCE], { type: 'application/javascript' }),
-  );
-  return workletUrl;
 }
 
 /** The capture code for a `getUserMedia` rejection. */
@@ -108,7 +93,7 @@ export async function startPcmCapture(options: PcmCaptureOptions = {}): Promise<
   let source: MediaStreamAudioSourceNode;
   let tap: AudioWorkletNode;
   try {
-    await ctx.audioWorklet.addModule(workletModuleUrl());
+    await ctx.audioWorklet.addModule(pcmTapWorkletUrl);
     source = ctx.createMediaStreamSource(stream);
     tap = new AudioWorkletNode(ctx, 'pcm-tap', {
       numberOfInputs: 1,

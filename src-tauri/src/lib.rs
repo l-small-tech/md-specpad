@@ -25,7 +25,7 @@ use tauri_plugin_log::log::LevelFilter;
 // mobile (no second process) and in debug builds (so a dev instance can coexist
 // with an installed release instead of folding into it).
 #[cfg(all(desktop, not(debug_assertions)))]
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewWindow, WebviewWindowBuilder};
 
 /// The shell a terminal profile spawns when it names no program. The frontend
 /// shows it in Settings and passes it back on spawn.
@@ -85,10 +85,10 @@ fn log_level_from(env: Option<&str>, args: &[String]) -> LevelFilter {
     LevelFilter::Info
 }
 
-/// Shared window geometry/chrome for every window the app creates, as
-/// (width, height, min width, min height). Mirrors `WINDOW_OPTIONS` in
-/// `src/main.tsx` — a window born in Rust (the second-instance handoff below)
-/// must look exactly like one born in JS.
+/// Shared window geometry for every window the app creates, as (width,
+/// height, min width, min height). Mirrors `WINDOW_OPTIONS` in `src/main.tsx`
+/// — a window born in Rust (the second-instance handoff below) must look
+/// exactly like one born in JS. The frame comes from `new_window_config`.
 #[cfg(all(desktop, not(debug_assertions)))]
 const NEW_WINDOW: (f64, f64, f64, f64) = (900.0, 650.0, 400.0, 300.0);
 
@@ -134,6 +134,40 @@ fn fresh_window_label(millis: u128, taken: &[String]) -> String {
         .map(|n| format!("{base}-{n}"))
         .find(|candidate| !taken.contains(candidate))
         .unwrap_or(base)
+}
+
+/// The config a window born in Rust is built from: the "main" window's own
+/// (`tauri.conf.json`, merged at build time with `tauri.macos.conf.json` on
+/// macOS), with its label, URL and the shared `NEW_WINDOW` geometry swapped
+/// in. Inheriting the frame instead of restating it is what keeps the
+/// per-platform chrome right: undecorated on Windows/Linux (the TabBar is the
+/// titlebar), the native frame with an overlay title bar on macOS — where the
+/// app draws no window controls or resize strips of its own. The frontend's
+/// counterpart is `src/ui/window-chrome.ts`.
+// Dead where the only caller is not compiled (debug builds, mobile): the
+// second-instance handoff is release-desktop-only. The unit tests below still
+// cover it everywhere.
+#[cfg_attr(not(all(desktop, not(debug_assertions))), allow(dead_code))]
+fn new_window_config(
+    main: Option<&tauri::utils::config::WindowConfig>,
+    label: String,
+    url: String,
+    (width, height, min_width, min_height): (f64, f64, f64, f64),
+) -> tauri::utils::config::WindowConfig {
+    let mut config = main
+        .cloned()
+        .unwrap_or_else(|| tauri::utils::config::WindowConfig {
+            decorations: false,
+            ..Default::default()
+        });
+    config.label = label;
+    config.url = tauri::WebviewUrl::App(url.into());
+    config.title = "MD Specpad".to_string();
+    config.width = width;
+    config.height = height;
+    config.min_width = Some(min_width);
+    config.min_height = Some(min_height);
+    config
 }
 
 /// Can the user see this window from where they are standing?
@@ -208,13 +242,11 @@ fn handle_second_instance(app: &tauri::AppHandle, args: &[String]) {
         _ => "index.html".to_string(),
     };
 
-    let (width, height, min_width, min_height) = NEW_WINDOW;
-    let _ = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
-        .title("MD Specpad")
-        .inner_size(width, height)
-        .min_inner_size(min_width, min_height)
-        .decorations(false)
-        .build();
+    let main = app.config().app.windows.iter().find(|w| w.label == "main");
+    let config = new_window_config(main, label, url, NEW_WINDOW);
+    if let Ok(builder) = WebviewWindowBuilder::from_config(app, &config) {
+        let _ = builder.build();
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -489,7 +521,64 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_query, file_args, fresh_window_label, log_level_from, LevelFilter};
+    use super::{
+        encode_query, file_args, fresh_window_label, log_level_from, new_window_config, LevelFilter,
+    };
+    use tauri::utils::config::WindowConfig;
+
+    /// The "main" window exactly as one of the config files declares it.
+    fn main_window(file: &str) -> WindowConfig {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+        let config: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).expect("read config"))
+                .expect("parse config");
+        let window = config["app"]["windows"]
+            .as_array()
+            .and_then(|windows| windows.iter().find(|w| w["label"] == "main"))
+            .expect("a main window")
+            .clone();
+        serde_json::from_value(window).expect("a valid window config")
+    }
+
+    #[test]
+    fn new_window_config_inherits_the_main_windows_frame() {
+        let geometry = (900.0, 650.0, 400.0, 300.0);
+
+        // Windows/Linux: undecorated — the TabBar is the titlebar.
+        let base = main_window("tauri.conf.json");
+        let config = new_window_config(
+            Some(&base),
+            "w-17".into(),
+            "index.html?open=x".into(),
+            geometry,
+        );
+        assert!(!config.decorations);
+        assert_eq!(config.label, "w-17");
+        assert_eq!(
+            config.url,
+            tauri::WebviewUrl::App("index.html?open=x".into())
+        );
+        assert_eq!((config.width, config.height), (900.0, 650.0));
+        assert_eq!(
+            (config.min_width, config.min_height),
+            (Some(400.0), Some(300.0))
+        );
+
+        // macOS: the native frame with an overlay title bar, as main has.
+        let mac = main_window("tauri.macos.conf.json");
+        let config = new_window_config(Some(&mac), "w-18".into(), "index.html".into(), geometry);
+        assert!(config.decorations);
+        assert!(matches!(
+            config.title_bar_style,
+            tauri::utils::TitleBarStyle::Overlay
+        ));
+        assert!(config.hidden_title);
+        assert_eq!(config.traffic_light_position, mac.traffic_light_position);
+        assert_eq!(config.label, "w-18");
+
+        // No main window in the config (never expected): still undecorated.
+        assert!(!new_window_config(None, "w-19".into(), "index.html".into(), geometry).decorations);
+    }
 
     fn argv(flags: &[&str]) -> Vec<String> {
         std::iter::once("md-specpad")

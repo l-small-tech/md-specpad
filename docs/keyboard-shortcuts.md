@@ -1,7 +1,8 @@
 # Keyboard shortcuts
 
 On Mac, use **Cmd** wherever **Ctrl** is shown (except F2, F11, and Esc,
-which are the same everywhere).
+which are the same everywhere, and Ctrl+Tab / Ctrl+Shift+Tab, which stay
+**Ctrl** on Mac because macOS keeps Cmd+Tab for switching apps).
 
 ## Tabs
 

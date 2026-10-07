@@ -94,6 +94,7 @@ import { searchStore } from './ui/stores/search';
 import { closeOverview, notesOverviewStore } from './ui/notes-overview';
 import { closeWorkspaceInit, workspaceInitStore } from './ui/workspace-init';
 import { isAndroid } from './ui/platform';
+import { spawnedWindowChrome } from './ui/window-chrome';
 import { globalCoordsTrusted } from './ui/global-coords';
 import { removeBootSplash, restoreStatusText, setBootStatus } from './ui/boot-splash';
 import { renderOsGhostPage } from './ui/tab-drag-ghost';
@@ -267,15 +268,19 @@ function isHelperWindow(label: string): boolean {
   return label.startsWith('ghost-') || label === PRESENTER_LABEL;
 }
 
-/** Shared construction options so every window looks like the main one. */
+/**
+ * Shared construction options so every window looks like the main one —
+ * including its per-platform frame (undecorated on Windows/Linux, the native
+ * frame with an overlay title bar on macOS: `ui/window-chrome.ts`).
+ */
 const WINDOW_OPTIONS = {
   title: 'MD Specpad',
   width: 900,
   height: 650,
   minWidth: 400,
   minHeight: 300,
-  decorations: false,
-} as const;
+  ...spawnedWindowChrome(detectPlatform(navigator.platform)),
+};
 
 /** Create a window and resolve/reject on Tauri's created/error events. */
 function spawnWindow(

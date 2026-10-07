@@ -12,7 +12,10 @@ session concepts in Rust, stop and move it to `src/core`.
   event for second-instance argv. Read its doc comments — the
   "why not emit from setup" note matters. `handle_second_instance` reuses a
   live window only when the user can SEE it (`vdesk`), else builds a new
-  `w-<millis>` one carrying the argv files in its `?open=` URL param.
+  `w-<millis>` one carrying the argv files in its `?open=` URL param — from
+  the `main` window's config (`new_window_config`), so it inherits the
+  per-platform frame: undecorated on Windows/Linux, native frame + overlay
+  title bar on macOS (`tauri.macos.conf.json`).
 - `src/vdesk.rs` — **Windows only**: `IVirtualDesktopManager`, the one
   documented virtual-desktop interface (never reach for the undocumented
   `…Internal` one — its vtable shifts between OS builds). Answers "is this
@@ -171,7 +174,11 @@ session concepts in Rust, stop and move it to `src/core`.
   `pty_attach`, `pty_detach`.
 - `capabilities/default.json` — plugin/core permissions for every app
   window: `main` plus torn-off tab windows (`w-*`, M8). Custom commands
-  need NO capability entries.
+  need NO capability entries. Every Tauri window method the frontend calls
+  outside `core:default`'s getters needs its `core:window:allow-<kebab-name>`
+  here: a missing grant rejects at runtime and the caller's `.catch` hides it
+  (the resize strips were dead that way). `src/ui/__tests__/tauri-window-permissions.test.ts`
+  scans `src/` and fails on a missing one.
 - `tauri.conf.json` — app config. `createUpdaterArtifacts` stays `false`
   until M7's key ceremony.
 
