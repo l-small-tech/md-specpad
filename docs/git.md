@@ -131,9 +131,17 @@ of this window's terminals is standing inside it. Each card offers:
 - **Merge** — the base into this branch (to catch up), or this branch into
   the base (in the main checkout).
 - **Finish…** — the guided end of a worktree, below.
-- **Remove** — remove the worktree (it asks first). A worktree with
-  uncommitted or untracked files is refused by git — commit or discard them
-  first.
+- **Remove** — remove the worktree. First it checks the worktree: one with
+  uncommitted or untracked files, or a locked one, is refused straight away
+  with a message saying why, and nothing is closed or removed — commit or
+  discard the changes (or unlock it) first. There is no force option. A
+  clean worktree asks first; the question lists the terminal tabs inside it,
+  which are closed (a shell inside the folder would stop it being deleted),
+  and says its workspace entry leaves the sidebar. A linked `node_modules`
+  (junction or symlink) inside it loses only the link — the folder it points
+  to is left alone. Files git ignores (build output, `node_modules`) are
+  deleted with the worktree. If git still refuses, the workspace entry is
+  put back; terminals it closed stay closed, and the error message says so.
 
 **New worktree** asks for a slug and does the whole dance: creates
 `worktrees/<slug>` on `<prefix><slug>` from the base branch, makes sure

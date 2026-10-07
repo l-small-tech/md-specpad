@@ -52,6 +52,31 @@ function addWorkspace(path: string): void {
 }
 
 /**
+ * Forget the workspace entry of a worktree about to be removed, returning a
+ * function that puts it back as it was (name, colour, flags, position) should
+ * git then refuse the removal — or undefined when there was no entry.
+ */
+function forgetWorkspace(path: string): (() => void) | undefined {
+  const key = pathKey(path);
+  const before = settingsStore.getState().settings.workspaces;
+  const index = before.findIndex((w) => pathKey(w.path) === key);
+  const entry = before[index];
+  removeWorkspace(path);
+  if (!entry) {
+    return undefined;
+  }
+  return () => {
+    const { settings, update } = settingsStore.getState();
+    if (settings.workspaces.some((w) => pathKey(w.path) === key)) {
+      return;
+    }
+    const next = [...settings.workspaces];
+    next.splice(Math.min(index, next.length), 0, entry);
+    update({ workspaces: next });
+  };
+}
+
+/**
  * Save the FILE tab holding `absPath` if it is dirty — the store does this
  * before `git add`ing a resolved conflict, so what git stages is what the
  * editor shows.
@@ -102,7 +127,7 @@ export function installAppGitDeps(dialogs: {
     openFile: (absPath) => openNotePath(absPath),
     saveTabAt,
     addWorkspace,
-    removeWorkspace,
+    removeWorkspace: forgetWorkspace,
     closeTabs,
     refreshWatchedDirs,
   });

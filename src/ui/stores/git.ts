@@ -73,7 +73,13 @@ import {
   suggestRemoteName,
   validateRemoteName,
 } from '../../core/git/remotes';
-import { emptyGroups, groupStatus, mergingInto } from '../../core/git/status';
+import {
+  emptyGroups,
+  groupStatus,
+  mergingInto,
+  statusCounts,
+  statusLabel,
+} from '../../core/git/status';
 import type {
   ConflictTracker,
   FinishState,
@@ -173,9 +179,14 @@ export interface GitStoreDeps {
   openFile: (absPath: string) => void;
   /** Save the tab holding `absPath` if it is dirty (before `git add`). */
   saveTabAt: (absPath: string) => Promise<void>;
-  /** Add a folder as a workspace (a new worktree) / forget one (a removed worktree). */
+  /** Add a folder as a workspace (a new worktree). */
   addWorkspace: (path: string) => void;
-  removeWorkspace: (path: string) => void;
+  /**
+   * Forget a workspace (a worktree about to be removed). Returns a function
+   * that puts the entry back exactly as it was — for a removal git then
+   * refuses — or undefined when there was no entry.
+   */
+  removeWorkspace: (path: string) => (() => void) | undefined;
   /** Close tabs (terminals inside a worktree about to be removed). */
   closeTabs: (ids: string[]) => Promise<void>;
   /**
@@ -621,6 +632,39 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         await new Promise((resolve) => setTimeout(resolve, WORKTREE_REMOVE_RETRY_MS));
         await getDeps().ipc.gitWorktreeRemove(mainRoot, path, force);
       }
+    };
+
+    /**
+     * Why a plain (non-forced) `git worktree remove` of `path` would refuse,
+     * as the sentence to show — or null when it should go through. Locked
+     * comes from the dashboard row; dirt from a fresh `git status` of the
+     * worktree (the row may be stale, or past the dashboard's cap). A missing
+     * folder is only pruned, so it has nothing to check; a status that fails
+     * leaves the verdict to the removal itself.
+     */
+    const worktreeRemoveBlocker = async (
+      mainRoot: string,
+      path: string,
+      rel: string,
+    ): Promise<string | null> => {
+      const row = repo(mainRoot)?.checkouts.find((c) => sameCheckout(c.path, path))?.summary;
+      if (row?.missing) {
+        return null;
+      }
+      if (row?.locked) {
+        return `${rel} is locked — unlock it (git worktree unlock) first.`;
+      }
+      let status: GitStatus;
+      try {
+        status = await getDeps().ipc.gitStatus(path);
+      } catch {
+        return null;
+      }
+      if (status.entries.length === 0) {
+        return null;
+      }
+      const counts = statusLabel(statusCounts(groupStatus(status.entries)));
+      return `${rel} has uncommitted changes (${counts}) — commit or discard them first.`;
     };
 
     const patch = (mainRoot: string, update: (repo: RepoState) => Partial<RepoState>) => {
@@ -2150,8 +2194,18 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         }
         const deps = getDeps();
         const force = opts.force ?? false;
-        const terminals = terminalsInside(deps.terminalTabs(), path);
         const rel = relCheckout(mainRoot, path);
+        // `git worktree remove` without --force refuses a locked worktree and
+        // one with uncommitted or untracked changes. Ask BEFORE anything is
+        // closed or forgotten, so a refusal costs nothing.
+        if (!force) {
+          const blocker = await worktreeRemoveBlocker(mainRoot, path, rel);
+          if (blocker) {
+            deps.notice(`${blocker} Nothing was removed.`);
+            return;
+          }
+        }
+        const terminals = terminalsInside(deps.terminalTabs(), path);
         const lines = [`Remove the worktree ${rel}?`];
         if (terminals.length > 0) {
           lines.push(
@@ -2164,16 +2218,22 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
           lines.push('Uncommitted changes in it will be lost.');
         }
         lines.push(
-          'Its workspace entry will be removed from the explorer. A junctioned or symlinked node_modules inside it is followed by the removal — check first.',
+          'Its workspace entry will be removed from the explorer. A linked node_modules (junction or symlink) inside it loses the link only — the folder it points to is left alone.',
         );
         if (!(await deps.confirm(lines.join('\n\n'), 'Remove worktree'))) {
           return;
         }
         const state = it(mainRoot);
         state.inflight += 1;
+        // Terminals go first: on Windows a shell whose cwd is inside the
+        // worktree holds the folder. The workspace entry goes before the
+        // watcher is re-armed (Windows refuses to delete a watched folder).
+        let closedTerminals = 0;
+        let restoreWorkspace: (() => void) | undefined;
         try {
           await deps.closeTabs(terminals.map((t) => t.id));
-          deps.removeWorkspace(path);
+          closedTerminals = terminals.length;
+          restoreWorkspace = deps.removeWorkspace(path);
           await deps.refreshWatchedDirs();
           if (sameCheckout(repo(mainRoot)?.selectedCheckout ?? '', path)) {
             state.explicitCheckout = true;
@@ -2182,7 +2242,21 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
           await removeWorktreeDir(mainRoot, path, force);
           deps.notice(`Removed ${rel}`);
         } catch (err) {
-          fail(mainRoot, err);
+          // The worktree is still there: put its workspace entry back. Closed
+          // terminals cannot be reopened as they were — say so.
+          if (restoreWorkspace) {
+            restoreWorkspace();
+            await deps.refreshWatchedDirs().catch(() => {});
+          }
+          const closedNote =
+            closedTerminals === 0
+              ? ''
+              : closedTerminals === 1
+                ? ' The terminal tab inside it was already closed and cannot be reopened.'
+                : ` The ${closedTerminals} terminal tabs inside it were already closed and cannot be reopened.`;
+          const message = `${gitFailureText(err)}${closedNote}`;
+          patch(mainRoot, () => ({ error: { code: errorCode(err) ?? 'ERROR', message } }));
+          deps.notice(message);
         } finally {
           state.inflight -= 1;
         }
