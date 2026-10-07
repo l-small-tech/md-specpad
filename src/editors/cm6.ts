@@ -339,7 +339,30 @@ const baseTheme = EditorView.theme({
   },
   '.cm-searchMatch': { backgroundColor: 'var(--selection)' },
   // Fold gutter + the "…" placeholder of a collapsed section (heading-fold-cm6.ts).
-  '.cm-foldGutter .cm-gutterElement': { cursor: 'pointer' },
+  // The cell is a fixed-width flex box so the chevron centres on both axes
+  // and lines up with the text; the marker sizes off the editor font.
+  '.cm-foldGutter .cm-gutterElement': {
+    cursor: 'pointer',
+    width: '1.4em',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0',
+  },
+  '.cm-fold-marker': {
+    display: 'inline-flex',
+    width: '1.1em',
+    height: '1.1em',
+    color: 'var(--fg-muted)',
+    borderRadius: '3px',
+    transition: 'transform 120ms ease, color 120ms ease',
+  },
+  '.cm-fold-marker svg': { width: '100%', height: '100%', display: 'block' },
+  '.cm-fold-marker-closed': { transform: 'rotate(-90deg)' },
+  '.cm-foldGutter .cm-gutterElement:hover .cm-fold-marker': {
+    color: 'var(--fg)',
+    backgroundColor: 'var(--bg-hover)',
+  },
   '.cm-foldPlaceholder': {
     backgroundColor: 'var(--bg-hover)',
     border: '1px solid var(--border)',

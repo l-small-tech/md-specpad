@@ -109,9 +109,36 @@ const autoCollapseRunning = EditorView.updateListener.of((update) => {
   });
 });
 
+/**
+ * The gutter marker: a chevron drawn as an inline SVG so it scales with the
+ * editor font and sits dead centre in its cell (the stock "⌄"/"›" text glyphs
+ * are tiny and hug the left edge). Open sections point down, folded ones
+ * right — `.cm-fold-marker-closed` rotates the same path, see the theme in
+ * cm6.ts.
+ */
+function foldMarker(open: boolean): HTMLElement {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const span = document.createElement('span');
+  span.className = `cm-fold-marker ${open ? 'cm-fold-marker-open' : 'cm-fold-marker-closed'}`;
+  span.title = open ? 'Fold section' : 'Unfold section';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(svgNS, 'path');
+  path.setAttribute('d', 'M4 6l4 4 4-4');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '1.8');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(path);
+  span.appendChild(svg);
+  return span;
+}
+
 export const headingFoldExtension: Extension = [
   codeFolding(),
-  foldGutter(),
+  foldGutter({ markerDOM: foldMarker }),
   keymap.of(foldKeymap),
   autoCollapseRunning,
 ];
