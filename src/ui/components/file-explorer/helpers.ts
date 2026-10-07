@@ -4,6 +4,7 @@
  * vocabulary, and the timeout-guarded directory listing.
  */
 
+import { isAudioPath } from '../../../core/audio';
 import { isImagePath } from '../../../core/images';
 import { isImportablePath } from '../../../core/import/registry';
 import { listNoteFiles, type ExplorerEntry } from '../../session';
@@ -26,7 +27,7 @@ export function dirIndent(depth: number): number {
 export function fileBadge(
   name: string,
   deck = false,
-): { label: string; kind: 'md' | 'deck' | 'image' | 'doc' } | null {
+): { label: string; kind: 'md' | 'deck' | 'image' | 'audio' | 'doc' } | null {
   const dot = name.lastIndexOf('.');
   if (dot <= 0) {
     return null;
@@ -43,6 +44,9 @@ export function fileBadge(
   }
   if (isImagePath(name)) {
     return { label: name.slice(dot + 1), kind: 'image' };
+  }
+  if (isAudioPath(name)) {
+    return { label: name.slice(dot + 1), kind: 'audio' };
   }
   return null;
 }

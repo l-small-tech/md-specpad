@@ -79,8 +79,8 @@ import type {
   GitOutputLine,
   GitStatus,
   GitStatusEntry,
+  DiffGroup,
   SelectedItem,
-  StatusGroup,
   StatusGroups,
 } from '../../core/git/types';
 import {
@@ -115,6 +115,7 @@ export type GitIpc = Pick<
   | 'gitMergeAbort'
   | 'gitWorktreeAdd'
   | 'gitWorktreeRemove'
+  | 'gitTrustDirectory'
   | 'readTextFile'
   | 'atomicWriteText'
 >;
@@ -207,7 +208,16 @@ export interface NewWorktreeDraft {
   busy: boolean;
 }
 
-export type RepoUnavailable = 'no-git' | 'not-a-repo';
+/** `untrusted`: git's `safe.directory` check refused the repository (`GIT_UNTRUSTED`). */
+export type RepoUnavailable = 'no-git' | 'not-a-repo' | 'untrusted';
+
+function unavailableKind(code: string | null): RepoUnavailable {
+  return code === 'GIT_NOT_FOUND'
+    ? 'no-git'
+    : code === 'GIT_UNTRUSTED'
+      ? 'untrusted'
+      : 'not-a-repo';
+}
 
 export type RefreshPart = 'status' | 'branches' | 'log' | 'worktrees';
 
@@ -252,6 +262,12 @@ export interface GitState {
   ensureRepo: (mainRoot: string, checkout?: string | null) => void;
   /** The last git tab for this repository closed. */
   forget: (mainRoot: string) => void;
+  /**
+   * Answer a `GIT_UNTRUSTED` refusal for the repository holding `path`:
+   * confirm, then add it to git's global `safe.directory`. A tracked repo in
+   * the `untrusted` state is refreshed. Resolves true once trusted.
+   */
+  trustFolder: (path: string) => Promise<boolean>;
   /** Re-ask git; throttled per repository unless `force`. */
   refresh: (mainRoot: string, opts?: { force?: boolean; parts?: RefreshPart[] }) => Promise<void>;
   /** Watcher / focus entry points (main.tsx). */
@@ -476,6 +492,13 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
      * when git first tries; git says so ("being used by another process",
      * "Permission denied", "Directory not empty") and a second try a beat
      * later succeeds. Any other failure is reported at once.
+     *
+     * The command itself finishes what git leaves behind: when git has already
+     * dropped the worktree's record but could not delete its folder (paths
+     * beyond MAX_PATH under pnpm's node_modules, a directory still held for a
+     * moment), it deletes the folder with a long-path-aware remove and its own
+     * retries, so the second call here only ever sees a folder git no longer
+     * lists — which it also recognises and deletes.
      */
     const removeWorktreeDir = async (mainRoot: string, path: string, force: boolean) => {
       try {
@@ -601,7 +624,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       setLoading(mainRoot, 'log', true);
       let rows: GitCommit[];
       try {
-        rows = await getDeps().ipc.gitLog(sel, null, LOG_PAGE, skip);
+        rows = await getDeps().ipc.gitLog(sel, null, LOG_PAGE, skip, true);
       } catch (err) {
         if (seq !== state.seq.log) {
           return;
@@ -657,7 +680,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
           }
           if (isGitUnavailable(err)) {
             patch(mainRoot, (r) => ({
-              unavailable: errorCode(err) === 'GIT_NOT_FOUND' ? 'no-git' : 'not-a-repo',
+              unavailable: unavailableKind(errorCode(err)),
               loading: { ...r.loading, worktrees: false },
             }));
           } else {
@@ -739,9 +762,19 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
 
     const entryFor = (
       groups: StatusGroups,
-      group: StatusGroup,
+      group: DiffGroup,
       path: string,
-    ): GitStatusEntry | null => groups[group].find((e) => e.path === path) ?? null;
+    ): GitStatusEntry | null => {
+      const lists =
+        group === 'changed' ? [groups.staged, groups.unstaged, groups.untracked] : [groups[group]];
+      for (const list of lists) {
+        const hit = list.find((e) => e.path === path);
+        if (hit) {
+          return hit;
+        }
+      }
+      return null;
+    };
 
     const loadDiff = async (mainRoot: string, item: SelectedItem): Promise<void> => {
       const r = repo(mainRoot);
@@ -769,6 +802,9 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
             break;
           case 'conflicted':
             sides = Promise.all([showOrNull(root, 'HEAD', path), readWorkingFile(root, path)]);
+            break;
+          case 'changed':
+            sides = Promise.all([showOrNull(root, 'HEAD', origPath), readWorkingFile(root, path)]);
             break;
         }
       } else if (item.kind === 'commit' && item.path !== undefined) {
@@ -1185,6 +1221,33 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         const repos = { ...get().repos };
         delete repos[key];
         set({ repos });
+      },
+      async trustFolder(path) {
+        const deps = getDeps();
+        const ok = await deps.confirm(
+          [
+            'Git refuses to work in this repository because the folder is owned by another user account (common for folders created by an administrator, or on a FAT/exFAT or network drive).',
+            path,
+            'Trust it? This adds it to your global git config (safe.directory), so git in your terminal will trust it too. Only do this for repositories you know.',
+          ].join('\n\n'),
+          'Trust repository',
+        );
+        if (!ok) {
+          return false;
+        }
+        try {
+          await deps.ipc.gitTrustDirectory(path);
+        } catch (err) {
+          deps.notice(gitFailureText(err));
+          return false;
+        }
+        // A tab already showing the "untrusted" panel for this repository
+        // comes back to life.
+        const r = repo(path);
+        if (r?.unavailable === 'untrusted') {
+          await get().refresh(r.mainRoot, { force: true });
+        }
+        return true;
       },
       async refresh(mainRoot, opts = {}) {
         const r = repo(mainRoot);

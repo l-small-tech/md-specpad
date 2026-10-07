@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MD Notepad",
-  "version": "0.10.0",
-  "identifier": "tech.l-small.mdnotepad",
+  "productName": "MD Specpad",
+  "version": "0.10.5",
+  "identifier": "tech.l-small.mdspecpad",
   "build": {
     "beforeDevCommand": "pnpm run dev",
     "devUrl": "http://127.0.0.1:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "MD Notepad",
+        "title": "MD Specpad",
         "width": 1000,
         "height": 700,
         "minWidth": 400,
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
+      "csp": "default-src 'self'; img-src 'self' data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:"
     }
   },
   "bundle": {
@@ -66,7 +66,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM2MDc3NDU2MEZDOENCODYKUldTR3k4Z1BWblFIeGhVUDRDbm8yVGRIZ0xPVVVsOUdkQ25vRitJbERicnhoYkZGNkI1QmQwR1kK",
       "endpoints": [
-        "https://github.com/l-small-tech/md-notepad/releases/latest/download/latest.json"
+        "https://github.com/l-small-tech/md-specpad/releases/latest/download/latest.json"
       ]
     }
   }

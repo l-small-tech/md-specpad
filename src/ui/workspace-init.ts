@@ -25,6 +25,7 @@ import {
   HARNESS_STUBS,
   initPlanPaths,
   installedModuleIds,
+  RETIRED_MODULE_IDS,
   planWorkspaceInit,
   userModuleFrom,
   type WorkspaceModule,
@@ -32,8 +33,7 @@ import {
 import { IpcError, ipc } from '../ipc/commands';
 import { pickDirectory } from '../ipc/dialog';
 import { resolveAgentModulesDir, resolveAppAndDocumentsDirs } from '../ipc/paths';
-import { promptStatus } from './prompt-status';
-import { getDefaultWorkspacePath, openNotePath } from './session';
+import { getDefaultWorkspacePath } from './session';
 import { settingsStore } from './stores/settings';
 import { uiStore } from './stores/ui';
 
@@ -281,7 +281,7 @@ export async function applyWorkspaceInit(): Promise<void> {
     const writes = planWorkspaceInit({
       workspaceName: baseName(root) || 'Workspace',
       modules: chosen,
-      knownIds: new Set(state.modules.map((m) => m.id)),
+      knownIds: new Set([...state.modules.map((m) => m.id), ...RETIRED_MODULE_IDS]),
       stubs: state.stubs,
       existing,
     });
@@ -290,12 +290,7 @@ export async function applyWorkspaceInit(): Promise<void> {
     }
 
     registerWorkspace(root);
-    await promptStatus().refresh();
     uiStore.getState().refreshExplorer();
-    const example = writes.find((w) => w.path.endsWith('.prompts.md'));
-    if (example) {
-      openNotePath(joinPath(root, example.path));
-    }
     uiStore
       .getState()
       .showNotice(

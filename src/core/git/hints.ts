@@ -29,6 +29,8 @@ export function gitHint(err: unknown): string {
       return 'Git not found';
     case 'GIT_NOT_A_REPO':
       return 'Not a git repository';
+    case 'GIT_UNTRUSTED':
+      return 'Git does not trust this folder';
     case 'GIT_TIMEOUT':
       return 'Git timed out';
     default:
@@ -113,6 +115,8 @@ export function gitFailureText(err: unknown): string {
       return 'Git is not installed or not on PATH';
     case 'GIT_NOT_A_REPO':
       return 'Not a git repository';
+    case 'GIT_UNTRUSTED':
+      return 'Git does not trust this folder — it is owned by another user';
     case 'GIT_TIMEOUT':
       return message ? `Git timed out — ${firstGitLine(message)}` : 'Git timed out';
     case 'GIT_CANCELLED':

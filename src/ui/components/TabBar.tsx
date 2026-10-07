@@ -55,6 +55,7 @@ import { useSettingsStore } from '../stores/settings';
 import { useUiStore, uiStore } from '../stores/ui';
 import { clippedTabIds, sameIds, wholeTabsFit, type StripItemRect } from '../tab-overflow';
 import { computeWorkspaceRuns } from '../../core/tab-workspaces';
+import { isAudioPath } from '../../core/audio';
 import { docFamilyForTab } from '../../core/doc-family';
 import { splitAgentStatus, type AgentStatusCue } from '../../core/tab-status';
 import type { WorkspaceColor } from '../../core/types';
@@ -195,9 +196,12 @@ function StatusBadge({ cue }: { cue: AgentStatusCue }) {
  * whatever its extension says (the drawing editor owns `.svg`), so the split
  * lives here rather than as a new field on TabEntry.
  */
-type TabIconKind = 'markdown' | 'drawing' | 'image' | 'import' | 'terminal' | 'git';
+type TabIconKind = 'markdown' | 'drawing' | 'image' | 'audio' | 'import' | 'terminal' | 'git';
 
 function tabIconKind(tab: TabEntry): TabIconKind {
+  if (tab.kind === 'image' && tab.filePath && isAudioPath(tab.filePath)) {
+    return 'audio';
+  }
   if (
     tab.kind === 'terminal' ||
     tab.kind === 'image' ||
@@ -240,6 +244,8 @@ const TAB_ICON_PATHS: Record<TabIconKind, React.ReactNode> = {
       <path d="M2.5 12l3.5-4 3 3.5 2-2.2 2.5 2.7" />
     </>
   ),
+  // Five waveform bars.
+  audio: <path d="M2.5 7v2M5 5v6M8 2.5v11M11 5v6M13.5 7v2" />,
   import: (
     <>
       <path d="M8 2.5v6m0 0L5.5 6.2M8 8.5l2.5-2.3" />

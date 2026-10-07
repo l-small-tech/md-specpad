@@ -14,6 +14,7 @@
  * the source editor instead of self-healing the whole session away.
  */
 
+import { isAudioPath } from './audio';
 import { isImagePath } from './images';
 import { isImportablePath } from './import/registry';
 import { extName } from './session/plan-flush';
@@ -93,7 +94,10 @@ export function docFamilyFor(path: string | null | undefined): DocFamily {
   if (extName(path).toLowerCase() === '.svg') {
     return 'svg';
   }
-  return isEditableTextPath(path) || isImagePath(path) || isImportablePath(path)
+  return isEditableTextPath(path) ||
+    isImagePath(path) ||
+    isAudioPath(path) ||
+    isImportablePath(path)
     ? 'markdown'
     : 'code';
 }

@@ -39,7 +39,7 @@ jobs:
     # signing key, so a retargeted upstream tag must not be able to run new
     # code here. Bump the SHAs deliberately, alongside the version comment.
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Every tagged release carries a short changelog: the `## [X.Y.Z]`
       # section of CHANGELOG.md. It goes on top of the release notes, and a
@@ -60,7 +60,7 @@ jobs:
           { echo 'body<<CHANGELOG_EOF'; printf '%s\n' "$NOTES"; echo 'CHANGELOG_EOF'; } >> "$GITHUB_OUTPUT"
 
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -150,7 +150,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__ # tauri-action substitutes the app version
-          releaseName: 'MD Notepad v__VERSION__'
+          releaseName: 'MD Specpad v__VERSION__'
           # The per-platform download table is NOT here: `finalize` prepends one
           # with real links, because only that job knows the built filenames.
           # If it never runs, the notes below still stand on their own.
@@ -198,10 +198,10 @@ jobs:
       # secrets.* is not usable in step `if:`, so mirror it into env.
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -282,8 +282,8 @@ jobs:
         run: |
           APK=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -n1)
           case "$APK" in
-            *unsigned*) NAME="md-notepad_${TAG#v}-unsigned.apk" ;;
-            *)          NAME="md-notepad_${TAG#v}.apk" ;;
+            *unsigned*) NAME="md-specpad_${TAG#v}-unsigned.apk" ;;
+            *)          NAME="md-specpad_${TAG#v}.apk" ;;
           esac
           cp "$APK" "$NAME"
           gh release upload "$TAG" "$NAME" --repo '${{ github.repository }}'
@@ -334,7 +334,7 @@ jobs:
           }
           # Re-upload in ascending rank; --clobber resets created_at so the final
           # upload order == the display order on the release page. Tab-delimited
-          # so the spaces in "MD Notepad_..." filenames survive sort/read.
+          # so the spaces in "MD Specpad_..." filenames survive sort/read.
           for f in *; do printf '%s\t%s\n' "$(rank "$f")" "$f"; done \
             | sort -n -k1,1 -s | cut -f2- \
             | while IFS= read -r f; do

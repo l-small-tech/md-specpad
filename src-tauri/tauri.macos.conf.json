@@ -4,7 +4,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "MD Notepad",
+        "title": "MD Specpad",
         "width": 1000,
         "height": 700,
         "minWidth": 400,

@@ -2419,11 +2419,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "md-notepad"
-version = "0.10.0"
+name = "md-specpad"
+version = "0.10.5"
 dependencies = [
  "base64 0.22.1",
  "cc",
+ "dirs",
  "futures-util",
  "log",
  "notify",
@@ -2449,6 +2450,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "webkit2gtk",
+ "webview2-com",
  "whisper-rs",
  "windows",
  "winreg 0.55.0",

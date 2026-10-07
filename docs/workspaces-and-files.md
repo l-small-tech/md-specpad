@@ -107,7 +107,6 @@ you; **Initialize workspace…** does the same for a folder you pick later:
 
 1. **Choose or create a folder.** It becomes a workspace in the sidebar.
 2. **Tick the directives** the agent should follow:
-   - **Prompt status** — notes become prompts you can track (below).
    - **File manifest** — the agent keeps `MANIFEST.md`, a list of what every
      file is for.
    - **Changelog** — the agent adds a line to `CHANGELOG.md` for every change
@@ -128,26 +127,6 @@ To change your mind later, right-click the workspace → **Workspace
 directives…**. Ticking adds a section, unticking removes it. Anything you
 wrote in `AGENTS.md` yourself stays, and files the agent has filled in are
 never overwritten.
-
-### Notes as prompts
-
-With **Prompt status** ticked, every note named `*.prompts.md` (one file can
-hold several prompts, one per heading — `prompts/example.prompts.md` is one)
-gets a strip above it:
-
-1. Write what you want under a heading.
-2. Put the caret in that section and press **Copy as prompt** (or pick the
-   section — or *Whole note* — from the list first). Its chip shows *Queued*.
-3. Open your terminal in the workspace folder, start your agent and paste.
-4. The agent reports back by itself: the chip turns *Running*, then *Done*,
-   *Needs input* or *Failed*, with a one-line summary. Click a chip to jump to
-   its section; **All** (or **Workspace status** in the palette) lists every
-   prompt in every workspace, with what needs you first.
-
-Statuses live in `prompts/STATUSES.md` — a plain table
-you can read or edit. Agents write it through the small `.notepad/status.py`
-script the app puts there (it needs Python; without it the agent is told to
-write the same table another way).
 
 ## Removing a workspace
 

@@ -11,10 +11,22 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <title>MD Notepad</title>
+    <title>MD Specpad</title>
+    <!-- Boot splash styles (src/ui/boot-splash.ts). A linked sheet, never an
+         inline <style>: Tauri nonces every inline <style> here into the CSP's
+         style-src, which makes the browser drop 'unsafe-inline' and block every
+         stylesheet the app injects at runtime (CodeMirror, theme plugins). See
+         src/styles/boot-splash.css and src/ui/__tests__/boot-splash.test.ts. -->
+    <link rel="stylesheet" href="/src/styles/boot-splash.css" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot-splash" role="status" aria-live="polite">
+        <div id="boot-splash-spinner"></div>
+        <div id="boot-splash-title">Loading MD Specpad…</div>
+        <div id="boot-splash-detail"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

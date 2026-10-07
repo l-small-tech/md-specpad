@@ -7,6 +7,7 @@
 
 import { nanoid } from 'nanoid';
 import { defaultModeFor, docFamilyFor } from '../../core/doc-family';
+import { isAudioPath } from '../../core/audio';
 import { isImagePath } from '../../core/images';
 import { isImportablePath } from '../../core/import/registry';
 import {
@@ -342,7 +343,7 @@ export function createWindows(
         id: nanoid(),
         kind: isImportablePath(path)
           ? 'import'
-          : isImagePath(path) && family !== 'svg'
+          : (isImagePath(path) && family !== 'svg') || isAudioPath(path)
             ? 'image'
             : 'file',
         notePath: null,

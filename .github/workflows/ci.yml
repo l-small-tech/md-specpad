@@ -17,9 +17,9 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -36,10 +36,10 @@ jobs:
         os: [ubuntu-22.04, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -152,10 +152,10 @@ jobs:
   android-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -216,6 +216,15 @@ jobs:
             } >> "$GITHUB_ENV"
           done
 
+      # rust-cache restores whisper.cpp's CMake build dir. If the cached
+      # CMakeCache.txt names a different compiler, CMake deletes the cache and
+      # re-configures WITHOUT whisper-rs-sys's -D defines — WHISPER_BUILD_TESTS
+      # and _EXAMPLES fall back to ON and configure dies on the tests/ and
+      # examples/ dirs the crate doesn't ship (v0.10.0). Drop just the cache
+      # file: configure starts clean, make still reuses the cached objects.
+      - name: Drop stale whisper.cpp CMake caches
+        run: rm -f src-tauri/target/*/*/build/whisper-rs-sys-*/out/build/CMakeCache.txt
+
       # `cargo build --lib`, not `cargo check`: a check never LINKS, and the
       # whisper ABI mismatch that broke the v0.8.0 APK is a link-time error.
       # The link args are the ones tauri's own android build passes.
@@ -238,10 +247,10 @@ jobs:
     runs-on: windows-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -274,7 +283,7 @@ jobs:
         shell: bash
         run: |
           echo "CARGO_TARGET_DIR=D:/t" >> "$GITHUB_ENV"
-          echo "TAURI_APP_BIN=D:/t/debug/md-notepad.exe" >> "$GITHUB_ENV"
+          echo "TAURI_APP_BIN=D:/t/debug/md-specpad.exe" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
@@ -288,7 +297,7 @@ jobs:
       - run: pnpm run build
 
       # Builds the exe the wdio capabilities point tauri-driver at:
-      # src-tauri/target/debug/md-notepad.exe (see e2e/wdio.conf.ts).
+      # src-tauri/target/debug/md-specpad.exe (see e2e/wdio.conf.ts).
       - name: cargo build (app under test)
         run: cargo build
         working-directory: src-tauri
@@ -300,7 +309,7 @@ jobs:
       # force a fresh install (e.g. to pick up a new tauri-driver release).
       - name: Cache tauri-driver
         id: cache-tauri-driver
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/bin/tauri-driver.exe
           key: tauri-driver-${{ runner.os }}-v1

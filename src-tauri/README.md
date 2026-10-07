@@ -34,7 +34,10 @@ session concepts in Rust, stop and move it to `src/core`.
     `git_show_file` (`git show <rev>:<rel>`; `None` — not an error — when the
     path did not exist at that revision), `git_file_changes` (per branch, does
     its blob for one path differ from the baseline's? one `rev-parse` per
-    branch, no checkouts). The baseline branch is auto-detected —
+    branch, no checkouts). Plus `git_trust_directory`: git's "dubious
+    ownership" refusal (`safe.directory`) classifies as `GIT_UNTRUSTED`, and
+    on the user's confirmation this adds the path GIT names (never the
+    caller's string) to the global `safe.directory` list. The baseline branch is auto-detected —
     `development`, then `main`, then `master` — and overridden by the
     frontend's `reviewBaseBranch` setting. `pub use`s every command fn (and
     the two helper macros `#[tauri::command]` emits per fn) so `lib.rs` keeps
@@ -63,8 +66,10 @@ session concepts in Rust, stop and move it to `src/core`.
     from the marker files under `rev-parse --git-path` and `merge_head`.
   - `refs.rs` — `git_branches` (`for-each-ref` with a `%1f`/`%1e`-separated
     format over `refs/heads` + `refs/remotes`, `%(upstream:track)` parsed into
-    ahead/behind/gone, `refs/remotes/*/HEAD` dropped), `git_log` (paged; `[]`
-    on an unborn HEAD), `git_commit_files` (a merge commit against its first
+    ahead/behind/gone, `refs/remotes/*/HEAD` dropped), `git_log` (paged; each
+    commit's `refs` from `%D`; `all` logs `--date-order --branches --remotes
+    --tags [HEAD]` — never `--all`, which includes `refs/stash` — ignoring
+    `rev`; `[]` on an unborn HEAD or a repo with no refs), `git_commit_files` (a merge commit against its first
     parent), `git_diff_names` (`from...to`), `git_ahead_behind`.
   - `worktrees.rs` — `git_worktrees` (the dashboard: per checkout, capped at
     20, dirty counts from a status + ahead/behind the base from `rev-list`;
@@ -134,7 +139,7 @@ session concepts in Rust, stop and move it to `src/core`.
   no device works. On Windows `vulkan-1.dll` is delay-loaded (build.rs +
   `src/vulkan_delayload.cpp`): the failure hook turns a missing DLL into the
   C++ exception ggml's Vulkan registration catches, so a driverless machine
-  starts and transcribes on the CPU; `MD_NOTEPAD_NO_VULKAN=1` forces the
+  starts and transcribes on the CPU; `MD_SPECPAD_NO_VULKAN=1` forces the
   same path. `models.rs` owns the pinned manifest (four q5 quantized Hugging
   Face `ggerganov/whisper.cpp` files with sizes and SHA-256 digests), the
   model folder (`<app_data_dir>/whisper`), and the download commands:
@@ -204,14 +209,15 @@ shares `INVALID_DATA` / `IO`, and adds its own codes — the sheet's
 | `DownloadCancelled` | `WHISPER_DOWNLOAD_CANCELLED` | `whisper_model_cancel` landed; the `.part` stays |
 | `DownloadBusy` | `WHISPER_DOWNLOAD_BUSY` | one download at a time |
 
-`GitError` (`src/commands/git/mod.rs`) serializes the same shape with seven
+`GitError` (`src/commands/git/mod.rs`) serializes the same shape with eight
 codes of its own; `isGitUnavailable` in `src/ipc/commands.ts` treats the first
-two as "hide the feature", not as failures:
+three as "hide the feature", not as failures:
 
 | Rust `GitError` | wire `code` | TS meaning |
 | --- | --- | --- |
 | `NoGit` | `GIT_NOT_FOUND` | no `git` binary on `PATH` |
 | `NotARepo(path)` | `GIT_NOT_A_REPO` | the path is outside any repository |
+| `Untrusted(path)` | `GIT_UNTRUSTED` | git's `safe.directory` check refused the repo (owned by another account); `git_trust_directory` fixes it |
 | `Timeout` | `GIT_TIMEOUT` | git was killed at its mode's limit (3 s read, 30 s mutate, 120 s network) |
 | `Failed { stderr }` | `GIT_FAILED` | git ran and failed; message is its stderr |
 | `Cancelled` | `GIT_CANCELLED` | `git_op_cancel` landed on a fetch / pull / push |
@@ -276,7 +282,7 @@ code that behaves differently per OS.
   logs — so that level is pure dependency noise (the explorer's `notify`
   watcher alone emitted ~700k lines in a 90-second dev run). `run()` caps it
   at INFO. `pnpm run tauri:dev:verbose` passes `--verbose` for DEBUG, and
-  `MDN_LOG=off|error|warn|info|debug|trace` overrides both.
+  `MDS_LOG=off|error|warn|info|debug|trace` overrides both.
 - Windows needs MSVC Build Tools; Linux needs the webkit2gtk-4.1 stack
   (exact apt list in `.github/workflows/ci.yml`).
 - `whisper-rs` builds whisper.cpp from source, which needs **CMake** on
@@ -294,4 +300,4 @@ code that behaves differently per OS.
   and Tauri's own default (10.13) fails the whisper build. A bare
   `cargo build` sets no deployment target, so only a bundle build sees it.
   A real-model engine test exists behind `#[ignore]`:
-  `MD_NOTEPAD_WHISPER_MODEL=<path to ggml-*.bin> cargo test -- --ignored real_model`.
+  `MD_SPECPAD_WHISPER_MODEL=<path to ggml-*.bin> cargo test -- --ignored real_model`.

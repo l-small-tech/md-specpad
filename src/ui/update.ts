@@ -76,7 +76,7 @@ export async function checkForUpdate(opts: { manual: boolean }): Promise<void> {
     pending = null;
     updateStore.setState({ phase: 'idle', version: null });
     if (opts.manual) {
-      uiStore.getState().showNotice('MD Notepad is up to date.');
+      uiStore.getState().showNotice('MD Specpad is up to date.');
     }
   } catch (err) {
     // Silent by design: no network, no release yet, or not a Tauri webview.

@@ -1,63 +1,81 @@
 /**
- * ChangesSection — Staged / Changes / Untracked, each a collapsible group
- * with a count, plus the commit box. Rows are the store's pre-grouped
- * `repo.groups`; every action is a store call.
+ * ChangesSection — the commit box on top, then ONE list of every file that
+ * differs from the last commit (core/git/status.ts `flattenStatus`). Each
+ * row carries its staging state as a checkbox — checked = staged, half =
+ * partly staged, empty = not staged — which is also how you stage it; the
+ * untracked ones say so in the glyph (`?`) and a dimmed name. Clicking a row
+ * diffs HEAD against the working tree. Every action is a store call.
  *
  * mod+Enter in the message box commits. Handled on the textarea itself (and
  * stopped there) so the global shortcut listener never sees it.
  */
 
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import type { GitStatusEntry, StatusGroup } from '../../../core/git/types';
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { flattenStatus, type ChangeState, type FlatChange } from '../../../core/git/status';
 import { gitStore } from '../../stores/git';
 import { Empty, IconButton, PathLabel, Section, StatusGlyph, useRepoSlice } from './shared';
 
-function ChangeRow({
-  root,
-  group,
-  entry,
-  selected,
-}: {
-  root: string;
-  group: StatusGroup;
-  entry: GitStatusEntry;
-  selected: boolean;
-}) {
+const STATE_TITLE: Record<ChangeState, string> = {
+  staged: 'Staged — in the next commit. Untick to unstage.',
+  partial: 'Partly staged — some of its changes are in the next commit. Tick to stage the rest.',
+  unstaged: 'Changed, not staged. Tick to stage.',
+  untracked: 'Untracked — new to git. Tick to stage.',
+};
+
+function StageBox({ state, onToggle }: { state: ChangeState; onToggle: () => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.indeterminate = state === 'partial';
+    }
+  }, [state]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className="git-stage-box"
+      checked={state === 'staged'}
+      aria-label={state === 'staged' ? 'Unstage' : 'Stage'}
+      title={STATE_TITLE[state]}
+      onChange={onToggle}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    />
+  );
+}
+
+function ChangeRow({ root, row, selected }: { root: string; row: FlatChange; selected: boolean }) {
   const actions = gitStore.getState();
-  const letter = group === 'untracked' ? '?' : group === 'staged' ? entry.index : entry.worktree;
+  const { entry, state, letter } = row;
+  const select = () => actions.select(root, { kind: 'file', group: 'changed', path: entry.path });
+  const toggle = () =>
+    void (state === 'staged'
+      ? actions.unstage(root, [entry.path])
+      : actions.stage(root, [entry.path]));
   return (
     <div
-      className={`git-row git-change-row${selected ? ' is-selected' : ''}`}
+      className={`git-row git-change-row is-${state}${selected ? ' is-selected' : ''}`}
       role="button"
       tabIndex={0}
-      onClick={() => actions.select(root, { kind: 'file', group, path: entry.path })}
+      onClick={select}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (e.key === 'Enter') {
           e.preventDefault();
-          actions.select(root, { kind: 'file', group, path: entry.path });
+          select();
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          toggle();
         }
       }}
     >
+      <StageBox state={state} onToggle={toggle} />
       <StatusGlyph letter={letter} title={`git status: ${letter}`} />
       <PathLabel path={entry.path} origPath={entry.origPath} />
       <span className="git-row-actions">
-        {group === 'staged' ? (
+        {state !== 'staged' && (
           <IconButton
-            icon="minus"
-            title="Unstage"
-            onClick={() => void actions.unstage(root, [entry.path])}
-          />
-        ) : (
-          <IconButton
-            icon="plus"
-            title="Stage"
-            onClick={() => void actions.stage(root, [entry.path])}
-          />
-        )}
-        {group !== 'staged' && (
-          <IconButton
-            icon={group === 'untracked' ? 'trash' : 'undo'}
-            title={group === 'untracked' ? 'Delete this untracked file' : 'Discard changes'}
+            icon={state === 'untracked' ? 'trash' : 'undo'}
+            title={state === 'untracked' ? 'Delete this untracked file' : 'Discard changes'}
             danger
             onClick={() => void actions.discard(root, [entry.path])}
           />
@@ -67,54 +85,8 @@ function ChangeRow({
   );
 }
 
-function Group({
-  root,
-  group,
-  title,
-  entries,
-  selectedPath,
-  action,
-  defaultOpen,
-}: {
-  root: string;
-  group: StatusGroup;
-  title: string;
-  entries: GitStatusEntry[];
-  selectedPath: string | null;
-  action?: { label: string; title: string; run: () => void };
-  defaultOpen?: boolean;
-}) {
-  return (
-    <Section
-      title={title}
-      count={entries.length}
-      defaultOpen={defaultOpen}
-      actions={
-        action && entries.length > 0 ? (
-          <button type="button" className="git-link-btn" title={action.title} onClick={action.run}>
-            {action.label}
-          </button>
-        ) : undefined
-      }
-    >
-      {entries.length === 0 ? (
-        <Empty>Nothing here</Empty>
-      ) : (
-        entries.map((entry) => (
-          <ChangeRow
-            key={`${group}:${entry.path}`}
-            root={root}
-            group={group}
-            entry={entry}
-            selected={selectedPath === entry.path}
-          />
-        ))
-      )}
-    </Section>
-  );
-}
-
 export function ChangesSection({ root }: { root: string }) {
+  const entries = useRepoSlice(root, (r) => r.status?.entries);
   const groups = useRepoSlice(root, (r) => r.groups);
   const selected = useRepoSlice(root, (r) => r.selected) ?? null;
   const draft = useRepoSlice(root, (r) => r.commitDraft) ?? '';
@@ -123,11 +95,11 @@ export function ChangesSection({ root }: { root: string }) {
   const op = useRepoSlice(root, (r) => r.op) ?? null;
   const actions = gitStore.getState();
 
+  const rows = flattenStatus(entries ?? []);
   const staged = groups?.staged ?? [];
-  const unstaged = groups?.unstaged ?? [];
-  const untracked = groups?.untracked ?? [];
-  const selectedIn = (group: StatusGroup) =>
-    selected?.kind === 'file' && selected.group === group ? selected.path : null;
+  const selectedPath = selected?.kind === 'file' ? selected.path : null;
+  const toStage = rows.filter((r) => r.state !== 'staged').map((r) => r.entry.path);
+  const toUnstage = rows.filter((r) => r.state !== 'unstaged' && r.state !== 'untracked');
 
   const merging = status?.state === 'merging';
   const reason =
@@ -136,7 +108,7 @@ export function ChangesSection({ root }: { root: string }) {
       : op?.running
         ? 'Wait for the running operation'
         : staged.length === 0 && !amend && !merging
-          ? 'Stage something to commit'
+          ? 'Tick the files to commit'
           : draft.trim() === '' && !amend && !merging
             ? 'Write a commit message'
             : null;
@@ -153,55 +125,6 @@ export function ChangesSection({ root }: { root: string }) {
 
   return (
     <div className="git-changes">
-      <Group
-        root={root}
-        group="staged"
-        title="Staged"
-        entries={staged}
-        selectedPath={selectedIn('staged')}
-        action={{
-          label: 'Unstage all',
-          title: 'git restore --staged .',
-          run: () =>
-            void actions.unstage(
-              root,
-              staged.map((e) => e.path),
-            ),
-        }}
-      />
-      <Group
-        root={root}
-        group="unstaged"
-        title="Changes"
-        entries={unstaged}
-        selectedPath={selectedIn('unstaged')}
-        action={{
-          label: 'Stage all',
-          title: 'git add -A on these files',
-          run: () =>
-            void actions.stage(
-              root,
-              unstaged.map((e) => e.path),
-            ),
-        }}
-      />
-      <Group
-        root={root}
-        group="untracked"
-        title="Untracked"
-        entries={untracked}
-        selectedPath={selectedIn('untracked')}
-        defaultOpen={untracked.length <= 20}
-        action={{
-          label: 'Stage all',
-          title: 'git add these files',
-          run: () =>
-            void actions.stage(
-              root,
-              untracked.map((e) => e.path),
-            ),
-        }}
-      />
       <div className="git-commit">
         <textarea
           className="git-commit-message"
@@ -240,6 +163,54 @@ export function ChangesSection({ root }: { root: string }) {
           </button>
         </div>
       </div>
+      <Section
+        title="Changes"
+        count={rows.length}
+        actions={
+          rows.length > 0 ? (
+            <>
+              {toStage.length > 0 && (
+                <button
+                  type="button"
+                  className="git-link-btn"
+                  title="git add — stage every file in the list"
+                  onClick={() => void actions.stage(root, toStage)}
+                >
+                  Stage all
+                </button>
+              )}
+              {toUnstage.length > 0 && (
+                <button
+                  type="button"
+                  className="git-link-btn"
+                  title="git restore --staged — take every file out of the next commit"
+                  onClick={() =>
+                    void actions.unstage(
+                      root,
+                      toUnstage.map((r) => r.entry.path),
+                    )
+                  }
+                >
+                  Unstage all
+                </button>
+              )}
+            </>
+          ) : undefined
+        }
+      >
+        {rows.length === 0 ? (
+          <Empty>Nothing changed since the last commit</Empty>
+        ) : (
+          rows.map((row) => (
+            <ChangeRow
+              key={row.entry.path}
+              root={root}
+              row={row}
+              selected={selectedPath === row.entry.path}
+            />
+          ))
+        )}
+      </Section>
     </div>
   );
 }

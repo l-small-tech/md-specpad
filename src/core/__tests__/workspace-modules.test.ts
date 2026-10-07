@@ -5,6 +5,7 @@ import {
   initPlanPaths,
   installedModuleIds,
   planWorkspaceInit,
+  RETIRED_MODULE_IDS,
   userModuleFrom,
   type WorkspaceModule,
 } from '../workspace-modules';
@@ -79,15 +80,30 @@ describe('BUILTIN_MODULES', () => {
     }
   });
 
-  it('nothing is ticked by default; prompt-status seeds the example under its extension', () => {
+  it('nothing is ticked by default', () => {
     expect(BUILTIN_MODULES.every((m) => !m.recommended)).toBe(true);
-    const ps = BUILTIN_MODULES.find((m) => m.id === 'prompt-status')!;
-    expect(ps.files.map((f) => f.path)).toEqual([
-      '.notepad/status.py',
-      'prompts/STATUSES.md',
-      'prompts/example.prompts.md',
-    ]);
-    expect(ps.directive).toContain('*.prompts.md');
+  });
+
+  it('a retired module is no longer offered, and a re-run drops its block', () => {
+    expect(BUILTIN_MODULES.some((m) => RETIRED_MODULE_IDS.includes(m.id))).toBe(false);
+    const old = [
+      '# P',
+      '',
+      '<!-- module:prompt-status -->',
+      '## Prompt status',
+      'old',
+      '<!-- /module:prompt-status -->',
+      '',
+      '<!-- module:a -->',
+      '## a',
+      'rule',
+      '<!-- /module:a -->',
+      '',
+    ].join('\n');
+    const known = new Set(['a', ...RETIRED_MODULE_IDS]);
+    const next = composeAgentsFile(old, [mod('a')], 'P', known);
+    expect(installedModuleIds(next)).toEqual(['a']);
+    expect(next).not.toContain('Prompt status');
   });
 
   it('marp-decks: off by default, seeds the example deck its directive points at', () => {
@@ -98,6 +114,21 @@ describe('BUILTIN_MODULES', () => {
     expect(seed.text.startsWith('---\nmarp: true\n')).toBe(true);
     expect(marp.directive).toContain('decks/example-deck.md');
     expect(marp.directive).toContain('marp: true');
+  });
+
+  it('todo: seeds a TODO.md checklist with the headings its directive names', () => {
+    const todo = BUILTIN_MODULES.find((m) => m.id === 'todo')!;
+    expect(todo.files).toHaveLength(1);
+    const seed = todo.files[0]!;
+    expect(seed.path).toBe('TODO.md');
+    expect(seed.refresh).toBeUndefined(); // the user's list survives a re-run
+    for (const heading of ['## Now', '## Later', '## Done']) {
+      expect(seed.text).toContain(`
+${heading}
+`);
+      expect(todo.directive).toContain(heading);
+    }
+    expect(todo.directive).toContain('- [ ]');
   });
 });
 

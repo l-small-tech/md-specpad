@@ -235,6 +235,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultMode: 'raw',
   wordWrap: true,
   lineNumbers: false,
+  collapsibleHeadings: false,
   ligatures: true,
   readerMargins: 'normal',
   smoothScrolling: true,
@@ -260,6 +261,7 @@ export const DEFAULT_SETTINGS: Settings = {
   explorerExpandedDirs: [],
   showAllFilesDirs: [],
   hideUnsupportedDirs: [],
+  showHiddenFiles: false,
   reviewBaseBranch: '',
   scanPreset: DEFAULT_SCAN_PRESET,
   scanSmoothing: DEFAULT_SCAN_SMOOTHING,
@@ -580,6 +582,8 @@ export function normalizeSettings(raw: unknown): Settings {
         : d.defaultMode,
     wordWrap: typeof r.wordWrap === 'boolean' ? r.wordWrap : d.wordWrap,
     lineNumbers: typeof r.lineNumbers === 'boolean' ? r.lineNumbers : d.lineNumbers,
+    collapsibleHeadings:
+      typeof r.collapsibleHeadings === 'boolean' ? r.collapsibleHeadings : d.collapsibleHeadings,
     ligatures: typeof r.ligatures === 'boolean' ? r.ligatures : d.ligatures,
     readerMargins:
       r.readerMargins === 'narrow' || r.readerMargins === 'normal' || r.readerMargins === 'wide'
@@ -646,6 +650,7 @@ export function normalizeSettings(raw: unknown): Settings {
     explorerExpandedDirs: normalizePathList(r.explorerExpandedDirs),
     showAllFilesDirs: normalizePathList(r.showAllFilesDirs),
     hideUnsupportedDirs: normalizePathList(r.hideUnsupportedDirs),
+    showHiddenFiles: typeof r.showHiddenFiles === 'boolean' ? r.showHiddenFiles : d.showHiddenFiles,
     // Empty is meaningful here (auto-detect development / main / master), so a
     // blank string is kept rather than replaced by the default.
     reviewBaseBranch: typeof r.reviewBaseBranch === 'string' ? r.reviewBaseBranch.trim() : '',

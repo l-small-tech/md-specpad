@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MD Notepad Dev",
-  "identifier": "tech.l-small.mdnotepad.dev",
+  "productName": "MD Specpad Dev",
+  "identifier": "tech.l-small.mdspecpad.dev",
   "bundle": {
     "icon": [
       "icons/dev/32x32.png",

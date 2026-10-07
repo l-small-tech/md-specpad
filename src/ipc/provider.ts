@@ -36,6 +36,7 @@ import {
   type PathStat,
 } from './commands';
 import { isAndroid } from '../ui/platform';
+import { isAudioPath } from '../core/audio';
 import { isImagePath } from '../core/images';
 import { isImportablePath } from '../core/import/registry';
 import { isEditableTextPath } from '../core/text-files';
@@ -187,17 +188,24 @@ function isMarkdown(name: string): boolean {
 }
 
 /**
- * Explorer-visible entry: a subfolder, a text note (.md/.txt), an image, or an
+ * Explorer-visible entry: a subfolder, a text note (.md/.txt), an image, audio, or an
  * importable document (PDF/DOCX — see the import registry); no dot-files. The
  * desktop (local FS) listing applies the equivalent filter in Rust `list_dir`.
- * `allFiles` (unsupported files shown) lists every non-hidden file.
+ * `allFiles` (unsupported files shown) lists every non-hidden file;
+ * `showHidden` lists dot-files too (Android is Linux: the dot is its only
+ * hidden convention).
  */
-function isListed(name: string, isDir: boolean, allFiles: boolean): boolean {
-  if (name.startsWith('.')) {
+function isListed(name: string, isDir: boolean, allFiles: boolean, showHidden: boolean): boolean {
+  if (!showHidden && name.startsWith('.')) {
     return false;
   }
   return (
-    isDir || allFiles || isEditableTextPath(name) || isImagePath(name) || isImportablePath(name)
+    isDir ||
+    allFiles ||
+    isEditableTextPath(name) ||
+    isImagePath(name) ||
+    isAudioPath(name) ||
+    isImportablePath(name)
   );
 }
 
@@ -217,10 +225,14 @@ export function createSafProvider(ops: SafOps = ipc): StorageProvider {
     return entries;
   };
 
-  async function listDir(dir: string, allFiles = false): Promise<DirEntryMeta[]> {
+  async function listDir(
+    dir: string,
+    allFiles = false,
+    showHidden = false,
+  ): Promise<DirEntryMeta[]> {
     const entries = await listAt(dir);
     return entries
-      .filter((e) => isListed(e.name, e.isDir, allFiles))
+      .filter((e) => isListed(e.name, e.isDir, allFiles, showHidden))
       .map((e) => ({
         path: `${dir}/${e.name}`,
         isDir: e.isDir,
@@ -375,7 +387,7 @@ export function createRoutingProvider(
     readTextFile: (path) => backend(path).readTextFile(path),
     atomicWriteText: (path, text) => backend(path).atomicWriteText(path, text),
     listNotes: (dir) => backend(dir).listNotes(dir),
-    listDir: (dir, allFiles) => backend(dir).listDir(dir, allFiles),
+    listDir: (dir, allFiles, showHidden) => backend(dir).listDir(dir, allFiles, showHidden),
     listSessionManifests: (dir) => backend(dir).listSessionManifests(dir),
     readFileBase64: (path) => backend(path).readFileBase64(path),
     writeFileBase64: (path, data) => backend(path).writeFileBase64(path, data),

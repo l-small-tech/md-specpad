@@ -432,15 +432,15 @@ mod tests {
         fn flush(&self) {}
     }
 
-    /// Needs a real model: `MD_NOTEPAD_WHISPER_MODEL=<path to ggml-*.bin>
+    /// Needs a real model: `MD_SPECPAD_WHISPER_MODEL=<path to ggml-*.bin>
     /// cargo test -- --ignored --nocapture real_model`. A second of silence
     /// must come back as text without an error (usually empty). With
-    /// `MD_NOTEPAD_NO_VULKAN=1` as well (Windows) it exercises the
+    /// `MD_SPECPAD_NO_VULKAN=1` as well (Windows) it exercises the
     /// delay-load failure path: the log must say no GPU, and nothing crashes.
     #[test]
     #[ignore]
     fn real_model_transcribes_silence() {
-        let path = std::env::var("MD_NOTEPAD_WHISPER_MODEL").expect("MD_NOTEPAD_WHISPER_MODEL");
+        let path = std::env::var("MD_SPECPAD_WHISPER_MODEL").expect("MD_SPECPAD_WHISPER_MODEL");
         let _ = log::set_logger(&StderrLogger).map(|()| log::set_max_level(log::LevelFilter::Info));
         eprintln!("accelerator() = {}", accelerator());
         let engine = EngineState::default();

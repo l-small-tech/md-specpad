@@ -20,26 +20,28 @@
  *
  * `planWorkspaceInit` turns a selection into the file writes. Seed files are
  * create-only — re-running never overwrites a manifest or changelog that has
- * since been filled in. The exception is `.notepad/status.py`, which is the
- * app's own and is refreshed (`refresh: true`).
+ * since been filled in; a seed marked `refresh: true` is the app's own and
+ * is rewritten on every run.
+ *
+ * `RETIRED_MODULE_IDS` are modules the app no longer ships. Passing them in
+ * `knownIds` makes a re-run drop their blocks instead of keeping them as
+ * unknown user text.
  */
 
 import {
   CHANGELOG_DIRECTIVE,
   CHANGELOG_SEED,
-  EXAMPLE_PROMPT,
   LESSONS_DIRECTIVE,
   LESSONS_SEED,
   MANIFEST_DIRECTIVE,
   MANIFEST_SEED,
   MARP_DECKS_DIRECTIVE,
-  PROMPT_STATUS_DIRECTIVE,
-  STATUS_SCRIPT,
+  TODO_DIRECTIVE,
+  TODO_SEED,
   WORKTREES_DIRECTIVE,
 } from './workspace-module-texts';
 import { EXAMPLE_DECK, EXAMPLE_DECK_PATH } from './deck-template';
 import { appendMissingLines } from './git/worktree-plan';
-import { STATUS_FILE, serializeStatuses } from './prompt-status';
 
 export interface SeedFile {
   /** Workspace-relative, forward slashes. */
@@ -64,23 +66,10 @@ export interface WorkspaceModule {
   source: 'builtin' | 'user';
 }
 
-export const PROMPT_STATUS_MODULE_ID = 'prompt-status';
+/** Built-in modules since removed; their blocks are dropped on a re-run. */
+export const RETIRED_MODULE_IDS: readonly string[] = ['prompt-status'];
 
 export const BUILTIN_MODULES: readonly WorkspaceModule[] = [
-  {
-    id: PROMPT_STATUS_MODULE_ID,
-    title: 'Prompt status',
-    description:
-      'Notes named *.prompts.md become prompts: copy one to your agent and watch its progress here (prompts/STATUSES.md).',
-    directive: PROMPT_STATUS_DIRECTIVE,
-    files: [
-      { path: '.notepad/status.py', text: STATUS_SCRIPT, refresh: true },
-      { path: STATUS_FILE, text: serializeStatuses([]) },
-      { path: 'prompts/example.prompts.md', text: EXAMPLE_PROMPT },
-    ],
-    recommended: false,
-    source: 'builtin',
-  },
   {
     id: 'manifest',
     title: 'File manifest',
@@ -96,6 +85,16 @@ export const BUILTIN_MODULES: readonly WorkspaceModule[] = [
     description: 'Agents add a line to CHANGELOG.md for every change you would notice.',
     directive: CHANGELOG_DIRECTIVE,
     files: [{ path: 'CHANGELOG.md', text: CHANGELOG_SEED }],
+    recommended: false,
+    source: 'builtin',
+  },
+  {
+    id: 'todo',
+    title: 'TODO list',
+    description:
+      'TODO.md is a checklist you and your agents share: they read it, tick items off and log follow-ups.',
+    directive: TODO_DIRECTIVE,
+    files: [{ path: 'TODO.md', text: TODO_SEED }],
     recommended: false,
     source: 'builtin',
   },
@@ -198,7 +197,7 @@ export function composeAgentsFile(
   const base =
     existing && existing.trim() !== ''
       ? existing.replace(/\r\n/g, '\n')
-      : `# ${workspaceName}\n\nInstructions for AI agents working in this folder. Sections between \`module\` markers are managed by md-notepad (Workspace directives…); write your own instructions outside them.\n`;
+      : `# ${workspaceName}\n\nInstructions for AI agents working in this folder. Sections between \`module\` markers are managed by md-specpad (Workspace directives…); write your own instructions outside them.\n`;
 
   const placed = new Set<string>();
   let text = base.replace(BLOCK, (all: string, id: string) => {

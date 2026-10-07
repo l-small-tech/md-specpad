@@ -72,6 +72,12 @@ export interface GitCommit {
   at: string;
   subject: string;
   body: string;
+  /**
+   * `git log --format=%D` decorations, one per item: `HEAD -> development`,
+   * `origin/development`, `tag: v0.10.1`, or `HEAD` (detached). Parsed by
+   * `core/git/decorations.ts`.
+   */
+  refs: string[];
 }
 
 /** One file of a commit or a range diff (`--name-status`). */
@@ -143,10 +149,18 @@ export interface StatusGroups {
   conflicted: GitStatusEntry[];
 }
 
+/**
+ * Which two sides a file's diff compares. The four status groups each name
+ * a pair (see `diffLabels`); `changed` is the flat change list's view —
+ * HEAD against the working tree, everything since the last commit, however
+ * much of it is staged.
+ */
+export type DiffGroup = StatusGroup | 'changed';
+
 /** What the detail pane shows. */
 export type SelectedItem =
-  /** One changed file of the selected checkout, in a given group. */
-  | { kind: 'file'; group: StatusGroup; path: string }
+  /** One changed file of the selected checkout, diffed as `group` says. */
+  | { kind: 'file'; group: DiffGroup; path: string }
   /** A commit from the history list, optionally one of its files. */
   | { kind: 'commit'; sha: string; path?: string }
   /** A worktree's branch against the base branch: the file list. */

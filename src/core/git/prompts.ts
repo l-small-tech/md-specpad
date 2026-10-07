@@ -2,7 +2,7 @@
  * The conflict prompt — what "Copy conflict prompt" puts on the clipboard for
  * the user to paste into their agent. Pure; no DOM, no Tauri, no React.
  *
- * Same voice as `prompt-status.ts`'s `promptText`: the task, the facts the
+ * Same voice as the app's other agent briefs: the task, the facts the
  * agent would otherwise have to discover (where, what is merging into what,
  * which files), the rules, and a trailing machine-readable line
  * (`Merge-context:`) so the agent can report against it. The rule about

@@ -145,6 +145,15 @@ function FullscreenMenuBody({ at }: { at: MenuPoint }) {
     const tab = s.tabs.find((t) => t.id === s.activeTabId);
     return tab !== undefined && docFamilyForTab(tab) === 'svg';
   });
+  // A tool tab (git) has no outline panel at all — App does not render one
+  // while it is in front — so the row would open nothing.
+  const tool = useTabsStore((s) => s.tabs.find((t) => t.id === s.activeTabId)?.kind === 'git');
+  // A deck in full screen is the show (App renders DeckShow over everything):
+  // the workspace pane and outline would open underneath it, and a
+  // presentation is not a knowledge base being browsed anyway.
+  const deckShowing = useTabsStore(
+    (s) => osFullscreen && !!s.tabs.find((t) => t.id === s.activeTabId)?.deck,
+  );
   const canGoBack = usePreviewNav(
     (s) => (activeTabId != null && s.canGoBack[activeTabId]) || false,
   );
@@ -220,16 +229,18 @@ function FullscreenMenuBody({ at }: { at: MenuPoint }) {
           }}
         />
       )}
-      <MenuItem
-        label="Workspaces"
-        onSelect={() => {
-          close();
-          uiStore.getState().openExplorer();
-        }}
-      />
+      {!deckShowing && (
+        <MenuItem
+          label="Workspaces"
+          onSelect={() => {
+            close();
+            uiStore.getState().openExplorer();
+          }}
+        />
+      )}
       {/* A whiteboard has no headings — the same reason the ribbon hides its
           outline toggle on a drawing. */}
-      {!drawing && (
+      {!drawing && !deckShowing && !tool && (
         <MenuItem
           label="Outline"
           onSelect={() => {

@@ -67,6 +67,9 @@ describe('gitFailureText', () => {
       'Git is not installed or not on PATH',
     );
     expect(gitFailureText(new CodedError('GIT_NOT_A_REPO', 'x'))).toBe('Not a git repository');
+    expect(gitFailureText(new CodedError('GIT_UNTRUSTED', 'x'))).toBe(
+      'Git does not trust this folder — it is owned by another user',
+    );
     expect(gitFailureText(new CodedError('GIT_TIMEOUT', 'git status exceeded 3 s'))).toBe(
       'Git timed out — git status exceeded 3 s',
     );
@@ -103,6 +106,7 @@ describe('gitHint (moved from ui/code-review-git.ts)', () => {
   test('names the reason git is out', () => {
     expect(gitHint(new CodedError('GIT_NOT_FOUND', 'x'))).toBe('Git not found');
     expect(gitHint(new CodedError('GIT_NOT_A_REPO', 'x'))).toBe('Not a git repository');
+    expect(gitHint(new CodedError('GIT_UNTRUSTED', 'x'))).toBe('Git does not trust this folder');
     expect(gitHint(new CodedError('GIT_TIMEOUT', 'x'))).toBe('Git timed out');
     expect(gitHint(new CodedError('GIT_FAILED', 'x'))).toBe('Git unavailable');
     expect(gitHint(new Error('boom'))).toBe('Git unavailable');

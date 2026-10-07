@@ -90,6 +90,12 @@ pub enum GitError {
     NoGit,
     #[error("not a git repository: {0}")]
     NotARepo(String),
+    /// git's `safe.directory` check refused the repository: it is owned by
+    /// another account (a folder an elevated process made, a FAT/exFAT or
+    /// network drive). The payload is the path git named. `git_trust_directory`
+    /// is the fix, and only on the user's say-so.
+    #[error("git does not trust this repository (owned by another user): {0}")]
+    Untrusted(String),
     /// Killed at its mode's limit; the payload is that limit in seconds.
     #[error("git timed out after {0}s")]
     Timeout(u64),
@@ -111,6 +117,7 @@ impl GitError {
         match self {
             GitError::NoGit => "GIT_NOT_FOUND",
             GitError::NotARepo(_) => "GIT_NOT_A_REPO",
+            GitError::Untrusted(_) => "GIT_UNTRUSTED",
             GitError::Timeout(_) => "GIT_TIMEOUT",
             GitError::Failed { .. } => "GIT_FAILED",
             GitError::Cancelled => "GIT_CANCELLED",
@@ -211,8 +218,8 @@ fn git_line_opt(root: &Path, args: &[&str]) -> GitResult<Option<String>> {
     let out = run_git(Some(root), args)?;
     if !out.ok {
         // A repo-level failure is still a failure; only a plain "no" is None.
-        if is_not_a_repo(&out.stderr) {
-            return Err(GitError::NotARepo(display(root)));
+        if is_not_a_repo(&out.stderr) || dubious_path(&out.stderr).is_some() {
+            return Err(classify(&out.stderr, root));
         }
         return Ok(None);
     }
@@ -225,8 +232,47 @@ fn is_not_a_repo(stderr: &str) -> bool {
     lower.contains("not a git repository") || lower.contains("not a working tree")
 }
 
+/// The path git names when its `safe.directory` check refuses a repository,
+/// or `None` when `stderr` says something else. git (2.35.2+) writes
+///
+/// ```text
+/// fatal: detected dubious ownership in repository at 'C:/x'
+/// …
+///     git config --global --add safe.directory C:/x
+/// ```
+///
+/// The suggested command's argument is preferred — it is exactly what git
+/// wants added (a UNC share comes back as `%(prefix)///server/share` there);
+/// the quoted path in the first line is the fallback.
+fn dubious_path(stderr: &str) -> Option<String> {
+    if !stderr.contains("detected dubious ownership") {
+        return None;
+    }
+    let unquote = |s: &str| {
+        let s = s.trim();
+        s.strip_prefix('\'')
+            .and_then(|s| s.strip_suffix('\''))
+            .unwrap_or(s)
+            .to_string()
+    };
+    let suggested = stderr
+        .lines()
+        .find_map(|l| {
+            l.trim()
+                .strip_prefix("git config --global --add safe.directory ")
+        })
+        .map(unquote);
+    let named = || {
+        let rest = stderr.split("dubious ownership in repository at ").nth(1)?;
+        Some(unquote(rest.lines().next()?))
+    };
+    suggested.or_else(named).filter(|p| !p.is_empty())
+}
+
 fn classify(stderr: &str, path: &Path) -> GitError {
-    if is_not_a_repo(stderr) {
+    if let Some(owned) = dubious_path(stderr) {
+        GitError::Untrusted(owned)
+    } else if is_not_a_repo(stderr) {
         GitError::NotARepo(display(path))
     } else {
         GitError::failed(stderr)
@@ -492,8 +538,8 @@ fn show_file(root: &str, rev: &str, rel: &str) -> GitResult<Option<String>> {
     if out.ok {
         return Ok(Some(out.stdout));
     }
-    if is_not_a_repo(&out.stderr) {
-        return Err(GitError::NotARepo(root.to_string()));
+    if is_not_a_repo(&out.stderr) || dubious_path(&out.stderr).is_some() {
+        return Err(classify(&out.stderr, Path::new(root)));
     }
     if is_missing_at_rev(&out.stderr) {
         return Ok(None);
@@ -537,6 +583,37 @@ fn file_changes(
     Ok(out)
 }
 
+/// Add the repository holding `path` to the user's global `safe.directory`
+/// list — git's own fix for "dubious ownership", run only when the user said
+/// so. The path added is the one git itself names for `path` (never the
+/// caller's string), so this can only ever trust the repository git just
+/// refused. Already trusted (git answers normally) is a no-op.
+fn trust_directory(path: &str) -> GitResult<()> {
+    let dir = work_dir(Path::new(path));
+    let probe = run_git(Some(dir), &["rev-parse", "--show-toplevel"])?;
+    if probe.ok {
+        return Ok(());
+    }
+    let Some(owned) = dubious_path(&probe.stderr) else {
+        return Err(classify(&probe.stderr, dir));
+    };
+    let added = run_git_with(
+        None,
+        GitMode::Mutate,
+        &[
+            "config",
+            "--global",
+            "--add",
+            "safe.directory",
+            run::safe_arg(&owned)?,
+        ],
+    )?;
+    if !added.ok {
+        return Err(GitError::failed(added.stderr));
+    }
+    Ok(())
+}
+
 /* -------------------------------- commands -------------------------------- */
 
 /// Where this path sits in git: root, branch, HEAD, the baseline branch and
@@ -563,6 +640,14 @@ pub async fn git_file_changes(
     branches: Vec<String>,
 ) -> GitResult<Vec<GitFileChange>> {
     blocking(move || file_changes(&root, &rel, &base_ref, branches)).await
+}
+
+/// Trust the repository holding `path` (`git config --global --add
+/// safe.directory <the path git names>`). The UI calls this only after the
+/// user confirmed a `GIT_UNTRUSTED` failure.
+#[tauri::command]
+pub async fn git_trust_directory(path: String) -> GitResult<()> {
+    blocking(move || trust_directory(&path)).await
 }
 
 #[cfg(test)]
@@ -686,6 +771,7 @@ mod tests {
         let cases = [
             (GitError::NoGit, "GIT_NOT_FOUND"),
             (GitError::NotARepo("/x".into()), "GIT_NOT_A_REPO"),
+            (GitError::Untrusted("/x".into()), "GIT_UNTRUSTED"),
             (GitError::Timeout(3), "GIT_TIMEOUT"),
             (GitError::failed("boom"), "GIT_FAILED"),
             (GitError::Cancelled, "GIT_CANCELLED"),
@@ -714,6 +800,33 @@ mod tests {
         assert!(is_not_a_repo(
             "fatal: not a git repository (or any of the parent directories): .git"
         ));
+    }
+
+    #[test]
+    fn dubious_ownership_names_the_path_git_wants_trusted() {
+        // git 2.55 on Windows, verbatim.
+        let win = "fatal: detected dubious ownership in repository at 'C:/Users/x/proj'\n\
+                   To add an exception for this directory, call:\n\n\
+                   \tgit config --global --add safe.directory C:/Users/x/proj";
+        assert_eq!(dubious_path(win).as_deref(), Some("C:/Users/x/proj"));
+        // The suggested argument wins over the first line (a UNC share).
+        let unc = "fatal: detected dubious ownership in repository at '//srv/share/proj'\n\
+                   '//srv/share/proj' is owned by:\n\tS-1-5-32-544\nbut the current user is:\n\tS-1-5-21-1\n\
+                   To add an exception for this directory, call:\n\n\
+                   \tgit config --global --add safe.directory '%(prefix)///srv/share/proj'";
+        assert_eq!(
+            dubious_path(unc).as_deref(),
+            Some("%(prefix)///srv/share/proj")
+        );
+        // No suggestion line: the quoted path from the first line.
+        let bare = "fatal: detected dubious ownership in repository at '/srv/repo'";
+        assert_eq!(dubious_path(bare).as_deref(), Some("/srv/repo"));
+        assert_eq!(dubious_path("fatal: not a git repository"), None);
+
+        match classify(win, Path::new("C:/Users/x/proj/sub")) {
+            GitError::Untrusted(p) => assert_eq!(p, "C:/Users/x/proj"),
+            other => panic!("expected Untrusted, got {other:?}"),
+        }
     }
 
     /* ---------------------- against a real git binary ---------------------- */
@@ -828,6 +941,42 @@ mod tests {
         let main = repo_info(&root.join("a.ts").to_string_lossy(), None).expect("repo info");
         assert!(!main.is_worktree);
         assert_eq!(path_key(&main.main_root), path_key(&main.root));
+    }
+
+    /// End to end against real git's ownership check. Ignored by default: it
+    /// needs the whole process to run with `GIT_TEST_ASSUME_DIFFERENT_OWNER=1`
+    /// (git then treats every repository as foreign) and `GIT_CONFIG_GLOBAL`
+    /// pointing at a scratch file — never the real ~/.gitconfig. Run with
+    /// both set: `cargo test --lib untrusted_repo_round_trip -- --ignored`.
+    #[test]
+    #[ignore]
+    fn untrusted_repo_round_trip() {
+        if std::env::var("GIT_TEST_ASSUME_DIFFERENT_OWNER").as_deref() != Ok("1")
+            || std::env::var("GIT_CONFIG_GLOBAL").is_err()
+        {
+            panic!("set GIT_TEST_ASSUME_DIFFERENT_OWNER=1 and GIT_CONFIG_GLOBAL=<scratch file>");
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let out = run_git(Some(dir.path()), &["init", "-q"]).unwrap();
+        assert!(out.ok, "{}", out.stderr);
+        let sub = dir.path().join("sub");
+        std::fs::create_dir(&sub).unwrap();
+
+        match repo_info(&sub.to_string_lossy(), None) {
+            Err(GitError::Untrusted(_)) => {}
+            other => panic!("expected Untrusted, got {other:?}"),
+        }
+        trust_directory(&sub.to_string_lossy()).expect("trust");
+        repo_info(&sub.to_string_lossy(), None).expect("trusted now");
+        // Trusting again is a no-op, not a second config entry.
+        trust_directory(&sub.to_string_lossy()).expect("idempotent");
+        let list = run_git_with(
+            None,
+            GitMode::Read,
+            &["config", "--global", "--get-all", "safe.directory"],
+        )
+        .unwrap();
+        assert_eq!(list.stdout.lines().count(), 1, "{}", list.stdout);
     }
 
     #[test]

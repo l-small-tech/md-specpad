@@ -52,6 +52,8 @@ function openFailureText(err: unknown, path: string): string {
         return 'Git was not found — install git and make sure it is on your PATH.';
       case 'GIT_NOT_A_REPO':
         return `${baseName(path) || path} is not inside a git repository.`;
+      case 'GIT_UNTRUSTED':
+        return `Git does not trust ${baseName(path) || path} — the folder is owned by another user.`;
       default:
         return gitFailureText(err);
     }
@@ -77,10 +79,23 @@ export async function openGitTab(
     showNotice('Git is not available for a synced folder.');
     return null;
   }
+  const base = settingsStore.getState().settings.reviewBaseBranch;
+  const repoInfo = () => ipc.gitRepoInfo(pathOrRoot, base === '' ? undefined : base);
   let info: GitRepoInfo;
   try {
-    const base = settingsStore.getState().settings.reviewBaseBranch;
-    info = await ipc.gitRepoInfo(pathOrRoot, base === '' ? undefined : base);
+    try {
+      info = await repoInfo();
+    } catch (err) {
+      // git's "dubious ownership" refusal: offer to trust the folder (the
+      // store confirms first), then ask once more.
+      if (
+        !(err instanceof IpcError && err.code === 'GIT_UNTRUSTED') ||
+        !(await gitStore.getState().trustFolder(pathOrRoot))
+      ) {
+        throw err;
+      }
+      info = await repoInfo();
+    }
   } catch (err) {
     showNotice(openFailureText(err, pathOrRoot));
     if (!isGitUnavailable(err)) {

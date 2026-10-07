@@ -21,16 +21,17 @@ Keep this directory small; anything smart belongs in a store or in core.
 | `TerminalTab` | M9 | one terminal tab page: hosts its split tree — see I10 below |
 | `TerminalPane` | M9 | one pty + engine + canvas + input; the only place src/term and src/renderer meet the app |
 | `PaneTree` | M9 | places a tab's panes as keyed, absolutely-positioned SIBLINGS (nesting them would remount — and kill — a pty on every split) |
-| `git/GitTab` | git | the source-control panel behind a `kind: 'git'` tab: header + side column + detail column, hidden with `display: none` when inactive (I7) — see "Git tab (tool tab)" below |
-| `git/GitHeader` | git | checkout picker (main first, then `worktrees/<slug> · <branch>`), branch / upstream / ahead-behind, state chip, Fetch / Pull / Push ("Publish branch" when there is no upstream), refresh |
+| `git/GitTab` | git | the source-control panel behind a `kind: 'git'` tab: the worktree strip on top, then the side column (conflicts, changes + commit) and the main column (the commit graph; under it, while something is selected, the detail; the output drawer at the foot), hidden with `display: none` when inactive (I7) — see "Git tab (tool tab)" below |
+| `git/WorktreeStrip` | git | the header: one card per checkout (main first, then `worktrees/<slug>`) — the card IS the checkout picker; each shows branch, a stacked dirty bar (staged · changed · untracked · conflicted), ahead/behind meters against the base, terminal dot, state / missing / locked chips, and the row actions (open as workspace, terminal / harness here, diff vs base, merge either way, Finish…, Remove); the dashed card is **New worktree** |
+| `git/GraphPane` | git | the whole repository's history as a lane graph (`core/git/graph.ts` lays out, this paints one SVG per row): ref pills from `%D` decorations (`core/git/decorations.ts`) — local / current / remote / tag — plus a folder pill per worktree standing on the commit, the subject, an author mark, the age, the sha; a row click shows the commit, a branch pill opens `BranchMenu`, a worktree pill selects that checkout; Load more |
+| `git/BranchPicker` | git | `BranchMenu` — one branch's actions (Switch / check out as tracking local, Merge into current, Delete; "in `<worktree>`" disables what git would refuse) from a graph pill; `BranchPicker` — the status bar's popover: fuzzy filter, locals then remotes with the same actions on hover, inline New branch |
+| `git/GitStatusBar` | git | what `StatusBar` renders on a git tab instead of the mode segments: the branch button (upstream, state chip) opening `BranchPicker` upward, Fetch / Pull / Push ("Publish" with no upstream; ahead / behind count badges), Refresh, the last error |
+| `git/GitMenu` | git | the anchored popover primitive (`fixed`, kept on screen, backdrop click / Esc closes) + `MenuItem`; `anchorFor(el, dir, align)` |
 | `git/GitStates` | git | whole-panel states: git missing, no longer a repository (+ Close tab), first-load skeleton |
 | `git/ConflictsSection` | git | unmerged files, the live tracker line, **Copy conflict prompt** / Terminal here / Harness here / Abort / Continue (gated), per-file Mark resolved; `ConflictActions` is shared with the finish flow |
 | `git/ChangesSection` | git | Staged / Changes / Untracked groups (from `repo.groups`) with hover actions and Stage all / Unstage all; the commit box (mod+Enter on the textarea commits, Amend) |
-| `git/WorktreesSection` | git | the worktree dashboard rows and their actions (open as workspace, terminal / harness here, diff vs base, merge either way, Finish…, Remove); **New worktree** |
-| `git/BranchesSection` | git | fuzzy-filtered local + remote branches; Switch / Merge into current / Delete; inline New branch |
-| `git/HistorySection` | git | the log with relative times; Load more |
-| `git/GitDetail` | git | the right column: `DiffView` over `repo.diff` (+ EOL / binary hint bar), a commit with its files, a worktree's files vs base, or `FinishFlow` |
-| `git/OutputDrawer` | git | streamed fetch / pull / push output at the foot of the detail column; the failure hint is text in a `<code>`, never a button; Cancel / Dismiss |
+| `git/GitDetail` | git | the lower half of the main column while something is selected: a thin bar naming it (+ close), then `DiffView` over `repo.diff` (+ EOL / binary hint bar), a commit with its files, a worktree's files vs base, or `FinishFlow` |
+| `git/OutputDrawer` | git | streamed fetch / pull / push output at the foot of the main column; the failure hint is text in a `<code>`, never a button; Cancel / Dismiss |
 | `git/FinishFlow` | git | the finish-worktree stepper: verify pause (terminal here + Continue / Skip), conflicts pause (the agent-first actions + tracker), failed (Retry / Skip / Abort), cleanup confirm text |
 | `git/NewWorktreeDialog` | git | `.settings-dialog` chrome: slug, prefix, base branch, "then open" none / shell / harness, a live preview line, Create |
 
@@ -805,7 +806,7 @@ belt-and-braces; a new surface needs no guard of its own unless it has a menu.
 - Modals are reserved for: close-tab confirmation, save/discard/cancel on
   dirty file close, settings. Use `@tauri-apps/plugin-dialog` for native
   confirm dialogs (they match the OS), custom DOM only for SettingsDialog.
-- The window title mirrors the active tab: `<title> — MD Notepad`
+- The window title mirrors the active tab: `<title> — MD Specpad`
   (`getCurrentWindow().setTitle`), updated from a store subscription.
 - Drag-reorder of tabs: pointer-events implementation, no dnd library
   (dependency freeze), and NOT HTML5 drag-and-drop — Tauri's OS drag-drop
@@ -918,19 +919,14 @@ change)`: a read → change → write of the sidecar that keeps the preamble's
 review context (`core/comments parseReviewContext`), refreshes the marks and
 an open composer's `comments`, and tells `onNotesChanged` listeners.
 
-**Initialize Workspace and prompt status.** `workspace-init.ts` +
+**Initialize Workspace.** `workspace-init.ts` +
 `components/InitWorkspaceDialog.tsx` gather the inputs for
 `core/workspace-modules.ts` (folder, the user's `<appData>/agent-modules/*.md`,
 the files already there), write what it plans, and register the folder as a
 workspace; opened with a root (context menu "Workspace directives…") it is the
-re-run. Desktop only. `prompt-status.ts` is the store of every workspace's
-parsed `prompts/STATUSES.md` — created in main.tsx (`initPromptStatus`), refreshed at
-boot, on workspace-list changes and on `fs-changed`; its only write is
-"Copy as prompt" marking a row `queued` after a fresh read.
-`components/PromptStrip.tsx` (mounted in EditorHost, visible only on a `*.prompts.md` file inside a
-workspace that HAS a `prompts/STATUSES.md`) is the copy button + chips;
-`components/StatusPanel.tsx` is the all-prompts panel (Escape closes). The app
-never launches an agent: the user pastes into their own terminal.
+re-run, which also drops any retired module's block (`RETIRED_MODULE_IDS`).
+Desktop only. The app never launches an agent: the user pastes into their own
+terminal.
 
 **The overview** ("All notes" in the ribbon and in every callout;
 `Show all review notes` in the palette; Escape closes) is

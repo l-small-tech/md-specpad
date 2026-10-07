@@ -46,11 +46,13 @@ export function openContextMenu(
   x: number,
   y: number,
   onClose?: () => void,
+  /** The menu's accessible name. */
+  ariaLabel = 'Board',
 ): ContextMenu {
   const menu = document.createElement('div');
   menu.className = 'tab-menu wb-menu';
   menu.setAttribute('role', 'menu');
-  menu.setAttribute('aria-label', 'Board');
+  menu.setAttribute('aria-label', ariaLabel);
   // Presses inside the menu must not reach the window listener that closes it.
   menu.addEventListener('pointerdown', (event) => event.stopPropagation());
   menu.addEventListener('contextmenu', (event) => event.preventDefault());

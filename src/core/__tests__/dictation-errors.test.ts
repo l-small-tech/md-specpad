@@ -29,7 +29,7 @@ describe('captureErrorFor — Android', () => {
   test('permission denied (by code or ERROR_INSUFFICIENT_PERMISSIONS) explains app permissions', () => {
     for (const raw of ['PERMISSION_DENIED', 'STT_ERROR:9']) {
       const e = captureErrorFor(raw, 'android');
-      expect(e.steps.join(' ')).toMatch(/Apps > md-notepad > Permissions/);
+      expect(e.steps.join(' ')).toMatch(/Apps > md-specpad > Permissions/);
       expect(e.settings).toBeUndefined(); // no ms-settings on a phone
     }
   });

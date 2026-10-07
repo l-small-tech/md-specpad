@@ -128,7 +128,6 @@ import { pathKey } from '../../core/tab-workspaces';
 import type { VoiceComment } from '../../core/comments';
 import { ConflictBanner } from './ConflictBanner';
 import { LiveEditBanner } from './LiveEditBanner';
-import { PromptStrip } from './PromptStrip';
 import { DiffView } from './DiffView';
 import { NoteComposer } from './NoteComposer';
 import { diffViewStore, useDiffView } from '../stores/diff-view';
@@ -495,6 +494,7 @@ function EditorHostImpl({ tabId, active }: { tabId: string; active: boolean }) {
             placeholder: emptyHint,
             wordWrap: settingsStore.getState().settings.wordWrap,
             lineNumbers: settingsStore.getState().settings.lineNumbers,
+            collapsibleHeadings: settingsStore.getState().settings.collapsibleHeadings,
             initialSelection: getCursor(tabId) ?? undefined,
             onSelection: (pos) => {
               uiStore.getState().reportCursor(tabId, { line: pos.line, col: pos.col });
@@ -549,6 +549,7 @@ function EditorHostImpl({ tabId, active }: { tabId: string; active: boolean }) {
     // factory reads the current setting when it eventually runs.
     let lastWordWrap = settingsStore.getState().settings.wordWrap;
     let lastLineNumbers = settingsStore.getState().settings.lineNumbers;
+    let lastCollapsible = settingsStore.getState().settings.collapsibleHeadings;
     const unsubscribeSettings = settingsStore.subscribe((s) => {
       if (s.settings.wordWrap !== lastWordWrap) {
         lastWordWrap = s.settings.wordWrap;
@@ -557,6 +558,10 @@ function EditorHostImpl({ tabId, active }: { tabId: string; active: boolean }) {
       if (s.settings.lineNumbers !== lastLineNumbers) {
         lastLineNumbers = s.settings.lineNumbers;
         sourceAdapterRef.current?.setLineNumbers(lastLineNumbers);
+      }
+      if (s.settings.collapsibleHeadings !== lastCollapsible) {
+        lastCollapsible = s.settings.collapsibleHeadings;
+        sourceAdapterRef.current?.setCollapsibleHeadings(lastCollapsible);
       }
       // Edit-mode boards bake the theme palette into their data URLs (like
       // the preview pane) — a palette change must re-bake them.
@@ -987,7 +992,6 @@ function EditorHostImpl({ tabId, active }: { tabId: string; active: boolean }) {
     >
       <ConflictBanner tabId={tabId} />
       <LiveEditBanner tabId={tabId} />
-      <PromptStrip tabId={tabId} />
       {composerHere && createPortal(<NoteComposer />, composerSlot)}
       {showDiff && diffEntry && (
         <DiffView

@@ -34,6 +34,8 @@ export type IpcErrorCode =
   /* Git (src-tauri commands/git/), desktop only. */
   | 'GIT_NOT_FOUND'
   | 'GIT_NOT_A_REPO'
+  /** git's `safe.directory` check refused the repository (owned by another account). */
+  | 'GIT_UNTRUSTED'
   | 'GIT_TIMEOUT'
   | 'GIT_FAILED'
   /** The user cancelled a fetch / pull / push (`gitOpCancel`). */
@@ -61,6 +63,7 @@ const IPC_ERROR_CODES: readonly IpcErrorCode[] = [
   'WHISPER_DOWNLOAD_BUSY',
   'GIT_NOT_FOUND',
   'GIT_NOT_A_REPO',
+  'GIT_UNTRUSTED',
   'GIT_TIMEOUT',
   'GIT_FAILED',
   'GIT_CANCELLED',
@@ -75,6 +78,7 @@ const IPC_ERROR_CODES: readonly IpcErrorCode[] = [
 export type GitErrorCode =
   | 'GIT_NOT_FOUND'
   | 'GIT_NOT_A_REPO'
+  | 'GIT_UNTRUSTED'
   | 'GIT_TIMEOUT'
   | 'GIT_FAILED'
   | 'GIT_CANCELLED'
@@ -314,6 +318,8 @@ export interface GitCommit {
   at: string;
   subject: string;
   body: string;
+  /** `%D` decorations, one per item (`HEAD -> x`, `origin/x`, `tag: v1`, `HEAD`). */
+  refs: string[];
 }
 
 /** One `--name-status` row: `status` is git's letter (A M D R C T U). */
@@ -372,12 +378,16 @@ export type GitOutputEvent =
 
 /**
  * Is this rejection git's absence rather than a real failure? True for
- * `GIT_NOT_FOUND` (no git binary) and `GIT_NOT_A_REPO` (the file lives
- * outside a repository) — both mean "hide the baseline picker with a hint",
- * while `GIT_TIMEOUT` / `GIT_FAILED` are worth reporting.
+ * `GIT_NOT_FOUND` (no git binary), `GIT_NOT_A_REPO` (the file lives
+ * outside a repository) and `GIT_UNTRUSTED` (git's `safe.directory` check
+ * refused it) — all mean "hide the baseline picker with a hint", while
+ * `GIT_TIMEOUT` / `GIT_FAILED` are worth reporting.
  */
 export function isGitUnavailable(err: unknown): boolean {
-  return err instanceof IpcError && (err.code === 'GIT_NOT_FOUND' || err.code === 'GIT_NOT_A_REPO');
+  return (
+    err instanceof IpcError &&
+    (err.code === 'GIT_NOT_FOUND' || err.code === 'GIT_NOT_A_REPO' || err.code === 'GIT_UNTRUSTED')
+  );
 }
 
 /** One raw entry from a synced-folder listing (name only, not a full id). */
@@ -393,14 +403,23 @@ export const ipc = {
   atomicWriteText: (path: string, text: string) => call<void>('atomic_write_text', { path, text }),
   listNotes: (dir: string) => call<NoteMeta[]>('list_notes', { dir }),
   /** One explorer level: subdirs + text/image/document files (dirs A→Z, files
-   *  newest first). `allFiles` lists every file (unsupported files shown). */
-  listDir: (dir: string, allFiles?: boolean) =>
-    call<DirEntryMeta[]>('list_dir', { dir, allFiles: allFiles ?? false }),
+   *  newest first). `allFiles` lists every file (unsupported files shown);
+   *  `showHidden` also lists hidden entries (dot-names, OS hidden flags). */
+  listDir: (dir: string, allFiles?: boolean, showHidden?: boolean) =>
+    call<DirEntryMeta[]>('list_dir', {
+      dir,
+      allFiles: allFiles ?? false,
+      showHidden: showHidden ?? false,
+    }),
   /** Recursive: does `dir`'s subtree hold anything the explorer would list (or
-   *  an extension-less file)? `allFiles` counts any file. Local paths only —
-   *  never call with `saf://`. */
-  dirHasRelevantFiles: (dir: string, allFiles?: boolean) =>
-    call<boolean>('dir_has_relevant_files', { dir, allFiles: allFiles ?? false }),
+   *  an extension-less file)? `allFiles` counts any file; `showHidden` counts
+   *  and walks hidden entries. Local paths only — never call with `saf://`. */
+  dirHasRelevantFiles: (dir: string, allFiles?: boolean, showHidden?: boolean) =>
+    call<boolean>('dir_has_relevant_files', {
+      dir,
+      allFiles: allFiles ?? false,
+      showHidden: showHidden ?? false,
+    }),
   /** The Marp slide decks (`marp: true` frontmatter) directly inside `dir` —
    *  the explorer badges them. Reads only each markdown file's head. Local
    *  paths only — never call with `saf://`. */
@@ -425,7 +444,8 @@ export const ipc = {
    *  Rust emits a debounced `fs-changed` event (payload: affected roots) when
    *  anything under them changes. Not registered on Android — only call
    *  behind a platform check. */
-  watchDirs: (dirs: string[]) => call<void>('watch_dirs', { dirs }),
+  watchDirs: (dirs: string[], showHidden?: boolean) =>
+    call<void>('watch_dirs', { dirs, showHidden: showHidden ?? false }),
   /** Desktop only: flip the engine's own smooth wheel scrolling for THIS
    *  window (WebKitGTK's enable-smooth-scrolling; a no-op on Windows/macOS,
    *  whose engines have their own behavior). Not registered on Android —
@@ -669,6 +689,12 @@ export const ipc = {
    */
   gitFileChanges: (root: string, rel: string, baseRef: string, branches: string[]) =>
     call<GitFileChange[]>('git_file_changes', { root, rel, baseRef, branches }),
+  /**
+   * Answer a `GIT_UNTRUSTED` refusal: add the repository holding `path` to the
+   * user's global `safe.directory` list (the path git itself names). Call only
+   * after the user confirmed; a repository git already trusts is a no-op.
+   */
+  gitTrustDirectory: (path: string) => call<void>('git_trust_directory', { path }),
 
   /* ------------------------------ git tab ------------------------------- */
   /* Desktop only (src-tauri commands/git/). `root` is always the CHECKOUT to
@@ -684,8 +710,12 @@ export const ipc = {
   /** Local and remote branches with tracking info. */
   gitBranches: (root: string) => call<GitBranch[]>('git_branches', { root }),
   /** `max` commits reachable from `rev` (HEAD when null), skipping `skip`. `[]` on an unborn HEAD. */
-  gitLog: (root: string, rev: string | null, max: number, skip: number) =>
-    call<GitCommit[]>('git_log', { root, rev, max, skip }),
+  /**
+   * `all`: every branch, remote and tag (plus HEAD) in `--date-order` — the
+   * graph's view; otherwise `rev` (HEAD when null) in git's default order.
+   */
+  gitLog: (root: string, rev: string | null, max: number, skip: number, all = false) =>
+    call<GitCommit[]>('git_log', { root, rev, max, skip, all }),
   /** The files one commit touched (renames detected). */
   gitCommitFiles: (root: string, sha: string) =>
     call<GitFileDelta[]>('git_commit_files', { root, sha }),

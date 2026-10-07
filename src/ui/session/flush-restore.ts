@@ -233,114 +233,155 @@ export function createFlushRestore(ctx: SessionCtx) {
 
   setFlushRequester(() => flusher.request());
 
+  /**
+   * Read every persisted tab back. The reads run CONCURRENTLY: a session can
+   * hold tabs on slow storage — a cloud-streaming drive, or a `\\wsl.localhost`
+   * share whose VM has to boot first — and run one after another their
+   * latencies stacked up while the window sat on the boot splash. Tab order is
+   * kept; `onRestoreProgress` names what is still outstanding.
+   */
   async function readNoteTabs(persisted: PersistedTab[]): Promise<{
     tabs: RestoredTabInit[];
     missing: string[];
   }> {
+    const waiting = new Map<number, string>();
+    const report = () => ctx.deps.onRestoreProgress?.([...waiting.values()]);
+    const results = await Promise.all(
+      persisted.map(async (pt, i) => {
+        const label = restoreLabel(pt);
+        if (label !== null) {
+          waiting.set(i, label);
+          report();
+        }
+        try {
+          return await readPersistedTab(pt);
+        } finally {
+          if (waiting.delete(i)) {
+            report();
+          }
+        }
+      }),
+    );
     const restored: RestoredTabInit[] = [];
     const missing: string[] = [];
-    for (const pt of persisted) {
-      if (pt.kind === 'terminal') {
-        // Nothing to read: a terminal tab is pane metadata only, and the
-        // shells respawn when the panes mount — unless the descriptor came
-        // from a live window handing the tab over, in which case it names the
-        // ptys still running and the panes attach to those instead. Android
-        // has no pty, so a manifest written on a desktop simply loses its
-        // terminal tabs there.
-        if (!isAndroid()) {
-          restored.push(persistedToInit(pt, ''));
-        }
+    for (const result of results) {
+      if (result === null) {
         continue;
       }
-      if (pt.kind === 'git') {
-        // A git tab holds no text either; what has to still be true is that
-        // its root is a repository. Ask git (the same call the tab makes on
-        // open; the native ipc, not the storage provider — git is a desktop
-        // command, never a SAF one): a deleted or moved repo drops the tab
-        // with the "missing" notice rather than restoring an empty panel.
-        // Android has no git commands at all, so a desktop manifest loses
-        // its git tabs there.
-        const root = pt.git?.root;
-        if (isAndroid() || !root) {
-          continue;
-        }
-        try {
-          await nativeIpc.gitRepoInfo(root);
-          restored.push(persistedToInit(pt, ''));
-        } catch {
-          missing.push(`Git: ${baseName(root)}`);
-        }
-        continue;
-      }
-      if (pt.kind === 'image' || pt.kind === 'import') {
-        // Image and import tabs hold no text; just confirm the file still exists.
-        if (!pt.filePath) {
-          continue;
-        }
-        try {
-          const stat = await ctx.ipc.statPath(pt.filePath);
-          if (stat.exists) {
-            restored.push(persistedToInit(pt, ''));
-          } else {
-            missing.push(baseName(pt.filePath));
-          }
-        } catch {
-          // A transient stat failure shouldn't drop the tab; restore it and
-          // let the viewer surface a load error if the file is really gone.
-          restored.push(persistedToInit(pt, ''));
-        }
-        continue;
-      }
-      if (pt.kind === 'note') {
-        if (pt.notePath === null) {
-          // A never-flushed empty note: no file, restore it empty.
-          restored.push(persistedToInit(pt, ''));
-          continue;
-        }
-        try {
-          const { text, mtimeMs } = await ctx.ipc.readTextFile(pt.notePath);
-          // The read's mtime becomes the note's conflict baseline: the model
-          // now holds exactly this on-disk state, so any later mtime move is
-          // a real external candidate (probe verifies content before flagging).
-          restored.push(persistedToInit({ ...pt, savedMtimeMs: mtimeMs }, text));
-        } catch {
-          missing.push(baseName(pt.notePath));
-        }
+      if ('tab' in result) {
+        restored.push(result.tab);
       } else {
-        // File tabs: the buffer (unsaved edits) wins over the on-disk file
-        // when present — that's exactly what "restore edits after a kill"
-        // means. Falling back to the file itself makes the tab dirty=false;
-        // reading the buffer makes it dirty=true (the write to filePath never
-        // happened). checkAllFileConflicts (called after restoreSession)
-        // separately catches an on-disk change while the app was closed.
-        let text: string | null = null;
-        let dirty = false;
-        if (pt.hasBuffer) {
-          try {
-            text = (await ctx.ipc.readTextFile(bufferPathFor(ctx.sessionDir, pt.id))).text;
-            dirty = true;
-          } catch {
-            text = null;
-          }
-        }
-        if (text === null && pt.filePath) {
-          try {
-            text = (await ctx.ipc.readTextFile(pt.filePath)).text;
-            dirty = false;
-          } catch {
-            text = null;
-          }
-        }
-        if (text === null) {
-          if (pt.filePath) {
-            missing.push(baseName(pt.filePath));
-          }
-          continue;
-        }
-        restored.push(persistedToInit(pt, text, dirty));
+        missing.push(result.missing);
       }
     }
     return { tabs: restored, missing };
+  }
+
+  /** The file name the boot splash shows while `pt` is being read, if any. */
+  function restoreLabel(pt: PersistedTab): string | null {
+    const path = pt.kind === 'git' ? (pt.git?.root ?? null) : (pt.notePath ?? pt.filePath);
+    return path ? baseName(path) : null;
+  }
+
+  async function readPersistedTab(
+    pt: PersistedTab,
+  ): Promise<{ tab: RestoredTabInit } | { missing: string } | null> {
+    if (pt.kind === 'terminal') {
+      // Nothing to read: a terminal tab is pane metadata only, and the
+      // shells respawn when the panes mount — unless the descriptor came
+      // from a live window handing the tab over, in which case it names the
+      // ptys still running and the panes attach to those instead. Android
+      // has no pty, so a manifest written on a desktop simply loses its
+      // terminal tabs there.
+      if (!isAndroid()) {
+        return { tab: persistedToInit(pt, '') };
+      }
+      return null;
+    }
+    if (pt.kind === 'git') {
+      // A git tab holds no text either; what has to still be true is that
+      // its root is a repository. Ask git (the same call the tab makes on
+      // open; the native ipc, not the storage provider — git is a desktop
+      // command, never a SAF one): a deleted or moved repo drops the tab
+      // with the "missing" notice rather than restoring an empty panel.
+      // Android has no git commands at all, so a desktop manifest loses
+      // its git tabs there.
+      const root = pt.git?.root;
+      if (isAndroid() || !root) {
+        return null;
+      }
+      try {
+        await nativeIpc.gitRepoInfo(root);
+        return { tab: persistedToInit(pt, '') };
+      } catch {
+        return { missing: `Git: ${baseName(root)}` };
+      }
+    }
+    if (pt.kind === 'image' || pt.kind === 'import') {
+      // Image and import tabs hold no text; just confirm the file still exists.
+      if (!pt.filePath) {
+        return null;
+      }
+      try {
+        const stat = await ctx.ipc.statPath(pt.filePath);
+        if (stat.exists) {
+          return { tab: persistedToInit(pt, '') };
+        } else {
+          return { missing: baseName(pt.filePath) };
+        }
+      } catch {
+        // A transient stat failure shouldn't drop the tab; restore it and
+        // let the viewer surface a load error if the file is really gone.
+        return { tab: persistedToInit(pt, '') };
+      }
+    }
+    if (pt.kind === 'note') {
+      if (pt.notePath === null) {
+        // A never-flushed empty note: no file, restore it empty.
+        return { tab: persistedToInit(pt, '') };
+      }
+      try {
+        const { text, mtimeMs } = await ctx.ipc.readTextFile(pt.notePath);
+        // The read's mtime becomes the note's conflict baseline: the model
+        // now holds exactly this on-disk state, so any later mtime move is
+        // a real external candidate (probe verifies content before flagging).
+        return { tab: persistedToInit({ ...pt, savedMtimeMs: mtimeMs }, text) };
+      } catch {
+        return { missing: baseName(pt.notePath) };
+      }
+    } else {
+      // File tabs: the buffer (unsaved edits) wins over the on-disk file
+      // when present — that's exactly what "restore edits after a kill"
+      // means. Falling back to the file itself makes the tab dirty=false;
+      // reading the buffer makes it dirty=true (the write to filePath never
+      // happened). checkAllFileConflicts (called after restoreSession)
+      // separately catches an on-disk change while the app was closed.
+      let text: string | null = null;
+      let dirty = false;
+      if (pt.hasBuffer) {
+        try {
+          text = (await ctx.ipc.readTextFile(bufferPathFor(ctx.sessionDir, pt.id))).text;
+          dirty = true;
+        } catch {
+          text = null;
+        }
+      }
+      if (text === null && pt.filePath) {
+        try {
+          text = (await ctx.ipc.readTextFile(pt.filePath)).text;
+          dirty = false;
+        } catch {
+          text = null;
+        }
+      }
+      if (text === null) {
+        if (pt.filePath) {
+          return { missing: baseName(pt.filePath) };
+        }
+        return null;
+      }
+      return { tab: persistedToInit(pt, text, dirty) };
+    }
   }
 
   /** Self-heal: reopen the 20 most recent notes as fresh tabs. */

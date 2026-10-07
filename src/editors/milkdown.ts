@@ -42,6 +42,7 @@ import {
 import { ipc } from '../ipc/commands';
 import { markdownNormalizes, shouldShowNormalizationHint } from './wysiwyg-normalize';
 import { imageFilesFromDataTransfer, readImageFile } from './image-paste';
+import { headingMarksPlugin } from './heading-marks-milkdown';
 import '@milkdown/crepe/theme/common/style.css';
 import '../styles/wysiwyg.css';
 
@@ -51,7 +52,7 @@ import '../styles/wysiwyg.css';
  * must ignore them — otherwise opening a doc in Edit mode would immediately
  * normalize it.
  */
-const PROGRAMMATIC_META = 'md-notepad-programmatic';
+const PROGRAMMATIC_META = 'md-specpad-programmatic';
 
 /**
  * The app theme's resolved `--wb-*` palette, read off `<html>` — the same
@@ -461,6 +462,9 @@ export function createMilkdownAdapter(options: MilkdownOptions = {}): MilkdownAd
         },
       }));
     });
+
+    // Right-click a heading → Mark running / complete (heading-marks-milkdown.ts).
+    crepe.editor.use(headingMarksPlugin);
 
     await crepe.create();
     view = crepe.editor.action((ctx) => ctx.get(editorViewCtx));

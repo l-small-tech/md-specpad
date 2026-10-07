@@ -123,6 +123,44 @@ code, comments → quote), so themes need nothing new. Like `'xml'` and
 
 ---
 
+## Heading marks (both text editors)
+
+Right-click an ATX heading → Mark running / Mark complete / Clear mark. The
+mark is a trailing glyph in the heading text (`core/heading-mark.ts`), so the
+editors only (a) decide a line IS a heading, (b) rewrite its tail, and (c)
+tint it with `.heading-mark .heading-mark-<mark>` (app.css).
+
+- `heading-marks-cm6.ts` (markdown language only): a `ViewPlugin` of line
+  decorations over the visible ranges, and a `contextmenu` handler that
+  checks the syntax tree (`ATXHeading*`, so fenced `#` lines never qualify)
+  and replaces just that line as a `input.heading-mark` user edit.
+- `heading-marks-milkdown.ts` (lazy chunk only — imported by `milkdown.ts`
+  through `crepe.editor.use`): a ProseMirror plugin with node decorations
+  and the same menu; it replaces only the glyph tail with an unmarked text
+  node and is NOT tagged programmatic, so the guard writes it back.
+- `heading-mark-menu.ts` is the shared menu. On Windows it does NOT cancel
+  the native menu (that would hide the spell checker's suggestions, which no
+  web API exposes): it stashes the items on `window.__mdSpecpadNativeMenu`
+  and `src-tauri/src/native_menu.rs` appends them to WebView2's menu under a
+  deferral, calling `select(id)` on a pick. A capture-phase `contextmenu`
+  listener clears the stash on every right-click. Other platforms cancel the
+  native menu and open `whiteboard-menu.ts`'s `openContextMenu` instead. Only
+  heading right-clicks are touched; everywhere else the native menu stays.
+- `heading-fold-cm6.ts` (markdown only, behind the `collapsibleHeadings`
+  setting via a Compartment in `cm6.ts`): CM6's `codeFolding` + `foldGutter`
+  + `foldKeymap` — the markdown grammar's own fold service already folds a
+  heading's section, and `cm6.ts` switches the grammar's paragraph folds
+  off so arrows sit on headings, lists and code blocks only — plus an update
+  listener that folds a heading the moment a change turns it into a running
+  one (`linesTurnedRunning`, pure and tested). It keys off the document
+  change, not the menu, so Edit mode's write-back and an agent saving the
+  file collapse the section too; the fold is dispatched from a microtask
+  because CM6 forbids dispatching inside an update. Turning the setting off
+  reconfigures the compartment to `[]`, which drops the fold state (unfolds
+  everything) with it.
+
+---
+
 ## milkdown.ts — Crepe/Milkdown WYSIWYG (M5)
 
 Loaded ONLY via dynamic import from the wysiwyg `AdapterFactory` (I8):
@@ -158,9 +196,9 @@ and normalize documents the user only LOOKED at. Instead:
 1. Get the ProseMirror `EditorView` from milkdown's ctx (`editorViewCtx`).
 2. Wrap `dispatchTransaction`（or use a ProseMirror plugin) so EVERY
    transaction reports
-   `guard.noteTransaction({ docChanged: tr.docChanged, programmatic: !!tr.getMeta('md-notepad-programmatic') })`.
+   `guard.noteTransaction({ docChanged: tr.docChanged, programmatic: !!tr.getMeta('md-specpad-programmatic') })`.
 3. Any content you set yourself (initial load, external model change) must
-   carry that meta flag: `tr.setMeta('md-notepad-programmatic', true)`.
+   carry that meta flag: `tr.setMeta('md-specpad-programmatic', true)`.
 4. `detach()` calls `guard.flushSync()` FIRST, then destroys the editor.
 
 Model → editor: on external model changes (reentrancy-flag filtered),

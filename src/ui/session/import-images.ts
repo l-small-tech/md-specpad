@@ -6,6 +6,7 @@
  */
 
 import { baseName, dirName, extName, joinPath } from '../../core/session/plan-flush';
+import { isAudioPath } from '../../core/audio';
 import { isImagePath } from '../../core/images';
 import { isEditableTextPath } from '../../core/text-files';
 import { imageTargetDir } from '../../core/image-insert';
@@ -37,7 +38,7 @@ export function createImportImages(
     let converted = 0;
     for (const path of paths) {
       const ext = extName(path);
-      if (!isEditableTextPath(path) && !isImagePath(path)) {
+      if (!isEditableTextPath(path) && !isImagePath(path) && !isAudioPath(path)) {
         if (converterFor(ext)) {
           // A convertible document (e.g. a PDF) — import it as markdown.
           await importDocument(dir, path);

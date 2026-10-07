@@ -70,6 +70,22 @@ export function checkoutLabel(path: string, mainRoot: string): string {
   return baseName(path) || path;
 }
 
+/** A checkout's own name: the worktree folder's name, or the main folder's name. */
+export function checkoutName(path: string, mainRoot: string): string {
+  const target = pathKey(path) === pathKey(mainRoot) ? mainRoot : path;
+  return baseName(target) || target;
+}
+
+/**
+ * Where a linked worktree lives, relative to the main root (`.claude/worktrees`),
+ * or '' for the main checkout and for worktrees outside the repository folder.
+ */
+export function checkoutDir(path: string, mainRoot: string): string {
+  const label = checkoutLabel(path, mainRoot);
+  const name = checkoutName(path, mainRoot);
+  return label.endsWith(`/${name}`) ? label.slice(0, -(name.length + 1)) : '';
+}
+
 /** `abc1234` and `↑2 ↓1` — the core formatters, under the names the components use. */
 export { formatAheadBehind as aheadBehind, shortSha } from '../../../core/git/refs';
 

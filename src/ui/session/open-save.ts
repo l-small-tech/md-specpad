@@ -8,6 +8,7 @@
 import { baseName, dirName, extName, joinPath, relativePath } from '../../core/session/plan-flush';
 import { docFamilyFor } from '../../core/doc-family';
 import { withErrorDetail } from '../../core/error-text';
+import { isAudioPath } from '../../core/audio';
 import { isImagePath } from '../../core/images';
 import { converterFor } from '../../core/import/registry';
 import {
@@ -138,8 +139,9 @@ export function createOpenSave(ctx: SessionCtx, saveFileTab: (id: string) => Pro
         // the SVG source, in draw mode — openFileTab picks that from the path);
         // in a read-only workspace it stays the image viewer it always was.
         const isWhiteboard = docFamilyFor(path) === 'svg' && !isReadOnlyPath(path);
-        if (isImagePath(path) && !isWhiteboard) {
-          // Images open as a read-only viewer tab; existence check up front so
+        if ((isImagePath(path) && !isWhiteboard) || isAudioPath(path)) {
+          // Images and audio open as a read-only viewer tab (the view is picked
+          // by extension, core/audio.ts); existence check up front so
           // a bad path errors here (like a failed read) instead of in the view.
           const stat = await ctx.ipc.statPath(path);
           if (!stat.exists) {

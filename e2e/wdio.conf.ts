@@ -9,7 +9,7 @@
  * Prerequisites (this config launches tauri-driver itself — `pnpm run e2e` is
  * the only command you need once these exist):
  *   1. A debug build of the app: `pnpm run build`, then `cargo build` in
- *      src-tauri (produces src-tauri/target/debug/md-notepad.exe).
+ *      src-tauri (produces src-tauri/target/debug/md-specpad.exe).
  *   2. tauri-driver: `cargo install tauri-driver --locked`. Found on PATH by
  *      default; override with the TAURI_DRIVER_BIN env var (absolute path).
  *   3. Windows: msedgedriver.exe matching the installed Edge/WebView2 major
@@ -18,7 +18,7 @@
  *
  * WARNING: the smoke test runs the REAL app, which persists session state
  * (tabs, note files) under the OS appdata dir. Running it locally mutates
- * your actual MD Notepad session. CI runs it on a throwaway runner where
+ * your actual MD Specpad session. CI runs it on a throwaway runner where
  * that is acceptable.
  */
 
@@ -31,13 +31,13 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 
 // Debug binary built by `cargo build` in src-tauri. The name comes from the
-// Cargo package name (`md-notepad` — src-tauri/Cargo.toml has no [[bin]]
+// Cargo package name (`md-specpad` — src-tauri/Cargo.toml has no [[bin]]
 // override). Windows-only for now; a Linux run would drop the .exe suffix.
 // TAURI_APP_BIN overrides it for a build that used its own CARGO_TARGET_DIR —
 // whisper's Vulkan shader generator needs a short one on Windows (MAX_PATH).
 const application =
   process.env.TAURI_APP_BIN ??
-  resolve(here, '..', 'src-tauri', 'target', 'debug', 'md-notepad.exe');
+  resolve(here, '..', 'src-tauri', 'target', 'debug', 'md-specpad.exe');
 
 // tauri-driver's default listen port. The wdio runner connects here instead
 // of to a browser driver; tauri-driver spawns the native driver internally.

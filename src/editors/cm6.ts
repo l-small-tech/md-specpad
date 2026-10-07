@@ -29,13 +29,15 @@ import { diffToChanges } from '../core/diff';
 import { joinDictation } from '../core/dictation-insert';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown, markdownKeymap, markdownLanguage } from '@codemirror/lang-markdown';
-import { syntaxHighlighting } from '@codemirror/language';
+import { foldNodeProp, syntaxHighlighting } from '@codemirror/language';
 import { search, searchKeymap } from '@codemirror/search';
 import { highlightStyle, listMarkStyling } from './markdown-highlight';
 import { xmlHighlightStyle, xmlLanguage } from './xml-highlight';
 import { codeHighlightStyle, rustLanguage, tsLanguage } from './code-highlight';
 import { reindentLists } from './list-indent';
 import { plainDotsExtension } from './plain-dots';
+import { headingMarksExtension } from './heading-marks-cm6';
+import { headingFoldExtension } from './heading-fold-cm6';
 import type { DocModel } from '../core/doc-model';
 import type { EditorAdapter } from '../core/mode-sync';
 import type { CursorPos } from '../core/types';
@@ -53,6 +55,12 @@ export interface Cm6Options {
   wordWrap?: boolean;
   /** Initial line-number gutter state (OFF by default — Notepad feel). */
   lineNumbers?: boolean;
+  /**
+   * Initial fold-gutter state (OFF by default): collapsible heading sections,
+   * with a heading marked running collapsing on its own (heading-fold-cm6.ts).
+   * Markdown only — ignored for every other language.
+   */
+  collapsibleHeadings?: boolean;
   /**
    * Ghost text shown while the document is EMPTY (never once there is a
    * character in it). Multi-line; rendered `pre-wrap`.
@@ -128,6 +136,7 @@ export interface Cm6Adapter extends EditorAdapter {
   setSelection(anchor: number, head: number): void;
   setWordWrap(on: boolean): void;
   setLineNumbers(on: boolean): void;
+  setCollapsibleHeadings(on: boolean): void;
   setFontSize(px: number): void;
   /** Apply a ribbon formatting action to the current selection/line, then refocus. */
   format(action: FormatAction): void;
@@ -329,6 +338,51 @@ const baseTheme = EditorView.theme({
     backgroundImage: 'none',
   },
   '.cm-searchMatch': { backgroundColor: 'var(--selection)' },
+  // Fold gutter + the "…" placeholder of a collapsed section (heading-fold-cm6.ts).
+  // The cell is a fixed-width flex box so the chevron centres on both axes
+  // and lines up with the text; the marker sizes off the editor font.
+  '.cm-foldGutter .cm-gutterElement': {
+    cursor: 'pointer',
+    width: 'calc(1em + 3px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 0 0 3px',
+  },
+  '.cm-fold-marker': {
+    display: 'inline-flex',
+    width: '1em',
+    height: '1em',
+    color: 'var(--fg-muted)',
+    borderRadius: '3px',
+    transition: 'transform 120ms ease, color 120ms ease',
+  },
+  '.cm-fold-marker svg': { width: '100%', height: '100%', display: 'block' },
+  // The gutter already separates the text from the edge; keep the whole
+  // left margin tight when it is showing (default content padding is 12px).
+  '.cm-scroller:has(.cm-foldGutter) .cm-content': { paddingLeft: '4px' },
+  '.cm-fold-marker-closed': { transform: 'rotate(-90deg)' },
+  // VS Code behaviour: arrows for open sections stay hidden until the
+  // pointer is over the gutter column; a folded section's arrow always shows.
+  // Fade like a light coming up: a slow ease-in-out both ways, a touch
+  // slower going out so the arrows linger as the pointer leaves.
+  '.cm-fold-marker-open': {
+    opacity: '0',
+    transition: 'opacity 450ms cubic-bezier(0.4, 0, 0.2, 1)',
+  },
+  '.cm-foldGutter:hover .cm-fold-marker-open': {
+    opacity: '1',
+    transition: 'opacity 350ms cubic-bezier(0.4, 0, 0.2, 1)',
+  },
+  '.cm-foldGutter .cm-gutterElement:hover .cm-fold-marker': {
+    color: 'var(--fg)',
+    backgroundColor: 'var(--bg-hover)',
+  },
+  '.cm-foldPlaceholder': {
+    backgroundColor: 'var(--bg-hover)',
+    border: '1px solid var(--border)',
+    color: 'var(--fg-muted)',
+  },
   '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'var(--accent)' },
 });
 
@@ -631,9 +685,18 @@ function applyFormat(view: EditorView, action: FormatAction): void {
   view.focus();
 }
 
+/**
+ * The markdown grammar offers a fold on every multi-line block, paragraphs
+ * included; with the fold gutter on (heading-fold-cm6.ts) that put an arrow
+ * beside ordinary prose. Headings, lists and code blocks fold; paragraphs do
+ * not — the same set a code editor would collapse.
+ */
+const noParagraphFolds = { props: [foldNodeProp.add({ Paragraph: () => null })] };
+
 export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
   const wrapCompartment = new Compartment();
   const lineNumbersCompartment = new Compartment();
+  const foldCompartment = new Compartment();
   const fontSizeCompartment = new Compartment();
   const themeCompartment = new Compartment();
   /** Fixed for the adapter's lifetime — a tab's document type never changes. */
@@ -647,7 +710,7 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
         : language === 'rust'
           ? rustLanguage
           : isMarkdown
-            ? markdown({ base: markdownLanguage, extensions: [listMarkStyling] })
+            ? markdown({ base: markdownLanguage, extensions: [listMarkStyling, noParagraphFolds] })
             : [];
   const languageStyle =
     language === 'xml'
@@ -665,6 +728,8 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
   let wordWrap = options.wordWrap !== false;
   // Same detach-survival contract as wordWrap; defaults OFF (Notepad feel).
   let showLineNumbers = options.lineNumbers === true;
+  // Same again; markdown only (the other grammars have nothing to fold).
+  let collapsibleHeadings = options.collapsibleHeadings === true;
   // Reentrancy flags: `pushingSelf` guards the model→editor path against our
   // own echo; `applyingExternal` guards the editor→model path against changes
   // we are pushing INTO the editor from the model.
@@ -799,6 +864,7 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
         imagePasteHandler,
         copyEnrichHandler,
         plainDotsExtension,
+        ...(isMarkdown ? [headingMarksExtension] : []),
         addedFlashField,
         removedFlashField,
         linkedField,
@@ -808,6 +874,7 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
         fontSizeCompartment.of(fontSizeTheme('var(--editor-font-size, 14px)')),
         wrapCompartment.of(wordWrap ? EditorView.lineWrapping : []),
         lineNumbersCompartment.of(showLineNumbers ? lineNumbers() : []),
+        foldCompartment.of(isMarkdown && collapsibleHeadings ? headingFoldExtension : []),
         ...(options.placeholder ? [placeholder(options.placeholder)] : []),
         EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'off' }),
         // Touch-only: double-tap the text to retract the soft keyboard.
@@ -931,6 +998,14 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
       showLineNumbers = on;
       view?.dispatch({
         effects: lineNumbersCompartment.reconfigure(on ? lineNumbers() : []),
+      });
+    },
+    setCollapsibleHeadings(on) {
+      collapsibleHeadings = on;
+      // Dropping the extension drops its fold state too, so turning the
+      // setting off unfolds everything at once.
+      view?.dispatch({
+        effects: foldCompartment.reconfigure(isMarkdown && on ? headingFoldExtension : []),
       });
     },
     setFontSize(px) {

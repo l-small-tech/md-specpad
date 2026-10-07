@@ -28,7 +28,6 @@ import {
 import { toggleDistractionFree, toggleFullscreen } from './fullscreen';
 import { searchStore } from './stores/search';
 import { openOverview } from './notes-overview';
-import { promptStatus } from './prompt-status';
 import { createWorkspace, openWorkspaceInit } from './workspace-init';
 import { settingsStore } from './stores/settings';
 import { isAndroid } from './platform';
@@ -514,12 +513,6 @@ export function buildCommands(): AppCommand[] {
       keywords: ['branch', 'agent', 'worktrees', 'checkout'],
       enabled: () => !isAndroid(),
       run: () => void openNewWorktreeForActiveTab(),
-    },
-    {
-      id: 'workspace-status',
-      title: 'Workspace status (prompts)',
-      keywords: ['agents', 'prompt', 'queued', 'running', 'done', 'STATUSES.md', 'prompts.md'],
-      run: () => promptStatus().setPanelOpen(true),
     },
     {
       id: 'close-all-tabs',

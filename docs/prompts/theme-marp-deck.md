@@ -1,6 +1,6 @@
 # Make a Marp deck and its SVG images follow the app theme
 
-I present Marp slide decks inside **md-notepad**, a markdown notepad with
+I present Marp slide decks inside **md-specpad**, a markdown notepad with
 switchable colour themes (light and dark ones, each with its own brand
 colours). I want a deck — the markdown file plus every local `.svg` image it
 references — converted so that the slides and the diagrams pick up whichever

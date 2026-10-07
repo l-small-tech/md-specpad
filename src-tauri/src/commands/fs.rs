@@ -92,6 +92,12 @@ pub struct DirEntryMeta {
 /// mirror in `src/core/images.ts` (both sides filter; Rust is the gatekeeper).
 const IMAGE_EXTENSIONS: [&str; 8] = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif"];
 
+/// Audio the explorer lists and the audio tab plays. Mirrors `AUDIO_MIME` in
+/// `src/core/audio.ts`.
+const AUDIO_EXTENSIONS: [&str; 9] = [
+    "mp3", "wav", "m4a", "aac", "ogg", "oga", "opus", "flac", "weba",
+];
+
 // Foreign documents the app can offer to import as markdown. Mirrors the TS
 // import registry (src/core/import/registry.ts) — the SAF (Android) listing
 // filters with that registry; this desktop `list_dir` path keeps its own copy.
@@ -111,6 +117,10 @@ fn is_image_path(path: &Path) -> bool {
     IMAGE_EXTENSIONS.iter().any(|ext| has_extension(path, ext))
 }
 
+fn is_audio_path(path: &Path) -> bool {
+    AUDIO_EXTENSIONS.iter().any(|ext| has_extension(path, ext))
+}
+
 fn is_importable_path(path: &Path) -> bool {
     IMPORT_EXTENSIONS.iter().any(|ext| has_extension(path, ext))
 }
@@ -120,9 +130,44 @@ pub(crate) fn is_text_path(path: &Path) -> bool {
     TEXT_EXTENSIONS.iter().any(|ext| has_extension(path, ext))
 }
 
-/// A file the explorer lists by default: text note, image, or importable doc.
+/// A file the explorer lists by default: text note, image, audio, or
+/// importable doc.
 fn is_listed_file(path: &Path) -> bool {
-    is_text_path(path) || is_image_path(path) || is_importable_path(path)
+    is_text_path(path) || is_image_path(path) || is_audio_path(path) || is_importable_path(path)
+}
+
+/// Hidden by the host platform's convention — what the explorer skips unless
+/// the user turned on "Show hidden files":
+/// - a dot-prefixed name, everywhere (the Unix rule; Windows tools such as
+///   git and npm create `.git` / `.vscode` there too);
+/// - Windows: the `FILE_ATTRIBUTE_HIDDEN` attribute (what Explorer's "Hidden
+///   items" toggles). `DirEntry::metadata` comes from the enumeration on
+///   Windows, so this costs no extra stat — and never hydrates a cloud
+///   placeholder;
+/// - macOS: the `UF_HIDDEN` flag (`chflags hidden`, e.g. `~/Library`) —
+///   what Finder's Cmd+Shift+. reveals. An lstat, taken only for names that
+///   are not already dot-hidden.
+pub(crate) fn is_hidden_entry(entry: &fs::DirEntry) -> bool {
+    if entry.file_name().to_string_lossy().starts_with('.') {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
+        if let Ok(meta) = entry.metadata() {
+            return meta.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0;
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::macos::fs::MetadataExt;
+        const UF_HIDDEN: u32 = 0x8000;
+        if let Ok(meta) = entry.metadata() {
+            return meta.st_flags() & UF_HIDDEN != 0;
+        }
+    }
+    false
 }
 
 fn mtime_ms(meta: &fs::Metadata) -> u64 {
@@ -370,15 +415,22 @@ pub async fn list_notes(dir: PathBuf) -> FsResult<Vec<NoteMeta>> {
 /// `all_files` lists every file instead — a folder where the user turned on
 /// "Show unsupported files" (the frontend decides which folders; see
 /// `src/core/text-files.ts`).
-/// Hidden (dot-prefixed) entries are skipped. Order: directories A→Z, then
+/// Hidden entries (`is_hidden_entry`: dot-prefixed, plus the Windows hidden
+/// attribute / macOS hidden flag) are skipped unless `show_hidden` — the
+/// global "Show hidden files" setting. Order: directories A→Z, then
 /// files A→Z (case-insensitive). The explorer re-sorts what it gets with
 /// `src/core/explorer-sort.ts` — the SAF backend returns its own order, so the
 /// displayed order (which also compares digit runs numerically) is decided
 /// there; this order just keeps the raw listing stable. Missing dir = empty
 /// list.
 #[tauri::command]
-pub async fn list_dir(dir: PathBuf, all_files: Option<bool>) -> FsResult<Vec<DirEntryMeta>> {
+pub async fn list_dir(
+    dir: PathBuf,
+    all_files: Option<bool>,
+    show_hidden: Option<bool>,
+) -> FsResult<Vec<DirEntryMeta>> {
     let all_files = all_files.unwrap_or(false);
+    let show_hidden = show_hidden.unwrap_or(false);
     let entries = match fs::read_dir(&dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -392,7 +444,7 @@ pub async fn list_dir(dir: PathBuf, all_files: Option<bool>) -> FsResult<Vec<Dir
             Err(_) => continue,
         };
         let path = entry.path();
-        if entry.file_name().to_string_lossy().starts_with('.') {
+        if !show_hidden && is_hidden_entry(&entry) {
             continue;
         }
         // Classify via `file_type()`, which comes straight from the directory
@@ -441,8 +493,9 @@ const RELEVANCE_MAX_DEPTH: usize = 16;
 /// Files are checked before descending, so the common case (a folder with
 /// notes right in it) answers on one `read_dir`. Unreadable dirs count as
 /// empty (best-effort, like the search walk). `all_files` (unsupported files
-/// shown) makes any non-hidden file count.
-fn subtree_has_relevant_file(dir: &Path, depth: usize, all_files: bool) -> bool {
+/// shown) makes any non-hidden file count; `show_hidden` counts (and walks
+/// into) hidden entries too.
+fn subtree_has_relevant_file(dir: &Path, depth: usize, all_files: bool, show_hidden: bool) -> bool {
     if depth > RELEVANCE_MAX_DEPTH {
         return false;
     }
@@ -452,7 +505,7 @@ fn subtree_has_relevant_file(dir: &Path, depth: usize, all_files: bool) -> bool 
     };
     let mut subdirs = Vec::new();
     for entry in entries.flatten() {
-        if entry.file_name().to_string_lossy().starts_with('.') {
+        if !show_hidden && is_hidden_entry(&entry) {
             continue;
         }
         let path = entry.path();
@@ -470,15 +523,24 @@ fn subtree_has_relevant_file(dir: &Path, depth: usize, all_files: bool) -> bool 
     }
     subdirs
         .iter()
-        .any(|sub| subtree_has_relevant_file(sub, depth + 1, all_files))
+        .any(|sub| subtree_has_relevant_file(sub, depth + 1, all_files, show_hidden))
 }
 
 /// Whether the explorer should render `dir` normally (true) or washed out
 /// (false = nothing worth finding anywhere in its subtree). Missing dir =
 /// false, matching `list_dir`'s missing-dir-is-empty policy.
 #[tauri::command]
-pub async fn dir_has_relevant_files(dir: PathBuf, all_files: Option<bool>) -> bool {
-    subtree_has_relevant_file(&dir, 0, all_files.unwrap_or(false))
+pub async fn dir_has_relevant_files(
+    dir: PathBuf,
+    all_files: Option<bool>,
+    show_hidden: Option<bool>,
+) -> bool {
+    subtree_has_relevant_file(
+        &dir,
+        0,
+        all_files.unwrap_or(false),
+        show_hidden.unwrap_or(false),
+    )
 }
 
 /// How much of a markdown file `is_marp_head` looks at. YAML frontmatter sits
@@ -545,11 +607,10 @@ pub async fn list_deck_files(dir: PathBuf) -> FsResult<Vec<String>> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(e.into()),
     };
+    // No hidden-entry filter: this only badges rows `list_dir` already chose
+    // to show, so a hidden deck is badged exactly when it is listed.
     let mut decks = Vec::new();
     for entry in entries.flatten() {
-        if entry.file_name().to_string_lossy().starts_with('.') {
-            continue;
-        }
         let path = entry.path();
         if !has_extension(&path, "md") && !has_extension(&path, "markdown") {
             continue;
@@ -933,6 +994,7 @@ mod tests {
         fs::write(dir.path().join("note.md"), "x").unwrap();
         assert!(block_on(dir_has_relevant_files(
             dir.path().to_path_buf(),
+            None,
             None
         )));
     }
@@ -945,6 +1007,7 @@ mod tests {
         fs::write(deep.join("report.pdf"), "x").unwrap();
         assert!(block_on(dir_has_relevant_files(
             dir.path().to_path_buf(),
+            None,
             None
         )));
     }
@@ -955,6 +1018,7 @@ mod tests {
         fs::write(dir.path().join("README"), "x").unwrap();
         assert!(block_on(dir_has_relevant_files(
             dir.path().to_path_buf(),
+            None,
             None
         )));
     }
@@ -968,6 +1032,7 @@ mod tests {
         fs::write(sub.join("app.exe"), "x").unwrap();
         assert!(!block_on(dir_has_relevant_files(
             dir.path().to_path_buf(),
+            None,
             None
         )));
     }
@@ -981,11 +1046,13 @@ mod tests {
         fs::write(dir.path().join(".hidden.ts"), "x").unwrap();
         assert!(!block_on(dir_has_relevant_files(
             dir.path().to_path_buf(),
+            None,
             None
         )));
         assert!(block_on(dir_has_relevant_files(
             dir.path().to_path_buf(),
-            Some(true)
+            Some(true),
+            None
         )));
     }
 
@@ -997,7 +1064,7 @@ mod tests {
         fs::write(dir.path().join("Makefile"), "3").unwrap();
         fs::write(dir.path().join(".env"), "4").unwrap();
         let names = |all: Option<bool>| {
-            let mut names: Vec<_> = block_on(list_dir(dir.path().to_path_buf(), all))
+            let mut names: Vec<_> = block_on(list_dir(dir.path().to_path_buf(), all, None))
                 .unwrap()
                 .iter()
                 .map(|e| {
@@ -1035,6 +1102,67 @@ mod tests {
     }
 
     #[test]
+    fn show_hidden_lists_and_counts_dot_entries() {
+        let dir = tmpdir();
+        fs::create_dir(dir.path().join(".config")).unwrap();
+        fs::write(dir.path().join(".config").join("notes.md"), "x").unwrap();
+        fs::write(dir.path().join(".draft.md"), "x").unwrap();
+        fs::write(dir.path().join("note.md"), "x").unwrap();
+        let names = |show: Option<bool>| {
+            let mut names: Vec<_> = block_on(list_dir(dir.path().to_path_buf(), None, show))
+                .unwrap()
+                .iter()
+                .map(|e| {
+                    Path::new(&e.path)
+                        .file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .into_owned()
+                })
+                .collect();
+            names.sort();
+            names
+        };
+        assert_eq!(names(None), vec!["note.md"]);
+        assert_eq!(names(Some(true)), vec![".config", ".draft.md", "note.md"]);
+        let config = dir.path().join(".config");
+        assert!(block_on(dir_has_relevant_files(
+            config.clone(),
+            None,
+            Some(true)
+        )));
+        // A visible folder whose only note sits in a hidden subfolder.
+        let outer = dir.path().join("outer");
+        fs::create_dir_all(outer.join(".inner")).unwrap();
+        fs::write(outer.join(".inner").join("a.md"), "x").unwrap();
+        assert!(!block_on(dir_has_relevant_files(outer.clone(), None, None)));
+        assert!(block_on(dir_has_relevant_files(outer, None, Some(true))));
+    }
+
+    /// Windows' own convention: the hidden attribute hides a name with no dot.
+    #[cfg(windows)]
+    #[test]
+    fn windows_hidden_attribute_hides_entries() {
+        let dir = tmpdir();
+        let secret = dir.path().join("secret.md");
+        fs::write(&secret, "x").unwrap();
+        fs::write(dir.path().join("note.md"), "x").unwrap();
+        let status = std::process::Command::new("attrib")
+            .arg("+h")
+            .arg(&secret)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let count = |show: Option<bool>| {
+            block_on(list_dir(dir.path().to_path_buf(), None, show))
+                .unwrap()
+                .len()
+        };
+        assert_eq!(count(None), 1);
+        assert_eq!(count(Some(true)), 2);
+    }
+
+    #[test]
     fn dir_has_relevant_files_ignores_hidden_entries() {
         let dir = tmpdir();
         let hidden = dir.path().join(".git");
@@ -1043,6 +1171,7 @@ mod tests {
         fs::write(dir.path().join(".secret.md"), "x").unwrap();
         assert!(!block_on(dir_has_relevant_files(
             dir.path().to_path_buf(),
+            None,
             None
         )));
     }
@@ -1052,10 +1181,12 @@ mod tests {
         let dir = tmpdir();
         assert!(!block_on(dir_has_relevant_files(
             dir.path().to_path_buf(),
+            None,
             None
         )));
         assert!(!block_on(dir_has_relevant_files(
             dir.path().join("nope"),
+            None,
             None
         )));
     }
@@ -1207,8 +1338,10 @@ mod tests {
         // Importable documents (any case) are listed so the user can import them.
         fs::write(dir.path().join("report.pdf"), "5").unwrap();
         fs::write(dir.path().join("Memo.DOCX"), "6").unwrap();
+        // Audio plays in the audio tab.
+        fs::write(dir.path().join("memo.M4A"), "7").unwrap();
 
-        let entries = block_on(list_dir(dir.path().to_path_buf(), None)).unwrap();
+        let entries = block_on(list_dir(dir.path().to_path_buf(), None, None)).unwrap();
         let names: Vec<_> = entries
             .iter()
             .map(|e| {
@@ -1229,6 +1362,7 @@ mod tests {
             file_names,
             vec![
                 "Memo.DOCX",
+                "memo.M4A",
                 "note.md",
                 "photo.PNG",
                 "plain.txt",
@@ -1240,7 +1374,7 @@ mod tests {
     #[test]
     fn list_dir_missing_dir_is_empty() {
         let dir = tmpdir();
-        assert!(block_on(list_dir(dir.path().join("nope"), None))
+        assert!(block_on(list_dir(dir.path().join("nope"), None, None))
             .unwrap()
             .is_empty());
     }
@@ -1283,7 +1417,7 @@ mod tests {
             })
             .collect();
         names.sort();
-        assert_eq!(names, ["DECK2.Markdown", "deck.md"]);
+        assert_eq!(names, [".hidden.md", "DECK2.Markdown", "deck.md"]);
         assert!(block_on(list_deck_files(p.join("nope")))
             .unwrap()
             .is_empty());

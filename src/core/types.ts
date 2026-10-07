@@ -36,8 +36,12 @@ export type EditorMode = 'raw' | 'split' | 'wysiwyg' | 'read' | 'draw' | 'term' 
  *           notes dir that the session flusher owns entirely.
  * 'file'  — a user-opened file anywhere on disk; explicit save semantics,
  *           unsaved edits are session-buffered (see core/session).
- * 'image' — a read-only image viewer over `filePath`. Never written, never
- *           buffered; the flusher only records it in the manifest.
+ * 'image' — a read-only media viewer over `filePath`: an image, or — for an
+ *           audio extension (core/audio.ts `isAudioPath`) — the audio player.
+ *           Audio reuses this kind rather than adding one so an older build
+ *           restoring the manifest degrades to "could not load" instead of
+ *           rejecting the whole session. Never written, never buffered; the
+ *           flusher only records it in the manifest.
  * 'import' — a foreign document (PDF/DOCX) shown as an inline import card over
  *           `filePath`: offers a one-click "Import as Markdown" (no dialog), or
  *           a link to the already-imported note. Like 'image', it holds no text
@@ -395,6 +399,13 @@ export interface Settings {
   /** Line-number gutter in the source (CM6) editor. Default off (Notepad feel). */
   lineNumbers: boolean;
   /**
+   * Fold gutter in the source (CM6) editor for markdown: every heading's
+   * section (and code blocks / lists) can be collapsed, VS Code style, and a
+   * heading marked running (`core/heading-mark.ts`) collapses by itself.
+   * Default off.
+   */
+  collapsibleHeadings: boolean;
+  /**
    * Code ligatures (-> as a single glyph) in fonts that carry them
    * (Fira Code, JetBrains Mono, Cascadia Code, Victor Mono). Default on.
    */
@@ -516,6 +527,13 @@ export interface Settings {
    * shows them. The nearest switch wins (see `showAllFilesState`). Default [].
    */
   hideUnsupportedDirs: string[];
+  /**
+   * "Show hidden files": the explorer also lists hidden entries — dot-prefixed
+   * names everywhere, plus whatever the OS marks hidden (the Windows hidden
+   * attribute, the macOS hidden flag; see Rust `is_hidden_entry`). One global
+   * switch, like Finder's Cmd+Shift+. or Explorer's "Hidden items". Default false.
+   */
+  showHiddenFiles: boolean;
   /**
    * Review mode's "What changed" baseline: the branch a code file is compared
    * against (via `merge-base(HEAD, <branch>)`). Empty — the default — means

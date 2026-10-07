@@ -27,7 +27,7 @@
 
 import { baseName, dirName, joinPath, type FlushIo } from '../../core/session/plan-flush';
 import type { DebouncedFlusher } from '../../core/session/debounce';
-import { imageMimeType } from '../../core/images';
+import { base64ToBytes, imageMimeType } from '../../core/images';
 import { isCommentsPath } from '../../core/comments';
 import { sortExplorerEntries } from '../../core/explorer-sort';
 import { showsAllFiles } from '../../core/text-files';
@@ -82,6 +82,7 @@ import {
   setOpenNotePathPinnedDispatch,
   setPickImagePathDispatch,
   setPickPhotoDispatch,
+  setReadBytesDispatch,
   setReadImageDispatch,
   setReloadDispatch,
   setRefreshWorkspacesDispatch,
@@ -135,6 +136,7 @@ export {
   viewDiffTab,
   listNoteFiles,
   listOtherTabWindows,
+  loadFileBytes,
   loadImageDataUrl,
   moveExplorerEntryInto,
   moveTabToNewWindow,
@@ -166,6 +168,7 @@ export {
   savePastedFileInto,
   savePastedImageForTab,
   toggleShowAllFilesFor,
+  toggleShowHiddenFiles,
   setWorkspaceColor,
   setWorkspaceLiveEdit,
   takePendingReveal,
@@ -352,10 +355,12 @@ export function createSessionController(deps: SessionControllerDeps): SessionCon
   setWorkspaceRootForDispatch((path) => ctx.workspaceRootFor(path));
   setListNotesDispatch(async (dir?: string) => {
     const target = dir ?? ctx.notesDir;
-    const { showAllFilesDirs, hideUnsupportedDirs } = settingsStore.getState().settings;
+    const { showAllFilesDirs, hideUnsupportedDirs, showHiddenFiles } =
+      settingsStore.getState().settings;
     const entries = await ipc.listDir(
       target,
       showsAllFiles(target, showAllFilesDirs, hideUnsupportedDirs),
+      showHiddenFiles,
     );
     return sortExplorerEntries(
       entries
@@ -380,6 +385,7 @@ export function createSessionController(deps: SessionControllerDeps): SessionCon
   setReadImageDispatch(
     async (path: string) => `data:${imageMimeType(path)};base64,${await ipc.readFileBase64(path)}`,
   );
+  setReadBytesDispatch(async (path: string) => base64ToBytes(await ipc.readFileBase64(path)));
   setDefaultWorkspaceDispatch(() => ctx.notesDir);
   setAddWorkspaceDispatch(() => void workspaces.addWorkspaceFromDialog());
   setAddCloudWorkspaceDispatch(() => void workspaces.addCloudWorkspaceFromDialog());

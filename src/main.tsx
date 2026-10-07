@@ -79,8 +79,7 @@ import { exportPreviewStore } from './ui/stores/export-preview';
 import { diagramViewerStore } from './ui/stores/diagram-viewer';
 import { imageMimeType, isImagePath } from './core/images';
 import { ipc } from './ipc/commands';
-import { currentProvider, initProviders } from './ipc/provider';
-import { getClipboard } from './ipc/clipboard';
+import { initProviders } from './ipc/provider';
 import { resolveDocsDir, resolvePaths, resolveThemesDir } from './ipc/paths';
 import { themeRegistryStore } from './ui/stores/theme-registry';
 import { importFilters } from './core/import/registry';
@@ -92,11 +91,11 @@ import { watchGitTabClosures } from './ui/git-open';
 import { gitStore } from './ui/stores/git';
 import { startWatchingDirs } from './ui/watch-dirs';
 import { searchStore } from './ui/stores/search';
-import { closeOverview, notesOverviewStore, workspaceRoots } from './ui/notes-overview';
-import { initPromptStatus, promptStatus } from './ui/prompt-status';
+import { closeOverview, notesOverviewStore } from './ui/notes-overview';
 import { closeWorkspaceInit, workspaceInitStore } from './ui/workspace-init';
 import { isAndroid } from './ui/platform';
 import { globalCoordsTrusted } from './ui/global-coords';
+import { removeBootSplash, restoreStatusText, setBootStatus } from './ui/boot-splash';
 import { renderOsGhostPage } from './ui/tab-drag-ghost';
 import { escapeFullscreen, leaveOsFullscreenForClose } from './ui/fullscreen';
 import { isDark, subscribeDark } from './ui/theme';
@@ -270,7 +269,7 @@ function isHelperWindow(label: string): boolean {
 
 /** Shared construction options so every window looks like the main one. */
 const WINDOW_OPTIONS = {
-  title: 'MD Notepad',
+  title: 'MD Specpad',
   width: 900,
   height: 650,
   minWidth: 400,
@@ -493,7 +492,7 @@ let lastWindowTitle = '';
 // .env.DEV is true here but false in the built release. Tag the window/taskbar
 // title so a dev instance is obvious next to an installed release (the amber
 // icon from tauri.dev.conf.json is the other half of that distinction).
-const APP_NAME = import.meta.env.DEV ? 'MD Notepad Dev' : 'MD Notepad';
+const APP_NAME = import.meta.env.DEV ? 'MD Specpad Dev' : 'MD Specpad';
 
 function applyWindowTitle(): void {
   const active = tabsStore.getState().activeTab();
@@ -642,11 +641,6 @@ window.addEventListener('keydown', (event) => {
     closeWorkspaceInit();
     return;
   }
-  if (event.key === 'Escape' && promptStatus().store.getState().panelOpen) {
-    event.preventDefault();
-    promptStatus().setPanelOpen(false);
-    return;
-  }
   // Escape closes the all-review-notes overview (a panel over everything but
   // the dialogs above).
   if (event.key === 'Escape' && notesOverviewStore.getState().open) {
@@ -711,6 +705,7 @@ async function boot(): Promise<void> {
   // applyDomSettings has already set from the persisted scheme.)
   const bootParams = new URLSearchParams(window.location.search);
   if (bootParams.get('ghost') === '1') {
+    removeBootSplash();
     renderOsGhostPage(bootParams);
     return;
   }
@@ -723,21 +718,6 @@ async function boot(): Promise<void> {
   // currentProvider(): on Android this routes local + synced (SAF) workspaces;
   // desktop stays on the plain local FS.
   initProviders();
-
-  // Prompt status (ui/prompt-status.ts): reads each workspace's prompts/STATUSES.md.
-  // Wired here so every consumer — the Escape handler included — finds it;
-  // the first read waits for the session (below), which knows the roots.
-  initPromptStatus({
-    roots: workspaceRoots,
-    read: (path) =>
-      currentProvider()
-        .readTextFile(path)
-        .then((f) => f.text)
-        .catch(() => null),
-    write: (path, text) => currentProvider().atomicWriteText(path, text),
-    copy: (text) => getClipboard().write(text),
-    now: () => new Date(),
-  });
 
   // Load pluggable themes and inject their CSS before mount so the first paint
   // uses the saved color scheme. Seeds the built-in examples on first run.
@@ -760,6 +740,7 @@ async function boot(): Promise<void> {
     }).catch(() => {});
     installLinkGuard();
     installContextMenuGuard();
+    removeBootSplash();
     createRoot(document.getElementById('root')!).render(<PresenterView />);
     return;
   }
@@ -802,6 +783,7 @@ async function boot(): Promise<void> {
     saveDiscardCancel: saveDiscardCancelDialog,
     pickDirectory: pickDirectoryDialog,
     pickFile: pickFileDialog,
+    onRestoreProgress: (waitingOn) => setBootStatus(restoreStatusText(waitingOn)),
   });
 
   // The git store's real dependencies (the session facade, the tabs store,
@@ -812,6 +794,7 @@ async function boot(): Promise<void> {
 
   // Rebuild the tabs from disk BEFORE React mounts, so the first paint is the
   // restored session, never a flash of an empty Untitled tab.
+  setBootStatus(restoreStatusText([]));
   await controller.restore();
 
   // Bring back the windows that were open last run: every torn-off window left
@@ -861,6 +844,7 @@ async function boot(): Promise<void> {
   // Same shape, same lifetime: the webview's Back / Reload / Inspect menu
   // never appears over app chrome (src/ui/context-menu-guard.ts).
   installContextMenuGuard();
+  removeBootSplash();
   createRoot(document.getElementById('root')!).render(<App />);
 
   // Which harnesses are on PATH — for the Settings dialog's rows, and for the
@@ -940,8 +924,6 @@ async function boot(): Promise<void> {
         // A change under a watched root may be a working-tree change of an
         // open repository (the git tab's status); the store decides.
         gitStore.getState().onRepoChanged(roots);
-        // Agents report prompt progress by writing STATUSES.md.
-        void promptStatus().refresh();
         // Live conflict detection: an external write inside a watched
         // workspace (vim in the built-in terminal, a sync client) must raise
         // the banner NOW, not at the next window refocus — before then, a
@@ -1060,19 +1042,6 @@ async function boot(): Promise<void> {
   // "Set active" on a workspace fans out to every window by default (its
   // right-click variant stays local — see ui/active-workspace.ts).
   listenActiveWorkspace();
-  {
-    // Re-read when the set of workspaces changes; file changes arrive via fs-changed.
-    let rootsSignature = '';
-    const syncStatuses = (): void => {
-      const signature = JSON.stringify(workspaceRoots());
-      if (signature !== rootsSignature) {
-        rootsSignature = signature;
-        void promptStatus().refresh();
-      }
-    };
-    syncStatuses();
-    settingsStore.subscribe(syncStatuses);
-  }
 
   // Live settings sync between windows (see persistSettingsDebounced). Our own
   // broadcast comes back too — drop it by label: the payload is a stale
@@ -1316,4 +1285,9 @@ async function boot(): Promise<void> {
     .catch(() => {});
 }
 
-void boot();
+boot().catch((error: unknown) => {
+  // Before mount this leaves the reason on the splash instead of a blank
+  // window; after mount the splash is gone and this is just the log line.
+  console.error('[boot] failed', error);
+  setBootStatus(`Could not start: ${error instanceof Error ? error.message : String(error)}`);
+});

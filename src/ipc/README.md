@@ -69,7 +69,7 @@ A branch the checkout does not have falls back to auto-detection
 | --- | --- |
 | `gitStatus(root)` | `status --porcelain=v2` → `GitStatus` (entries, upstream, ahead/behind, `state`, `mergeHead`) |
 | `gitBranches(root)` | local + remote branches with tracking |
-| `gitLog(root, rev, max, skip)` | a page of commits (`[]` on an unborn HEAD) |
+| `gitLog(root, rev, max, skip, all?)` | a page of commits with their `refs` (`%D` decorations); `all` = every branch, remote branch and tag (+ HEAD) in date order, `rev` ignored (`[]` on an unborn HEAD) |
 | `gitCommitFiles(root, sha)` / `gitDiffNames(root, from, to)` | `--name-status` rows of a commit / of `from...to` |
 | `gitAheadBehind(root, a, b)` | `rev-list --left-right --count` |
 | `gitWorktrees(root, baseBranch?)` | every checkout with dirty counts and ahead/behind the base (the dashboard) |
@@ -87,11 +87,12 @@ A branch the checkout does not have falls back to auto-detection
 | --- | --- |
 | `GIT_NOT_FOUND` | no `git` on `PATH` |
 | `GIT_NOT_A_REPO` | the path is outside any repository |
+| `GIT_UNTRUSTED` | git's "dubious ownership" check refused the repo; `gitTrustDirectory(path)` adds it to `safe.directory` (only after the user confirms) |
 | `GIT_TIMEOUT` | git was killed at its mode's limit (a hung network mount, a slow hook) |
 | `GIT_FAILED` | git ran and failed; `message` carries its stderr |
 | `GIT_CANCELLED` | the user cancelled a fetch / pull / push |
 | `GIT_BUSY` | a network op is already running for that repository |
 | `GIT_INVALID_ARG` | caller bug: a string Rust would not pass to git (empty, leading `-`, control chars) |
 
-`isGitUnavailable(err)` is true for the first two: both mean "hide the
+`isGitUnavailable(err)` is true for the first three: all mean "hide the
 feature behind a one-line hint", while everything else is worth surfacing.

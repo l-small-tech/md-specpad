@@ -97,6 +97,7 @@ const commit = (sha: string): GitCommit => ({
   author: 'me',
   at: '2026-09-24T00:00:00Z',
   subject: `commit ${sha}`,
+  refs: [],
   body: '',
 });
 
@@ -144,6 +145,7 @@ function fakeIpc(): FakeIpc {
     gitMergeAbort: vi.fn(() => Promise.resolve()),
     gitWorktreeAdd: vi.fn(() => Promise.resolve()),
     gitWorktreeRemove: vi.fn(() => Promise.resolve()),
+    gitTrustDirectory: vi.fn(() => Promise.resolve()),
     readTextFile: vi.fn(() => Promise.resolve({ text: '', mtimeMs: 0 })),
     atomicWriteText: vi.fn(() => Promise.resolve()),
   };
@@ -272,7 +274,7 @@ describe('refresh', () => {
     expect(repo.unavailable).toBeNull();
     expect(repo.loading).toEqual({ status: false, branches: false, log: false, worktrees: false });
     expect(h.ipc.gitStatus).toHaveBeenCalledWith(MAIN);
-    expect(h.ipc.gitLog).toHaveBeenCalledWith(MAIN, null, LOG_PAGE, 0);
+    expect(h.ipc.gitLog).toHaveBeenCalledWith(MAIN, null, LOG_PAGE, 0, true);
     expect(h.ipc.gitRepoInfo).toHaveBeenCalledWith(MAIN, undefined);
   });
 
@@ -349,6 +351,37 @@ describe('refresh', () => {
     expect(h.notices()).toEqual(['Git: broken']);
   });
 
+  test('an untrusted repository is a state; trusting it confirms, trusts and reloads', async () => {
+    const h = harness();
+    h.ipc.gitRepoInfo.mockRejectedValue(new IpcError('GIT_UNTRUSTED', 'owned by another user'));
+    await h.open();
+    expect(h.r().unavailable).toBe('untrusted');
+    expect(h.notices()).toEqual([]);
+
+    // Declined: nothing is written to the git config.
+    (h.deps.confirm as Mock).mockResolvedValueOnce(false);
+    expect(await h.s().trustFolder(MAIN)).toBe(false);
+    expect(h.ipc.gitTrustDirectory).not.toHaveBeenCalled();
+    expect(h.r().unavailable).toBe('untrusted');
+
+    // Confirmed: trusted, and the tab comes back to life.
+    h.ipc.gitRepoInfo.mockResolvedValue(info);
+    expect(await h.s().trustFolder(MAIN)).toBe(true);
+    expect(h.ipc.gitTrustDirectory).toHaveBeenCalledWith(MAIN);
+    await flush();
+    expect(h.r().unavailable).toBeNull();
+    expect(h.ipc.gitStatus).toHaveBeenCalled();
+  });
+
+  test('a failed trust is a notice and reports false', async () => {
+    const h = harness();
+    h.ipc.gitTrustDirectory.mockRejectedValue(
+      new IpcError('GIT_FAILED', 'error: could not lock config file'),
+    );
+    expect(await h.s().trustFolder('D:/proj')).toBe(false);
+    expect(h.notices()).toEqual(['Git: could not lock config file']);
+  });
+
   test('forget drops the repository', async () => {
     const h = harness();
     await h.open();
@@ -416,7 +449,7 @@ describe('selection and diffs', () => {
     expect(h.r().logExhausted).toBe(false);
     h.ipc.gitLog.mockResolvedValue([commit('last')]);
     await h.s().loadMoreLog(MAIN);
-    expect(h.ipc.gitLog).toHaveBeenLastCalledWith(MAIN, null, LOG_PAGE, LOG_PAGE);
+    expect(h.ipc.gitLog).toHaveBeenLastCalledWith(MAIN, null, LOG_PAGE, LOG_PAGE, true);
     expect(h.r().log).toHaveLength(LOG_PAGE + 1);
     expect(h.r().logExhausted).toBe(true);
   });

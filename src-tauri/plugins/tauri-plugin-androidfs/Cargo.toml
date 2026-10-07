@@ -1,7 +1,7 @@
 [package]
 name = "tauri-plugin-androidfs"
 version = "0.1.0"
-description = "Local MD Notepad plugin exposing Android Context APIs (external files dir; later content:// reads + incoming intents) that Tauri's path API and pure-Rust JNI cannot reach."
+description = "Local MD Specpad plugin exposing Android Context APIs (external files dir; later content:// reads + incoming intents) that Tauri's path API and pure-Rust JNI cannot reach."
 edition = "2021"
 license = "GPL-3.0-only"
 rust-version = "1.77.2"

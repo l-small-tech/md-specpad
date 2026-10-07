@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- MD Notepad app icon: "M↓" on a Fluent-style blue plate (Windows 11
+  <!-- MD Specpad app icon: "M↓" on a Fluent-style blue plate (Windows 11
        Notepad palette). Near-full-bleed so it doesn't render smaller than
        neighboring taskbar icons. Regenerate the platform icon set with:
        pnpm run tauri icon assets/icon.svg -->

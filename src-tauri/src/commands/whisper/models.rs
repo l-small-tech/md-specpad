@@ -417,7 +417,7 @@ async fn download(
 
     ensure_crypto_provider();
     let client = reqwest::Client::builder()
-        .user_agent(concat!("md-notepad/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("md-specpad/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| WhisperError::DownloadFailed(e.to_string()))?;
     let mut request = client.get(spec.url());

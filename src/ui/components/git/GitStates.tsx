@@ -1,10 +1,11 @@
 /**
  * The git tab's whole-panel states: git missing, the folder no longer a
- * repository, and the first-load skeleton.
+ * repository, git refusing an untrusted (other-owner) repository, and the
+ * first-load skeleton.
  */
 
 import { closeTab } from '../../session';
-import type { RepoUnavailable } from '../../stores/git';
+import { gitStore, type RepoUnavailable } from '../../stores/git';
 
 export function GitUnavailable({
   kind,
@@ -23,6 +24,28 @@ export function GitUnavailable({
           <p className="git-state-hint">
             Install git and make sure it is on your <code>PATH</code>, then reopen this tab.
           </p>
+        </>
+      ) : kind === 'untrusted' ? (
+        <>
+          <p className="git-state-title">Git does not trust this repository.</p>
+          <p className="git-state-hint">
+            The folder is owned by another user account, so git&apos;s <code>safe.directory</code>{' '}
+            check refuses it.
+          </p>
+          {root && (
+            <>
+              <p className="git-state-hint">
+                <code>{root}</code>
+              </p>
+              <button
+                type="button"
+                className="git-btn"
+                onClick={() => void gitStore.getState().trustFolder(root)}
+              >
+                Trust repository…
+              </button>
+            </>
+          )}
         </>
       ) : (
         <>

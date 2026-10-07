@@ -22,10 +22,10 @@ val keystoreProperties = Properties().apply {
 
 android {
     compileSdk = 36
-    namespace = "tech.l_small.mdnotepad"
+    namespace = "tech.l_small.mdspecpad"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "tech.l_small.mdnotepad"
+        applicationId = "tech.l_small.mdspecpad"
         minSdk = 24
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()

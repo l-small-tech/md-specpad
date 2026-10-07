@@ -1,16 +1,16 @@
 <div align="center">
 
-<img src="assets/icon.svg" width="96" alt="MD Notepad icon" />
+<img src="assets/icon.svg" width="96" alt="MD Specpad icon" />
 
-# MD Notepad
+# MD Specpad
 
 **A markdown notepad that grew into a workbench for building software with AI — no syntax required.**
 
 *Write the prompt. Run the agent beside it. Read what it built in plain English. Tell it what to change next, out loud.*
 
-[![Latest release](https://img.shields.io/github/v/release/l-small-tech/md-notepad?include_prereleases&label=release)](https://github.com/l-small-tech/md-notepad/releases)
+[![Latest release](https://img.shields.io/github/v/release/l-small-tech/md-specpad?include_prereleases&label=release)](https://github.com/l-small-tech/md-specpad/releases)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-8e4ec6)](https://github.com/l-small-tech/md-notepad/releases)
+[![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-8e4ec6)](https://github.com/l-small-tech/md-specpad/releases)
 
 [![Tauri](https://img.shields.io/badge/Tauri_2-24C8D8?logo=tauri&logoColor=white)](https://tauri.app)
 [![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white)](https://www.rust-lang.org)
@@ -34,7 +34,7 @@ build software by describing it. But the tools around them still assume you
 can read code: the prompt lives in a chat box, the agent runs in a bare
 terminal, and the result is a folder of `.ts` files you can't judge.
 
-MD Notepad closes that gap. It started as a Windows-Notepad-style markdown
+MD Specpad closes that gap. It started as a Windows-Notepad-style markdown
 app — open a tab, type, close the app, it's all there next time — and that
 core is still what makes it good for the two things you do most with an
 agent: **writing prompts** and **reading what comes back**. Around it grew
@@ -162,7 +162,7 @@ and the native recognizer on Android. No audio is ever written to disk.
 ## Install
 
 Prebuilt installers are on the
-[Releases](https://github.com/l-small-tech/md-notepad/releases) page:
+[Releases](https://github.com/l-small-tech/md-specpad/releases) page:
 Windows (NSIS `.exe`), macOS (universal `.dmg`), Linux (`.deb`, `.rpm`,
 `.AppImage`), and Android (`.apk`). Each release carries a short changelog of
 what's new.
@@ -179,7 +179,7 @@ attestations:
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-gh attestation verify <asset-file> --repo l-small-tech/md-notepad
+gh attestation verify <asset-file> --repo l-small-tech/md-specpad
 ```
 
 ### Updates
@@ -195,9 +195,9 @@ typed text. The check is silent on failure and never blocks startup.
 
 | OS | Default notes folder |
 | --- | --- |
-| Windows | `%APPDATA%\tech.l-small.mdnotepad\notes` |
-| macOS | `~/Library/Application Support/tech.l-small.mdnotepad/notes` |
-| Linux | `~/.local/share/tech.l-small.mdnotepad/notes` |
+| Windows | `%APPDATA%\tech.l-small.mdspecpad\notes` |
+| macOS | `~/Library/Application Support/tech.l-small.mdspecpad/notes` |
+| Linux | `~/.local/share/tech.l-small.mdspecpad/notes` |
 
 Changeable in Settings. Notes are ordinary markdown files named after their
 first line — take them with you any time. Closing a note tab discards that
@@ -286,7 +286,7 @@ set `CARGO_TARGET_DIR` to something short and `VULKAN_SDK` yourself.
 ```sh
 pnpm install
 pnpm run tauri dev      # run the app (vite + cargo, hot reload)
-pnpm run tauri:dev:verbose  # same, with app logging at DEBUG (MDN_LOG=trace for more)
+pnpm run tauri:dev:verbose  # same, with app logging at DEBUG (MDS_LOG=trace for more)
 pnpm run tauri build    # produce installers for your OS
 ```
 

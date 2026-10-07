@@ -451,7 +451,7 @@ function UpdatesRow({ autoUpdateCheck }: { autoUpdateCheck: boolean }) {
           <span className="settings-path">
             {ready
               ? `v${version} available (you have v${__APP_VERSION__})`
-              : `MD Notepad v${__APP_VERSION__}`}
+              : `MD Specpad v${__APP_VERSION__}`}
           </span>
           {ready && (
             <button
@@ -790,6 +790,18 @@ function SettingsBody({ initialTab }: { initialTab: SettingsTabId }) {
                   onChange={(e) => update({ lineNumbers: e.target.checked })}
                 />
                 <span className="settings-label">Line numbers</span>
+              </label>
+
+              <label className="settings-row settings-row-inline">
+                <input
+                  type="checkbox"
+                  checked={settings.collapsibleHeadings}
+                  onChange={(e) => update({ collapsibleHeadings: e.target.checked })}
+                />
+                <span className="settings-label">
+                  Collapsible headings (Raw and Split modes; a heading marked running collapses on
+                  its own)
+                </span>
               </label>
 
               <label className="settings-row settings-row-inline">

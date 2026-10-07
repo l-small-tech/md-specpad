@@ -38,6 +38,48 @@ export function groupStatus(entries: readonly GitStatusEntry[]): StatusGroups {
   return groups;
 }
 
+/** How much of one changed file is in the index. */
+export type ChangeState = 'staged' | 'partial' | 'unstaged' | 'untracked';
+
+/** One row of the flat change list: a path and how far it is staged. */
+export interface FlatChange {
+  entry: GitStatusEntry;
+  state: ChangeState;
+  /** The one letter the row shows: the working-tree change, else the staged one, `?` when untracked. */
+  letter: string;
+}
+
+/**
+ * Status entries as ONE list — every path that differs from HEAD, once,
+ * with its staging state — for a panel that shows "what changed since the
+ * last commit" instead of three lists. Conflicted entries are left out (the
+ * conflicts section owns them). Sorted by path, so a refresh never reorders.
+ */
+export function flattenStatus(entries: readonly GitStatusEntry[]): FlatChange[] {
+  const rows: FlatChange[] = [];
+  for (const entry of entries) {
+    if (entry.kind === 'unmerged') {
+      continue;
+    }
+    if (entry.kind === 'untracked' || entry.index === '?') {
+      rows.push({ entry, state: 'untracked', letter: '?' });
+      continue;
+    }
+    const staged = entry.index !== '.';
+    const unstaged = entry.worktree !== '.';
+    if (!staged && !unstaged) {
+      continue;
+    }
+    rows.push({
+      entry,
+      state: staged && unstaged ? 'partial' : staged ? 'staged' : 'unstaged',
+      letter: unstaged ? entry.worktree : entry.index,
+    });
+  }
+  rows.sort((a, b) => (a.entry.path < b.entry.path ? -1 : a.entry.path > b.entry.path ? 1 : 0));
+  return rows;
+}
+
 /** Number of distinct paths that differ from HEAD in any way. */
 export function dirtyCount(entries: readonly GitStatusEntry[]): number {
   return new Set(entries.map((e) => e.path)).size;

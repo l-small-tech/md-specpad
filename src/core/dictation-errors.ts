@@ -33,7 +33,7 @@ export interface CaptureError {
   note?: string;
   /** A Settings page that jumps straight to the fix (Windows only). */
   settings?: { label: string; uri: string };
-  /** A section of md-notepad's OWN Settings dialog that holds the fix. */
+  /** A section of md-specpad's OWN Settings dialog that holds the fix. */
   appSettings?: { label: string; tab: 'voice' };
 }
 
@@ -56,7 +56,7 @@ function windowsError(code: string): Omit<CaptureError, 'code'> {
       ],
       note:
         'Voice notes on Windows use Windows voice typing, which sends your voice to ' +
-        'Microsoft to turn it into text. md-notepad never records or keeps audio.',
+        'Microsoft to turn it into text. md-specpad never records or keeps audio.',
       settings: { label: 'Open speech settings', uri: SETTINGS_URIS.speechPrivacy },
     };
   }
@@ -64,8 +64,8 @@ function windowsError(code: string): Omit<CaptureError, 'code'> {
     return {
       title: "Couldn't start Windows voice typing",
       steps: [
-        'Make sure the md-notepad window is in front, then tap the microphone again.',
-        'If it keeps failing, close md-notepad and open it again.',
+        'Make sure the md-specpad window is in front, then tap the microphone again.',
+        'If it keeps failing, close md-specpad and open it again.',
       ],
     };
   }
@@ -80,7 +80,7 @@ function androidError(code: string): Omit<CaptureError, 'code'> {
     return {
       title: 'Microphone permission is off',
       steps: [
-        'Open Android Settings > Apps > md-notepad > Permissions.',
+        'Open Android Settings > Apps > md-specpad > Permissions.',
         'Set Microphone to "Allow only while using the app".',
         RETRY,
       ],
@@ -152,7 +152,7 @@ function whisperError(code: string): Omit<CaptureError, 'code'> {
     return {
       title: 'Microphone access was refused',
       steps: [
-        'Allow md-notepad to use the microphone when asked, or in your system privacy settings.',
+        'Allow md-specpad to use the microphone when asked, or in your system privacy settings.',
         RETRY,
       ],
     };
@@ -201,7 +201,7 @@ function sharedError(code: string): Omit<CaptureError, 'code'> {
       title: "Dictation didn't finish",
       steps: [
         'Tap the microphone to record the note again.',
-        'If it keeps happening, close md-notepad and open it again.',
+        'If it keeps happening, close md-specpad and open it again.',
       ],
     };
   }

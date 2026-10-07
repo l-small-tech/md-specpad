@@ -10,6 +10,78 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+## [0.10.5] — 2026-10-06
+
+- **Collapsible headings** (Settings, off by default): Raw and Split modes get a fold gutter so any heading's section can be collapsed like a function in a code editor, and a heading marked running collapses by itself.
+- Git tab: a ⤢ button at the right of the worktree cards goes distraction-free, as on a document. The status bar with the branch picker and Fetch / Pull / Push stays; Esc or the top-edge cluster brings the tab bar back.
+- **Fixed: no spelling suggestions on headings (Windows).** Right-clicking a heading used to swap the usual menu for the Mark running / Mark complete one, which hid the spell checker's suggestions. The mark items now sit at the bottom of the usual menu, so you get both.
+
+## [0.10.4] — 2026-10-05
+
+- Git tab: the three Staged / Changes / Untracked lists are now one list of every file changed since the last commit, with a checkbox per row that shows and sets whether it is staged. The commit box sits above the list so it never gets pushed down.
+- Git tab: the history graph keeps the checked-out branch and the base branch in the two leftmost lanes, so main no longer drifts to the far right behind feature lines.
+
+## [0.10.3] — 2026-10-05
+
+- **Fixed: Raw mode lost its margins, highlighting, scrolling and your
+  colour theme in the installed 0.10.2.** The boot splash's inline styles
+  made Tauri tighten the app's Content Security Policy, which then blocked
+  every stylesheet the editor and theme plugins add at runtime (dev builds,
+  with no CSP, never showed it). The splash styles now ship as a linked
+  stylesheet, and a test keeps `index.html` free of inline styles.
+- Status-bar mode buttons, the git tab's controls and the review-notes
+  filter buttons are no longer selectable as text.
+
+## [0.10.2] — 2026-10-05
+
+- **MD Notepad is now MD Specpad.** New name, new home:
+  [github.com/l-small-tech/md-specpad](https://github.com/l-small-tech/md-specpad)
+  (old links redirect). On first launch on desktop, your notes, sessions,
+  settings, themes and Whisper models move over from the MD Notepad folder
+  automatically. The update installs as **MD Specpad** next to the old app,
+  so uninstall MD Notepad afterwards. On Android, MD Specpad installs as a
+  separate app: move any notes you want to keep, then uninstall MD Notepad.
+- **Visual Git.** The Git tab is redrawn around a picture of the repository:
+  a commit graph of every branch with coloured lanes and branch, remote, tag
+  and worktree pills on the commits; worktree cards across the top (click
+  one to show that checkout; each shows its branch, what is dirty, and how
+  far it is ahead of or behind the base); and the branch picker with Fetch,
+  Pull and Push in the status bar, where the mode buttons would otherwise
+  sit. Click a branch pill for switch / merge / delete.
+- **Show hidden files.** The eye button in the Workspaces header (or
+  right-click a folder → *Hidden Files*) reveals hidden files and folders
+  such as `.github` or `.obsidian`. It follows each platform's rules:
+  dot-names everywhere, plus the hidden attribute on Windows and the hidden
+  flag on macOS.
+- **Faster, visible startup with slow drives.** Restored tabs now load in
+  parallel, and when a tab's file is slow to reach (a cloud drive, or a WSL
+  share while WSL starts up) the window shows a loading message naming the
+  file it is waiting for, instead of a blank screen.
+
+## [0.10.1] — 2026-10-01
+
+- **Mark headings running or complete.** Right-click a heading in Raw,
+  Split or Edit mode to mark it running (⏳, amber bar) or complete (✅,
+  green bar). The mark is saved in the heading text, so it travels with the
+  file.
+- **Prompt status removed.** The *Prompt status* workspace directive, the
+  strip above `*.prompts.md` notes and the Workspace status panel are gone.
+  Re-running **Workspace directives…** on a workspace removes the old
+  section from its `AGENTS.md`; `.notepad/status.py` and
+  `prompts/STATUSES.md` are left for you to delete.
+- **Audio player.** MP3, WAV, M4A, AAC, OGG, Opus and FLAC files show in the
+  explorer and open in their own tab. The tab has a waveform you click or drag
+  to seek, playback speed, looping, and the file's format, length, sample rate
+  and loudness. **Transcribe to note** runs the recording through the offline
+  Whisper model and opens the text as a new note.
+- **TODO list directive.** Initialize workspace can now add a shared `TODO.md`
+  checklist that agents read, tick off and add follow-ups to.
+- **Git tab in folders git won't trust.** Opening Git on a repository owned
+  by another account (an admin-created folder, an exFAT or network drive) no
+  longer just fails with "dubious ownership" — it offers to trust the folder.
+- **Cleaner slide shows.** Touching the screen during a full-screen Marp
+  presentation no longer pops up the Workspaces button or pull tab.
+
 ## [0.10.0] — 2026-09-25
 
 - **Prompt files.** The prompt status strip now appears only on notes named
@@ -256,4 +328,4 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
   volumes.
 
 Earlier releases are described on the
-[GitHub Releases](https://github.com/l-small-tech/md-notepad/releases) page.
+[GitHub Releases](https://github.com/l-small-tech/md-specpad/releases) page.

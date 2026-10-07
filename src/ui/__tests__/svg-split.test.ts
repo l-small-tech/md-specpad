@@ -13,7 +13,7 @@ import type { Cm6Adapter } from '../../editors/cm6';
 import type { WhiteboardAdapter } from '../../editors/whiteboard';
 import { linkSvgSplit, type SvgSplitLink } from '../svg-split';
 
-const BOARD = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-notepad:whiteboard" viewBox="0 0 800 600" width="800" height="600">
+const BOARD = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:wb="urn:md-specpad:whiteboard" viewBox="0 0 800 600" width="800" height="600">
   <g wb:layer="L1" wb:name="Layer 1">
     <rect x="100" y="120" width="80" height="40" fill="none" stroke="#1a1a1a" stroke-width="2"/>
     <ellipse cx="300" cy="200" rx="50" ry="25" fill="none" stroke="#1a1a1a" stroke-width="2"/>

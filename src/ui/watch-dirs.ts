@@ -47,13 +47,15 @@ export async function refreshWatchedDirs(): Promise<void> {
   // happen on window focus.
   roots.push(...extraLiveWatchDirs(tabsStore.getState().tabs, workspaces, roots));
   roots.push(...extraGitWatchDirs(gitStore.getState().watchRoots(), roots));
-  const signature = JSON.stringify(roots);
+  // Shown hidden entries need their changes reported too (Rust changed_roots).
+  const { showHiddenFiles } = settingsStore.getState().settings;
+  const signature = JSON.stringify([roots, showHiddenFiles]);
   if (signature === watchedSignature) {
     return;
   }
   watchedSignature = signature;
   try {
-    await ipc.watchDirs(roots);
+    await ipc.watchDirs(roots, showHiddenFiles);
   } catch {
     // No watcher (a browser dev session) — the explorer keeps its manual refresh.
   }

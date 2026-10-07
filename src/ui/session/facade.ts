@@ -369,6 +369,9 @@ let listNotesDispatch: (dir?: string) => Promise<ExplorerEntry[]> = async () => 
 let readImageDispatch: (path: string) => Promise<string> = async () => {
   throw new Error('not booted');
 };
+let readBytesDispatch: (path: string) => Promise<Uint8Array> = async () => {
+  throw new Error('not booted');
+};
 let importFilesDispatch: (dir: string, paths: string[]) => Promise<void> = async () => {};
 let importDocumentDispatch: (
   dir: string,
@@ -419,6 +422,9 @@ export function setListNotesDispatch(fn: (dir?: string) => Promise<ExplorerEntry
 }
 export function setReadImageDispatch(fn: (path: string) => Promise<string>): void {
   readImageDispatch = fn;
+}
+export function setReadBytesDispatch(fn: (path: string) => Promise<Uint8Array>): void {
+  readBytesDispatch = fn;
 }
 export function setImportFilesDispatch(fn: (dir: string, paths: string[]) => Promise<void>): void {
   importFilesDispatch = fn;
@@ -639,6 +645,10 @@ export async function refreshWorkspaces(dirs: string[]): Promise<void> {
 /** ImageView → controller: an image file as a ready-to-use data: URL. */
 export function loadImageDataUrl(path: string): Promise<string> {
   return readImageDispatch(path);
+}
+/** AudioView → controller: a binary file's raw bytes (through the storage provider). */
+export function loadFileBytes(path: string): Promise<Uint8Array> {
+  return readBytesDispatch(path);
 }
 /** Drag-drop (main.tsx) → controller: copy dropped files into a workspace dir
  *  (non-md/image paths are skipped). */
@@ -900,6 +910,11 @@ export function toggleShowAllFilesFor(dir: string): void {
     settings.hideUnsupportedDirs,
   );
   update({ showAllFilesDirs: shown, hideUnsupportedDirs: hidden });
+}
+/** FileExplorer → settings: flip the global "Show hidden files". */
+export function toggleShowHiddenFiles(): void {
+  const { settings, update } = settingsStore.getState();
+  update({ showHiddenFiles: !settings.showHiddenFiles });
 }
 /**
  * FileExplorer single-click → controller: open a note file (activates it if
