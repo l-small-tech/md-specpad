@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- Git tab: a ⤢ button at the right of the worktree cards goes distraction-free, as on a document. The status bar with the branch picker and Fetch / Pull / Push stays; Esc or the top-edge cluster brings the tab bar back.
+
 ## [0.10.4] — 2026-10-05
 
 - Git tab: the three Staged / Changes / Untracked lists are now one list of every file changed since the last commit, with a checkbox per row that shows and sets whether it is staged. The commit box sits above the list so it never gets pushed down.
