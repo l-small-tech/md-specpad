@@ -11,6 +11,7 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 ## [Unreleased]
 
 - Git tab: a ⤢ button at the right of the worktree cards goes distraction-free, as on a document. The status bar with the branch picker and Fetch / Pull / Push stays; Esc or the top-edge cluster brings the tab bar back.
+- **Fixed: no spelling suggestions on headings (Windows).** Right-clicking a heading used to swap the usual menu for the Mark running / Mark complete one, which hid the spell checker's suggestions. The mark items now sit at the bottom of the usual menu, so you get both.
 
 ## [0.10.4] — 2026-10-05
 

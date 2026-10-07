@@ -12,6 +12,10 @@ mod shell;
 // single-instance handoff below.
 #[cfg(windows)]
 mod vdesk;
+// Windows-only: page-supplied items (heading marks) in WebView2's native
+// context menu, beside the spell checker's suggestions.
+#[cfg(windows)]
+mod native_menu;
 
 use std::sync::Mutex;
 
@@ -283,6 +287,16 @@ pub fn run() {
     // and incoming intents later) that pure-Rust JNI can't reach in Tauri.
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_androidfs::init());
+
+    // Windows-only: every webview gets the native-menu hook as it is created
+    // (see native_menu.rs), so page items like the heading marks can join
+    // the native context menu instead of replacing it.
+    #[cfg(windows)]
+    let builder = builder.plugin(
+        tauri::plugin::Builder::<tauri::Wry>::new("native-menu")
+            .on_webview_ready(|webview| native_menu::install(&webview))
+            .build(),
+    );
 
     builder
         .plugin(tauri_plugin_clipboard_manager::init())

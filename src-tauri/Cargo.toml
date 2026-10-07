@@ -51,6 +51,9 @@ log = "0.4"
 # what a NEW console would see, which a running process's environment snapshot
 # does not. Already in the dependency graph via tauri.
 winreg = "0.55"
+# WebView2's COM API (src/native_menu.rs): page items in the native context
+# menu. Same crate+version wry already pulls in — this adds only visibility.
+webview2-com = "0.38"
 windows = { version = "0.61", features = [
   "Foundation",
   "Foundation_Collections",

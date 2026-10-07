@@ -2450,6 +2450,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "webkit2gtk",
+ "webview2-com",
  "whisper-rs",
  "windows",
  "winreg 0.55.0",

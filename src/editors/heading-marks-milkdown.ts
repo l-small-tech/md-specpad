@@ -93,12 +93,10 @@ export const headingMarksPlugin = $prose(
             if (!hit || !found) {
               return false;
             }
-            event.preventDefault();
             const current = markOfText(found.node.textContent);
-            openHeadingMarkMenu(current, event.clientX, event.clientY, (mark) =>
+            return openHeadingMarkMenu(current, event, (mark) =>
               applyMark(view, Math.min(hit.pos, view.state.doc.content.size), mark),
             );
-            return true;
           },
         },
       },
