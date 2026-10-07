@@ -10,6 +10,12 @@
  * workspace, a shell or the harness in it, its diff against the base, merge
  * either way, Finish…, Remove. The dashed card at the end is New worktree.
  *
+ * The funnel at the strip's right edge is the "active only" filter
+ * (`gitActiveWorktreesOnly`, persisted): on, the strip lists just the
+ * checkouts with something going on — `isActiveCheckout` in core — plus the
+ * selected one, and a faint "+N clean" tally stands where the hidden cards
+ * were; clicking it brings them back.
+ *
  * The strip is also the git tab's only header, so it carries the
  * distraction-free button the ribbon gives a document (the git tab has no
  * ribbon). While chrome-less and windowed, the strip's empty room doubles as
@@ -17,11 +23,12 @@
  * sit exactly on the cards' top line and swallow their clicks.
  */
 
-import { terminalsInside as terminalsIn } from '../../../core/git/checkouts';
+import { isActiveCheckout, terminalsInside as terminalsIn } from '../../../core/git/checkouts';
 import type { GitCheckout } from '../../../core/git/types';
 import { setDistractionFree } from '../../fullscreen';
 import { isAndroid } from '../../platform';
 import { gitStore } from '../../stores/git';
+import { settingsStore, useSettingsStore } from '../../stores/settings';
 import { tabDisplayTitle, tabsStore, useTabsStore, type TabEntry } from '../../stores/tabs';
 import { useUiStore } from '../../stores/ui';
 import { Icon } from './icons';
@@ -293,6 +300,16 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
   const selKey = selectedCheckout.replaceAll('\\', '/').toLowerCase();
   const distractionFree = useUiStore((s) => s.distractionFree);
   const osFullscreen = useUiStore((s) => s.osFullscreen);
+  const activeOnly = useSettingsStore((s) => s.settings.gitActiveWorktreesOnly);
+  const setActiveOnly = (on: boolean) =>
+    settingsStore.getState().update({ gitActiveWorktreesOnly: on });
+  const terminalsAt = new Map(checkouts.map((c) => [c.path, terminalsInside(tabs, c.path)]));
+  const isShown = (c: GitCheckout) =>
+    !activeOnly ||
+    c.path.replaceAll('\\', '/').toLowerCase() === selKey ||
+    isActiveCheckout(c, (terminalsAt.get(c.path)?.length ?? 0) > 0);
+  const shown = checkouts.filter(isShown);
+  const hidden = checkouts.length - shown.length;
   // Same rule as App's drag strip: a fullscreen window has nowhere to go and
   // Android has no draggable window at all.
   const dragRegion = distractionFree && !osFullscreen && !isAndroid() ? '' : undefined;
@@ -305,7 +322,7 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
             {loading ? 'Listing worktrees…' : checkoutLabel(root, root)}
           </div>
         ) : (
-          checkouts.map((c) => (
+          shown.map((c) => (
             <WorktreeCard
               key={c.path}
               root={root}
@@ -314,9 +331,20 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
               base={base}
               selected={c.path.replaceAll('\\', '/').toLowerCase() === selKey}
               viewingDiff={selected?.kind === 'worktree-diff' && selected.path === c.path}
-              terminals={terminalsInside(tabs, c.path)}
+              terminals={terminalsAt.get(c.path) ?? []}
             />
           ))
+        )}
+        {hidden > 0 && (
+          <button
+            type="button"
+            className="git-card git-card-hidden"
+            title={`${hidden} clean ${hidden === 1 ? 'worktree is' : 'worktrees are'} hidden — click to show every worktree`}
+            onClick={() => setActiveOnly(false)}
+          >
+            <span className="git-card-hidden-n">+{hidden}</span>
+            <span>clean</span>
+          </button>
         )}
         <button
           type="button"
@@ -328,20 +356,38 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
           <span>New worktree</span>
         </button>
       </div>
-      {/* Hidden with the rest of the chrome's buttons once chrome-less: the
-          floating cluster (App) and Esc are the way back, as on a document. */}
-      {!distractionFree && (
+      <div className="git-strip-tools">
         <button
           type="button"
-          className="git-strip-fullscreen"
-          aria-label="Distraction-free"
-          title="Distraction-free — hide the app chrome"
+          className={`git-strip-tool git-strip-filter${activeOnly ? ' is-on' : ''}`}
+          aria-label="Active worktrees only"
+          aria-pressed={activeOnly}
+          title={
+            activeOnly
+              ? `Showing active worktrees only${hidden > 0 ? ` (${hidden} clean hidden)` : ''} — click to show all`
+              : 'Show active worktrees only — hide the clean ones with no terminal open'
+          }
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setDistractionFree(true)}
+          onClick={() => setActiveOnly(!activeOnly)}
         >
-          ⤢
+          <Icon name="filter" />
+          {activeOnly && hidden > 0 && <span className="git-strip-filter-n">{hidden}</span>}
         </button>
-      )}
+        {/* Hidden with the rest of the chrome's buttons once chrome-less: the
+            floating cluster (App) and Esc are the way back, as on a document. */}
+        {!distractionFree && (
+          <button
+            type="button"
+            className="git-strip-tool git-strip-fullscreen"
+            aria-label="Distraction-free"
+            title="Distraction-free — hide the app chrome"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setDistractionFree(true)}
+          >
+            ⤢
+          </button>
+        )}
+      </div>
     </header>
   );
 }
