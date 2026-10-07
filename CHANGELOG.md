@@ -10,7 +10,7 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
-## [0.10.5] — 2026-10-06
+## [0.10.6] — 2026-10-06
 
 - **Collapsible headings** (Settings, off by default): Raw and Split modes get a fold gutter so any heading's section can be collapsed like a function in a code editor, and a heading marked running collapses by itself.
 - Git tab: a ⤢ button at the right of the worktree cards goes distraction-free, as on a document. The status bar with the branch picker and Fetch / Pull / Push stays; Esc or the top-edge cluster brings the tab bar back.
