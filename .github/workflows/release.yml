@@ -306,6 +306,49 @@ jobs:
       - name: Download all release assets
         run: gh release download "$TAG" --repo '${{ github.repository }}' --dir assets
 
+      # Each build job merges its platform into latest.json by download →
+      # edit → delete → re-upload. Jobs finishing together race: v0.10.5 lost
+      # the macOS and Windows entries and one job died on a 404. So the
+      # manifest is rebuilt here, once, from the .sig assets — and a release
+      # missing a desktop platform fails instead of shipping a broken updater.
+      - name: Rebuild the updater manifest from the signatures
+        run: |
+          BASE='${{ github.server_url }}/${{ github.repository }}/releases/download'
+          cd assets
+          entry() { # $1 = asset name → {"signature", "url"}
+            jq -n --rawfile sig "$1.sig" --arg url "$BASE/$TAG/$(jq -rn --arg s "$1" '$s|@uri')" \
+              '{signature: ($sig | rtrimstr("\n")), url: $url}'
+          }
+          one() { # $1 = glob → the single asset name matching it, or nothing
+            for f in $1; do [ -e "$f" ] && [ -e "$f.sig" ] && { echo "$f"; return; }; done
+          }
+          platforms='{}'
+          add() { # $1 = asset, rest = platform keys
+            local a="$1"; shift
+            [ -n "$a" ] || return 0
+            local e; e="$(entry "$a")"
+            for k in "$@"; do platforms="$(jq --arg k "$k" --argjson e "$e" '.[$k] = $e' <<<"$platforms")"; done
+          }
+          add "$(one '*.app.tar.gz')" darwin-aarch64 darwin-x86_64 darwin-aarch64-app darwin-x86_64-app
+          add "$(one '*-setup.exe')"  windows-x86_64 windows-x86_64-nsis
+          add "$(one '*.AppImage')"   linux-x86_64 linux-x86_64-appimage
+          add "$(one '*.deb')"        linux-x86_64-deb
+          add "$(one '*.rpm')"        linux-x86_64-rpm
+          for k in darwin-aarch64 windows-x86_64 linux-x86_64; do
+            jq -e --arg k "$k" 'has($k)' <<<"$platforms" >/dev/null \
+              || { echo "::error::No signed updater bundle for $k — not shipping a manifest without it."; exit 1; }
+          done
+          # version / notes / pub_date as tauri-action wrote them (identical
+          # in every job); fall back to the tag if no job got that far.
+          [ -f latest.json ] && head='latest.json' || head=/dev/null
+          jq -n --slurpfile old "$head" --arg v "${TAG#v}" \
+            --arg now "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" --argjson p "$platforms" '
+              ($old[0] // {}) as $o
+              | {version: ($o.version // $v), notes: ($o.notes // ""),
+                 pub_date: ($o.pub_date // $now), platforms: $p}' > latest.json.new
+          mv latest.json.new latest.json
+          jq -r '.platforms | keys[]' latest.json
+
       - name: Attest build provenance (Sigstore)
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:

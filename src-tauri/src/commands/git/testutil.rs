@@ -55,11 +55,18 @@ pub fn init_repo(root: &Path) {
     configure(root);
 }
 
+/// `root` as git itself spells it. The temp dir is often an alias of its real
+/// path — `/var` → `/private/var` on macOS, an 8.3 `RUNNER~1` on Windows CI —
+/// and git always reports the resolved form, so fixtures must use that one.
+fn as_git_sees_it(root: &Path) -> PathBuf {
+    PathBuf::from(git_out(root, &["rev-parse", "--show-toplevel"]))
+}
+
 /// A throwaway repo with one commit (`a.ts`).
 pub fn temp_repo() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().expect("temp dir");
-    let root = dir.path().to_path_buf();
-    init_repo(&root);
+    init_repo(dir.path());
+    let root = as_git_sees_it(dir.path());
     write(&root, "a.ts", "export const a = 1;\n");
     git_ok(&root, &["add", "a.ts"]);
     git_ok(&root, &["commit", "-m", "first"]);
@@ -71,9 +78,9 @@ pub fn temp_repo() -> (tempfile::TempDir, PathBuf) {
 /// entirely offline. Returns `(guard, root, remote_path)`.
 pub fn temp_repo_with_remote() -> (tempfile::TempDir, PathBuf, PathBuf) {
     let dir = tempfile::tempdir().expect("temp dir");
-    let root = dir.path().join("repo");
     let remote = dir.path().join("remote.git");
-    init_repo(&root);
+    init_repo(&dir.path().join("repo"));
+    let root = as_git_sees_it(&dir.path().join("repo"));
     write(&root, "a.ts", "export const a = 1;\n");
     git_ok(&root, &["add", "a.ts"]);
     git_ok(&root, &["commit", "-m", "first"]);
