@@ -1873,6 +1873,7 @@ describe('insertFileLink (file/image links)', () => {
       setSelection() {},
       setWordWrap() {},
       setLineNumbers() {},
+      setCollapsibleHeadings() {},
       setFontSize() {},
       format() {},
       insertLinkTo: (label, url, image) => calls.push({ label, url, image }),

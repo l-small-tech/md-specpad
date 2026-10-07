@@ -56,6 +56,11 @@ the heading — so it shows in the preview, survives switching modes, and
 anyone (or any AI agent) reading the file sees it too. Deleting the emoji by
 hand clears the mark just the same.
 
+With **Collapsible headings** turned on in Settings, a heading collapses by
+itself the moment it is marked running — in Raw and Split modes, which show a
+fold gutter beside the text so any heading's section can be collapsed and
+opened by hand too. See [Settings](settings.md).
+
 ## Review (Ctrl+4)
 
 The polished result, full-width, with nothing editable — ideal for actually

@@ -29,6 +29,8 @@ which are the same everywhere).
 | Enter (on a list line) | Continue the list with a new bullet/number |
 | Tab (on a list line) | Indent one level, with any nested items below it |
 | Shift+Tab (on a list line) | Un-indent one level, with any nested items below it |
+| Ctrl+Shift+[ / Ctrl+Shift+] | Collapse / expand the heading section under the caret (with **Collapsible headings** on in Settings) |
+| Ctrl+Alt+[ / Ctrl+Alt+] | Collapse / expand every section |
 
 Indenting works like a word processor. Bullet markers change with depth — `*` at
 the left margin, `-` one level in, `+` two levels in, then repeating — so

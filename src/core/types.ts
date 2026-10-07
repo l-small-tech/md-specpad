@@ -399,6 +399,13 @@ export interface Settings {
   /** Line-number gutter in the source (CM6) editor. Default off (Notepad feel). */
   lineNumbers: boolean;
   /**
+   * Fold gutter in the source (CM6) editor for markdown: every heading's
+   * section (and code blocks / lists) can be collapsed, VS Code style, and a
+   * heading marked running (`core/heading-mark.ts`) collapses by itself.
+   * Default off.
+   */
+  collapsibleHeadings: boolean;
+  /**
    * Code ligatures (-> as a single glyph) in fonts that carry them
    * (Fira Code, JetBrains Mono, Cascadia Code, Victor Mono). Default on.
    */
