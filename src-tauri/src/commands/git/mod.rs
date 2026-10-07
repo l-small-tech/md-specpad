@@ -6,7 +6,7 @@
 //! worktrees' branches (`git_file_changes`). The git tab drives the repository:
 //! status, branches, log, staging, commits, merges, worktrees and the three
 //! network operations — each a named command in a child module (`status`,
-//! `refs`, `worktrees`, `ops`, `net`) that builds its own argv over the one
+//! `refs`, `worktrees`, `ops`, `net`, `remotes`) that builds its own argv over the one
 //! runner in `run`. No `git2`/libgit2: this feature only runs where a
 //! developer already has git installed, and a large native build is a poor
 //! trade for a process spawn.
@@ -28,6 +28,7 @@
 pub mod net;
 pub mod ops;
 pub mod refs;
+pub mod remotes;
 pub mod run;
 pub mod status;
 #[cfg(test)]
@@ -40,6 +41,9 @@ pub use ops::{
     git_stage, git_switch, git_unstage,
 };
 pub use refs::{git_ahead_behind, git_branches, git_commit_files, git_diff_names, git_log};
+pub use remotes::{
+    git_compare_ref, git_remote_add, git_remote_remove, git_remote_set_url, git_remotes,
+};
 pub use status::git_status;
 pub use worktrees::{git_check_ignore, git_worktree_add, git_worktree_remove, git_worktrees};
 // `generate_handler!` reaches each command's two `#[macro_export]`ed helper
@@ -63,6 +67,11 @@ pub use {
     refs::__cmd__git_diff_names, refs::__cmd__git_log, refs::__tauri_command_name_git_ahead_behind,
     refs::__tauri_command_name_git_branches, refs::__tauri_command_name_git_commit_files,
     refs::__tauri_command_name_git_diff_names, refs::__tauri_command_name_git_log,
+    remotes::__cmd__git_compare_ref, remotes::__cmd__git_remote_add,
+    remotes::__cmd__git_remote_remove, remotes::__cmd__git_remote_set_url,
+    remotes::__cmd__git_remotes, remotes::__tauri_command_name_git_compare_ref,
+    remotes::__tauri_command_name_git_remote_add, remotes::__tauri_command_name_git_remote_remove,
+    remotes::__tauri_command_name_git_remote_set_url, remotes::__tauri_command_name_git_remotes,
     status::__cmd__git_status, status::__tauri_command_name_git_status,
     worktrees::__cmd__git_check_ignore, worktrees::__cmd__git_worktree_add,
     worktrees::__cmd__git_worktree_remove, worktrees::__cmd__git_worktrees,

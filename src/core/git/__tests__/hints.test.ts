@@ -44,7 +44,19 @@ describe('networkHint', () => {
       'refused the push',
     ],
     ['remote: Repository not found.', 'points at nothing'],
-    ["fatal: 'origin' does not appear to be a git repository", 'points at nothing'],
+    ["error: No such remote 'origin'", 'not connected'],
+    [
+      "fatal: 'origin' does not appear to be a git repository\nfatal: Could not read from remote repository.",
+      'not connected',
+    ],
+    [
+      "fatal: 'C:/t/nope.git' does not appear to be a git repository\nfatal: Could not read from remote repository.",
+      'points at nothing',
+    ],
+    [
+      'ERROR: Repository not found.\nfatal: Could not read from remote repository.',
+      'points at nothing',
+    ],
   ])('%s → %s', (stderr, fragment) => {
     expect(networkHint(stderr)).toContain(fragment);
   });

@@ -31,9 +31,10 @@ Keep this directory small; anything smart belongs in a store or in core.
 | `git/ConflictsSection` | git | unmerged files, the live tracker line, **Copy conflict prompt** / Terminal here / Harness here / Abort / Continue (gated), per-file Mark resolved; `ConflictActions` is shared with the finish flow |
 | `git/ChangesSection` | git | Staged / Changes / Untracked groups (from `repo.groups`) with hover actions and Stage all / Unstage all; the commit box (mod+Enter on the textarea commits, Amend) |
 | `git/GitDetail` | git | the lower half of the main column while something is selected: a thin bar naming it (+ close), then `DiffView` over `repo.diff` (+ EOL / binary hint bar), a commit with its files, a worktree's files vs base, or `FinishFlow` |
-| `git/OutputDrawer` | git | streamed fetch / pull / push output at the foot of the main column; the failure hint is text in a `<code>`, never a button; Cancel / Dismiss |
+| `git/OutputDrawer` | git | streamed fetch / pull / push output at the foot of the main column; the failure hint is text in a `<code>`, never a button; Cancel / Dismiss. A push is a progress bar plus one plain sentence (`core/git/push-progress.ts`), git's lines behind Show log |
 | `git/FinishFlow` | git | the finish-worktree stepper: verify pause (terminal here + Continue / Skip), conflicts pause (the agent-first actions + tracker), failed (Retry / Skip / Abort), cleanup confirm text |
 | `git/NewWorktreeDialog` | git | `.settings-dialog` chrome: slug, prefix, base branch, "then open" none / shell / harness, a live preview line, Create |
+| `git/RemotesDialog` | git | `.settings-dialog` chrome over the store's `remotesDialog` views: connect (paste an address — the line under the field says what was understood — and "Upload my work now"), checking, bring-in (the server already has files), failed (Change address / Try again), the list (change an address, disconnect) and edit. Opened by the status bar's cloud button, and by Publish when there is no remote |
 
 ## EditorHost — the never-remount rule (I7)
 
