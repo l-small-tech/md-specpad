@@ -151,6 +151,10 @@ the section from the sidebar — the folder and every file in it stay exactly
 where they are on your computer. (The built-in Notes section can't be
 removed.)
 
+On Android, removing a synced folder (Drive, OneDrive…) also closes the tabs
+open from it. A tab with unsaved changes asks first, as closing it yourself
+would — **Cancel** keeps the tab and the workspace.
+
 ## The read-only Documentation workspace
 
 This guide appears as a workspace named **Documentation** (**⌄ menu →

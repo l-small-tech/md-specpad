@@ -18,6 +18,7 @@ import { pathKey } from './facade';
 export function createWorkspaces(
   ctx: SessionCtx,
   openPaths: (paths: string[], opts?: { preview?: boolean }) => Promise<void>,
+  closeTabInteractive: (id: string) => Promise<void>,
 ) {
   /**
    * M6 — repoint the notes directory. Picks a folder, optionally moves the
@@ -170,28 +171,39 @@ export function createWorkspaces(
 
   /**
    * Remove a synced (`saf://`) workspace. Unlike a local removal (pure settings
-   * surgery), a synced root needs teardown in order: (1) close/evict any open
-   * tabs whose file lives under the removed root — a post-release flush/read
-   * would otherwise fail ugly; (2) best-effort release the persisted folder
-   * permission; (3) drop the settings entry. Non-destructive: no files are
-   * deleted (the folder still lives in Drive/OneDrive/…).
+   * surgery), a synced root needs teardown in order: (1) close any open tabs
+   * whose file lives under the removed root — a post-release flush/read would
+   * otherwise fail ugly — each through the interactive close, so unsaved edits
+   * are saved or explicitly discarded; a Cancel on any of them abandons the
+   * removal (the workspace stays); (2) best-effort release the persisted
+   * folder permission; (3) drop the settings entry. Non-destructive: no files
+   * are deleted (the folder still lives in Drive/OneDrive/…).
    */
   async function removeSyncedWorkspace(path: string): Promise<void> {
-    const { settings, update } = settingsStore.getState();
-    const entry = settings.workspaces.find((w) => pathKey(w.path) === pathKey(path));
     const prefix = `${path}/`;
-    for (const t of tabsStore.getState().tabs) {
-      const owned = t.filePath ?? t.notePath;
-      if (owned && (owned === path || owned.startsWith(prefix))) {
-        tabsStore.getState().closeTab(t.id);
+    const owned = tabsStore
+      .getState()
+      .tabs.filter((t) => {
+        const p = t.filePath ?? t.notePath;
+        return p && (p === path || p.startsWith(prefix));
+      })
+      .map((t) => t.id);
+    for (const id of owned) {
+      await closeTabInteractive(id);
+      if (tabsStore.getState().tabs.some((t) => t.id === id)) {
+        return; // the user cancelled (or the save failed) — keep the workspace
       }
     }
+    // Read settings only now: the prompts above were awaited.
+    const { settings, update } = settingsStore.getState();
+    const entry = settings.workspaces.find((w) => pathKey(w.path) === pathKey(path));
     if (entry?.treeUri) {
       await nativeIpc.releaseSyncedTree(entry.treeUri).catch(() => {
         // Best effort — the workspace is forgotten regardless of the release.
       });
     }
-    update({ workspaces: settings.workspaces.filter((w) => pathKey(w.path) !== pathKey(path)) });
+    const latest = settingsStore.getState().settings.workspaces;
+    update({ workspaces: latest.filter((w) => pathKey(w.path) !== pathKey(path)) });
   }
 
   /**
