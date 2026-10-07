@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { graphWidth, LANE_COLORS, layoutGraph, type GraphEdge } from '../graph';
+import {
+  ghostLane,
+  graphWidth,
+  LANE_COLORS,
+  layoutGraph,
+  withWorkingTree,
+  WORKING_TREE_SHA,
+  type GraphEdge,
+} from '../graph';
 import type { GitCommit } from '../types';
 
 const c = (sha: string, parents: string[] = []): GitCommit => ({
@@ -139,5 +147,39 @@ describe('layoutGraph with trunks', () => {
     // HEAD is on main: both tips are the same commit.
     const rows = layoutGraph([c('a', ['b']), c('b')], ['a', 'a']);
     expect(rows.map((r) => r.width)).toEqual([1, 1]);
+  });
+});
+
+describe('the working-tree ghost row', () => {
+  it('sits in lane 0 above HEAD and its line runs down to HEAD', () => {
+    // f (another branch, newer) sits between the ghost and HEAD h.
+    const log = [c('f', ['h']), c('h', ['h0']), c('h0')];
+    const rows = layoutGraph(withWorkingTree(log, 'h'), [WORKING_TREE_SHA, 'h']);
+    expect(rows[0]).toMatchObject({ sha: WORKING_TREE_SHA, lane: 0, color: 0 });
+    expect(kinds(rows[0]!.edges, 'in')).toEqual([]);
+    expect(kinds(rows[0]!.edges, 'out')).toEqual([0]);
+    // f takes lane 1; the ghost's line passes through lane 0 beside it.
+    expect(rows[1]).toMatchObject({ sha: 'f', lane: 1 });
+    expect(kinds(rows[1]!.edges, 'through')).toEqual([0]);
+    // Both lines close into HEAD; HEAD keeps the ghost's lane and colour.
+    expect(rows[2]).toMatchObject({ sha: 'h', lane: 0, color: 0 });
+    expect(kinds(rows[2]!.edges, 'in').sort()).toEqual([0, 1]);
+    expect(ghostLane(rows, 'h')).toEqual({ lane: 0, until: 2 });
+  });
+
+  it('on an unborn branch the ghost is a lone node', () => {
+    const rows = layoutGraph(withWorkingTree([], ''), [WORKING_TREE_SHA]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.edges).toEqual([]);
+    expect(ghostLane(rows, '')).toEqual({ lane: 0, until: 0 });
+  });
+
+  it('runs the dashed line off the bottom when HEAD is below the window', () => {
+    const rows = layoutGraph(withWorkingTree([c('x', ['y'])], 'h'), [WORKING_TREE_SHA, 'h']);
+    expect(ghostLane(rows, 'h')).toEqual({ lane: 0, until: 1 });
+  });
+
+  it('reports no ghost lane for a plain log', () => {
+    expect(ghostLane(layoutGraph([c('a')]), 'a')).toBeNull();
   });
 });

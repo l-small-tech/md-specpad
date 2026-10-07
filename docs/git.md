@@ -39,32 +39,42 @@ branch, a dot when one of this window's terminals is standing inside it, and
 chips for *merging*, *missing* or *locked*. The actions appear on the card
 you hover or have selected; the dashed card at the end is **New worktree**.
 
-**Changes**, on the left: the commit message box (Ctrl+Enter commits), an
-**Amend** switch and **Commit** on top, then one list of every file that
-differs from the last commit. Each row's checkbox is its staging state
-(ticked = staged, half = partly staged, empty = not staged) and the way to
-change it; the header's **Stage all** / **Unstage all** do the whole list.
-Untracked files show a `?` and a dimmed name. Hover a row to discard its
-changes (or delete an untracked file); click it to see its diff against the
-last commit. When Commit is disabled, its tooltip says why. A **Merge
-conflicts** group appears above when a merge stops on conflicts.
+**The inspector**, on the left, shows whatever is selected in the graph.
+With nothing selected it is the working tree: the commit message box
+(Ctrl+Enter commits), an **Amend** switch and **Commit** on top, then one
+list of every file that differs from the last commit. Each row's checkbox
+is its staging state (ticked = staged, half = partly staged, empty = not
+staged) and the way to change it; the header's **Stage all** / **Unstage
+all** do the whole list. Untracked files show a `?` and a dimmed name. Hover
+a row to discard its changes (or delete an untracked file); click it to see
+its diff against the last commit. When Commit is disabled, its tooltip says
+why. A **Merge conflicts** group appears above when a merge stops on
+conflicts. Select a commit and the same column shows that commit instead —
+its message and files; a worktree card's *vs base* shows the files its
+branch changes; the Finish stepper lives here too. The bar on top (or Esc)
+brings the working tree back.
 
 **History**, on the right: the whole repository's commits as a graph, newest
-first. Each line of history keeps one colour and one column from its tip
-down to where it joins another; a hollow node is a merge, the glowing one
-is where the selected checkout stands. Pills on a commit name what points
-at it: a **branch** (solid; the checked-out one filled in; a little cloud
-when its remote twin is on the same commit), a **remote** branch (dashed),
-a **tag**, and a **worktree** standing there (folder — click it to show that
-checkout). Click a branch pill to switch to it, merge it into the current
-branch, or delete it. Click the row to see the commit's message and files;
-click a file to see what the commit did to it. **Load more history** pages
-further back.
+first. While the selected checkout has something to commit, a dashed
+**ghost row** heads the graph — the commit those changes would make, hanging
+off HEAD by a dashed line — and it is the row that is selected whenever no
+commit is; click it to get back to the changes after looking at a commit.
+Each line of history keeps one colour and one column from its tip down to
+where it joins another; a hollow node is a merge, the glowing one is where
+the selected checkout stands. Pills on a commit name what points at it: a
+**branch** (solid; the checked-out one filled in; a little cloud when its
+remote twin is on the same commit), a **remote** branch (dashed), a **tag**,
+and a **worktree** standing there (folder — click it to show that checkout).
+Click a branch pill to switch to it, merge it into the current branch, or
+delete it. Click the row to see the commit's message and files in the
+inspector; click a file there to see what the commit did to it. **Load more
+history** pages further back.
 
-**The detail** opens under the graph when you select something — a file's
-diff, a commit, a worktree's files against the base branch, or the Finish
-stepper — and closes with its × or Esc. Drag the divider between the graph
-and the detail, or between the two columns, to resize.
+**The diff** opens under the graph when you pick a file — one of the
+working tree's changes or one of a commit's files — and closes with its ×
+or Esc (which steps back to the commit, then to the working tree). Drag the
+divider between the graph and the diff, or between the two columns, to
+resize.
 
 **The status bar** carries the controls while a Git tab is active: the
 current branch with its upstream (click it for the branch picker — filter,
