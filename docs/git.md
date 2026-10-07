@@ -74,6 +74,13 @@ HEAD), then **Fetch**, **Pull** (with a count when you are behind) and
 **Push** (with a count when you are ahead; **Publish** when the branch has no
 upstream yet), and refresh.
 
+**Distraction-free** — the ⤢ at the right end of the worktree cards hides
+the tab bar, exactly as it does on a document; the status bar stays, since
+the branch picker and the network buttons live there. Move the mouse to the
+top edge for the exit cluster (or press **Esc**), and **F11** still toggles
+full screen. While chrome-less and windowed, drag the empty part of the
+worktree strip to move the window.
+
 ## Worktrees
 
 A git worktree is a second folder checked out from the same repository on its
