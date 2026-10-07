@@ -62,6 +62,7 @@ import {
   type FinishPreflightFacts,
 } from '../../core/git/finish-flow';
 import { errorCode, gitFailureText, networkHint } from '../../core/git/hints';
+import { validateIdentity, type CommitIdentity } from '../../core/git/identity';
 import { conflictPrompt } from '../../core/git/prompts';
 import { branchForWorktree, validateBranchName } from '../../core/git/refs';
 import { emptyGroups, groupStatus, mergingInto } from '../../core/git/status';
@@ -116,6 +117,9 @@ export type GitIpc = Pick<
   | 'gitWorktreeAdd'
   | 'gitWorktreeRemove'
   | 'gitTrustDirectory'
+  | 'gitInit'
+  | 'gitIdentity'
+  | 'gitSetIdentity'
   | 'readTextFile'
   | 'atomicWriteText'
 >;
@@ -242,6 +246,8 @@ export interface RepoState {
   diffLoading: boolean;
   commitDraft: string;
   amend: boolean;
+  /** Who git commits as here; null until read (or when it could not be). */
+  identity: CommitIdentity | null;
   branchFilter: string;
   loading: Record<RefreshPart, boolean>;
   /** The last failed call, for the header's error line. */
@@ -268,6 +274,18 @@ export interface GitState {
    * the `untrusted` state is refreshed. Resolves true once trusted.
    */
   trustFolder: (path: string) => Promise<boolean>;
+  /**
+   * Answer the `not-a-repo` panel: `git init` in the tracked folder, then
+   * load it as a repository with "Initial commit" ready in the message box.
+   * Resolves true once the folder is a repository.
+   */
+  initRepo: (mainRoot: string) => Promise<boolean>;
+  /**
+   * Save the name and email git commits as (global git config) from the
+   * commit box's identity form. Resolves with the problem to show under the
+   * form, or null once saved.
+   */
+  saveIdentity: (mainRoot: string, name: string, email: string) => Promise<string | null>;
   /** Re-ask git; throttled per repository unless `force`. */
   refresh: (mainRoot: string, opts?: { force?: boolean; parts?: RefreshPart[] }) => Promise<void>;
   /** Watcher / focus entry points (main.tsx). */
@@ -386,6 +404,7 @@ export function emptyRepoState(mainRoot: string, checkout?: string | null): Repo
     diffLoading: false,
     commitDraft: '',
     amend: false,
+    identity: null,
     branchFilter: '',
     loading: { status: false, branches: false, log: false, worktrees: false },
     error: null,
@@ -572,6 +591,18 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
 
     /* ------------------------------- loading ------------------------------ */
 
+    /** Who git would commit as. Best effort: a failure leaves it unknown (no form). */
+    const loadIdentity = async (mainRoot: string): Promise<void> => {
+      try {
+        const identity = await getDeps().ipc.gitIdentity(mainRoot);
+        if (repo(mainRoot)) {
+          patch(mainRoot, () => ({ identity }));
+        }
+      } catch {
+        // Unknown is fine: the commit itself still reports a real problem.
+      }
+    };
+
     const loadStatus = async (mainRoot: string, sel: string): Promise<void> => {
       const state = it(mainRoot);
       const seq = ++state.seq.status;
@@ -722,6 +753,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
             ...(moved ? clearedForCheckout() : {}),
           };
         });
+        void loadIdentity(mainRoot);
       }
 
       const current = repo(mainRoot);
@@ -1249,6 +1281,26 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         }
         return true;
       },
+      async initRepo(mainRoot) {
+        const deps = getDeps();
+        try {
+          await deps.ipc.gitInit(mainRoot);
+        } catch (err) {
+          deps.notice(gitFailureText(err));
+          return false;
+        }
+        if (!repo(mainRoot)) {
+          return true;
+        }
+        patch(mainRoot, () => ({ unavailable: null, info: null }));
+        await get().refresh(mainRoot, { force: true });
+        const r = repo(mainRoot);
+        if (r && r.unavailable === null && r.commitDraft === '') {
+          patch(mainRoot, () => ({ commitDraft: 'Initial commit' }));
+        }
+        deps.notice('Git is now tracking this folder.');
+        return true;
+      },
       async refresh(mainRoot, opts = {}) {
         const r = repo(mainRoot);
         if (!r) {
@@ -1417,7 +1469,25 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         });
         if (ok) {
           getDeps().notice(amend ? 'Commit amended' : 'Committed');
+        } else {
+          // A missing name/email is the usual first-commit failure: re-read
+          // it so the commit box can ask for them.
+          await loadIdentity(mainRoot);
         }
+      },
+
+      async saveIdentity(mainRoot, name, email) {
+        const problem = validateIdentity(name, email);
+        if (problem !== null) {
+          return problem;
+        }
+        try {
+          await getDeps().ipc.gitSetIdentity(name.trim(), email.trim());
+        } catch (err) {
+          return gitFailureText(err);
+        }
+        await loadIdentity(mainRoot);
+        return null;
       },
 
       async switchBranch(mainRoot, branch) {

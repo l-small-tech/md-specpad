@@ -614,6 +614,73 @@ fn trust_directory(path: &str) -> GitResult<()> {
     Ok(())
 }
 
+/// `git init` in the folder `path` — the git tab's "Start tracking with Git"
+/// button. A folder already inside a repository is left alone (nothing is
+/// nested), and an untrusted one stays an error. Without an
+/// `init.defaultBranch` of the user's own, the first branch is `main`.
+/// Returns the new repository's root as git spells it.
+fn init_repo(path: &str) -> GitResult<String> {
+    let dir = Path::new(path);
+    if !dir.is_dir() {
+        return Err(GitError::failed(format!(
+            "{} is not a folder",
+            display(dir)
+        )));
+    }
+    match git_line(dir, &["rev-parse", "--show-toplevel"]) {
+        Ok(top) if !top.is_empty() => return Ok(to_slashes(&top)),
+        Ok(_) | Err(GitError::NotARepo(_)) => {}
+        Err(e) => return Err(e),
+    }
+    let configured = run_git(None, &["config", "--get", "init.defaultBranch"])?;
+    let args: &[&str] = if configured.ok && !configured.stdout.trim().is_empty() {
+        &["init"]
+    } else {
+        &["-c", "init.defaultBranch=main", "init"]
+    };
+    run::checked(dir, GitMode::Mutate, args)?;
+    git_line(dir, &["rev-parse", "--show-toplevel"]).map(|top| to_slashes(&top))
+}
+
+/// Who git will say made a commit in `path`: `user.name` / `user.email` as
+/// git resolves them there (repository, then global, then system config).
+/// `None` for one that is not set — the first commit would fail.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitIdentity {
+    pub name: Option<String>,
+    pub email: Option<String>,
+}
+
+fn identity(path: &str) -> GitResult<GitIdentity> {
+    let dir = work_dir(Path::new(path));
+    let get = |key: &str| -> GitResult<Option<String>> {
+        let out = run_git(Some(dir), &["config", "--get", key])?;
+        Ok(Some(out.stdout.trim().to_string()).filter(|v| out.ok && !v.is_empty()))
+    };
+    Ok(GitIdentity {
+        name: get("user.name")?,
+        email: get("user.email")?,
+    })
+}
+
+/// Save `user.name` / `user.email` in the user's GLOBAL git config, so every
+/// repository on this computer commits as them. Called only from the git
+/// tab's "Who's making these commits?" form.
+fn set_identity(name: &str, email: &str) -> GitResult<()> {
+    for (key, value) in [("user.name", name.trim()), ("user.email", email.trim())] {
+        let out = run_git_with(
+            None,
+            GitMode::Mutate,
+            &["config", "--global", key, run::safe_arg(value)?],
+        )?;
+        if !out.ok {
+            return Err(GitError::failed(out.stderr));
+        }
+    }
+    Ok(())
+}
+
 /* -------------------------------- commands -------------------------------- */
 
 /// Where this path sits in git: root, branch, HEAD, the baseline branch and
@@ -648,6 +715,26 @@ pub async fn git_file_changes(
 #[tauri::command]
 pub async fn git_trust_directory(path: String) -> GitResult<()> {
     blocking(move || trust_directory(&path)).await
+}
+
+/// Turn the folder `path` into a git repository (`git init`). The UI calls
+/// this only from the git tab's "not a repository" panel, on a click.
+#[tauri::command]
+pub async fn git_init(path: String) -> GitResult<String> {
+    blocking(move || init_repo(&path)).await
+}
+
+/// The name and email git would put on a commit made in `path`.
+#[tauri::command]
+pub async fn git_identity(path: String) -> GitResult<GitIdentity> {
+    blocking(move || identity(&path)).await
+}
+
+/// Save the user's name and email in their global git config. The UI calls
+/// this only when the user submits the git tab's identity form.
+#[tauri::command]
+pub async fn git_set_identity(name: String, email: String) -> GitResult<()> {
+    blocking(move || set_identity(&name, &email)).await
 }
 
 #[cfg(test)]
@@ -992,5 +1079,74 @@ mod tests {
             Err(GitError::NotARepo(_)) => {}
             other => panic!("expected NotARepo, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn init_makes_a_repository_and_leaves_an_existing_one_alone() {
+        if !have_git() {
+            eprintln!("skipping: no git on PATH");
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("a.ts"),
+            "x
+",
+        )
+        .unwrap();
+        let root = init_repo(&dir.path().to_string_lossy()).expect("init");
+        let info = repo_info(&root, None).expect("a repository now");
+        assert_eq!(path_key(&info.root), path_key(&root));
+        // No commits yet: an unborn branch, not an error.
+        assert_eq!(info.head, "");
+        // A second init (or one from a subfolder) changes nothing.
+        let sub = dir.path().join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        let again = init_repo(&sub.to_string_lossy()).expect("already a repo");
+        assert_eq!(path_key(&again), path_key(&root));
+        assert!(!sub.join(".git").exists());
+        // A file is not a folder to init.
+        assert!(init_repo(&dir.path().join("a.ts").to_string_lossy()).is_err());
+    }
+
+    #[test]
+    fn identity_reads_what_git_would_commit_as() {
+        if !have_git() {
+            eprintln!("skipping: no git on PATH");
+            return;
+        }
+        // temp_repo sets a repo-local identity, which wins over any global one.
+        let (_dir, root) = temp_repo();
+        let id = identity(&root.to_string_lossy()).expect("identity");
+        assert_eq!(id.name.as_deref(), Some("Test"));
+        assert_eq!(id.email.as_deref(), Some("t@example.com"));
+    }
+
+    #[test]
+    fn set_identity_refuses_an_empty_or_option_like_value() {
+        assert!(matches!(
+            set_identity("  ", "a@b.c"),
+            Err(GitError::InvalidArg(_))
+        ));
+        assert!(matches!(
+            set_identity("Ann", "--global"),
+            Err(GitError::InvalidArg(_))
+        ));
+    }
+
+    /// Writes the GLOBAL git config, so it is ignored by default and refuses
+    /// to run unless `GIT_CONFIG_GLOBAL` points at a scratch file:
+    /// `cargo test --lib set_identity_round_trip -- --ignored`.
+    #[test]
+    #[ignore]
+    fn set_identity_round_trip() {
+        if std::env::var("GIT_CONFIG_GLOBAL").is_err() {
+            panic!("set GIT_CONFIG_GLOBAL=<scratch file>");
+        }
+        let dir = tempfile::tempdir().unwrap();
+        set_identity(" Ann Example ", "ann@example.com").expect("saved");
+        let id = identity(&dir.path().to_string_lossy()).expect("identity");
+        assert_eq!(id.name.as_deref(), Some("Ann Example"));
+        assert_eq!(id.email.as_deref(), Some("ann@example.com"));
     }
 }

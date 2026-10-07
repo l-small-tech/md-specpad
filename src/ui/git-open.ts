@@ -19,7 +19,7 @@
 
 import { gitFailureText } from '../core/git/hints';
 import { baseName } from '../core/session/plan-flush';
-import { pathKey } from '../core/tab-workspaces';
+import { pathKey, workspaceEntryForPath } from '../core/tab-workspaces';
 import { HARNESS_PROFILE_ID } from '../core/types';
 import { ipc, IpcError, isGitUnavailable, type GitRepoInfo } from '../ipc/commands';
 import { isAndroid } from './platform';
@@ -29,6 +29,7 @@ import { settingsStore } from './stores/settings';
 import { tabsStore } from './stores/tabs';
 import { uiStore } from './stores/ui';
 import { openTerminal } from './terminal-open';
+import { workspaceRoots } from './workspace-cues';
 
 /**
  * Open a shell (`harness === false`) or the configured harness (`true`) as a
@@ -63,8 +64,10 @@ function openFailureText(err: unknown, path: string): string {
 
 /**
  * Open (or activate) the git tab for the repository that contains
- * `pathOrRoot` — a file, a folder, a worktree or the main root. Resolves with
- * the tab's id, or null when nothing opened (a notice says why).
+ * `pathOrRoot` — a file, a folder, a worktree or the main root. A path in a
+ * workspace that is not a repository opens the tab on that workspace, where
+ * the panel offers `git init`. Resolves with the tab's id, or null when
+ * nothing opened (a notice says why).
  */
 export async function openGitTab(
   pathOrRoot: string,
@@ -97,6 +100,17 @@ export async function openGitTab(
       info = await repoInfo();
     }
   } catch (err) {
+    // Not a repository yet: the tab still opens, on the workspace folder
+    // holding the path, and shows the "Start tracking with Git" panel.
+    const folder =
+      err instanceof IpcError && err.code === 'GIT_NOT_A_REPO'
+        ? workspaceEntryForPath(pathOrRoot, workspaceRoots())?.path
+        : undefined;
+    if (folder) {
+      const id = tabsStore.getState().openGitTab({ root: folder });
+      gitStore.getState().ensureRepo(folder);
+      return id;
+    }
     showNotice(openFailureText(err, pathOrRoot));
     if (!isGitUnavailable(err)) {
       console.warn('[git] open failed', err);

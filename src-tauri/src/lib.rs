@@ -344,6 +344,12 @@ pub fn run() {
             commands::git::git_file_changes,
             #[cfg(desktop)]
             commands::git::git_trust_directory,
+            #[cfg(desktop)]
+            commands::git::git_init,
+            #[cfg(desktop)]
+            commands::git::git_identity,
+            #[cfg(desktop)]
+            commands::git::git_set_identity,
             // The git tab (status, refs, staging, commits, merges, worktrees,
             // network), desktop only.
             #[cfg(desktop)]

@@ -558,8 +558,8 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
           Workspace directives…
         </button>
       )}
-      {/* The git tab for the repository this workspace is in (or a notice when
-          it is not in one). Same gate as the directives row: desktop, local. */}
+      {/* The git tab for the repository this workspace is in (or, when it is
+          not in one, the tab's "Start tracking with Git" panel). Same gate as the directives row: desktop, local. */}
       {wsColor !== undefined && !isAndroid() && !dir.startsWith('saf://') && (
         <button
           className="context-menu-item"

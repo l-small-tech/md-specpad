@@ -221,6 +221,12 @@ export interface GitWorktree {
   head: string;
 }
 
+/** Who git commits as (mirrors `GitIdentity` in commands/git/mod.rs); null = not set. */
+export interface CommitIdentity {
+  name: string | null;
+  email: string | null;
+}
+
 /** Where a file sits in git (mirrors `GitRepoInfo` in commands/git/mod.rs). */
 export interface GitRepoInfo {
   /** Absolute root of the checkout the path is in, forward slashes. */
@@ -695,6 +701,21 @@ export const ipc = {
    * after the user confirmed; a repository git already trusts is a no-op.
    */
   gitTrustDirectory: (path: string) => call<void>('git_trust_directory', { path }),
+  /**
+   * `git init` in the folder `path` (the git tab's "Start tracking with Git").
+   * A folder already inside a repository is left alone. The first branch is
+   * `main` unless the user's git config names another. Resolves with the
+   * repository's root.
+   */
+  gitInit: (path: string) => call<string>('git_init', { path }),
+  /** The `user.name` / `user.email` git would commit as in `path` (null = unset). */
+  gitIdentity: (path: string) => call<CommitIdentity>('git_identity', { path }),
+  /**
+   * Save the user's name and email in their GLOBAL git config. Call only when
+   * the user submits the git tab's identity form; validate first with
+   * core/git/identity.ts.
+   */
+  gitSetIdentity: (name: string, email: string) => call<void>('git_set_identity', { name, email }),
 
   /* ------------------------------ git tab ------------------------------- */
   /* Desktop only (src-tauri commands/git/). `root` is always the CHECKOUT to
