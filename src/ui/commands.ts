@@ -272,13 +272,14 @@ export function buildCommands(): AppCommand[] {
       'next-tab',
       'Next tab',
       { type: 'next-tab' },
-      { shortcut: modKey('Tab'), enabled: hasActiveTab },
+      // Ctrl on macOS too: Cmd+Tab is the system app switcher (keymap.ts).
+      { shortcut: IS_MAC ? '⌃Tab' : 'Ctrl+Tab', enabled: hasActiveTab },
     ),
     fromAction(
       'prev-tab',
       'Previous tab',
       { type: 'prev-tab' },
-      { shortcut: modKey('Tab', { shift: true }), enabled: hasActiveTab },
+      { shortcut: IS_MAC ? '⌃⇧Tab' : 'Ctrl+Shift+Tab', enabled: hasActiveTab },
     ),
     fromAction(
       'rename-tab',

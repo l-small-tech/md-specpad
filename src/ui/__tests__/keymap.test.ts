@@ -54,6 +54,32 @@ describe('keyEventToAction — the M1 table', () => {
     });
   });
 
+  test('Ctrl+Tab / Ctrl+Shift+Tab cycle tabs on macOS too — Cmd+Tab is the app switcher', () => {
+    // macOS keeps Cmd+Tab for itself (the event never reaches the app), so the
+    // mac chord is Ctrl+Tab, as in every mac browser and editor.
+    expect(keyEventToAction(key({ key: 'Tab', ctrlKey: true }), 'mac')).toEqual({
+      type: 'next-tab',
+    });
+    expect(keyEventToAction(key({ key: 'Tab', ctrlKey: true, shiftKey: true }), 'mac')).toEqual({
+      type: 'prev-tab',
+    });
+    expect(keyEventToAction(key({ key: 'Tab', metaKey: true }), 'mac')).toBeNull();
+    expect(keyEventToAction(key({ key: 'Tab', metaKey: true, shiftKey: true }), 'mac')).toBeNull();
+  });
+
+  test('the tab chord takes Ctrl alone', () => {
+    for (const platform of ['mac', 'other'] as const) {
+      expect(
+        keyEventToAction(key({ key: 'Tab', ctrlKey: true, altKey: true }), platform),
+      ).toBeNull();
+      expect(
+        keyEventToAction(key({ key: 'Tab', ctrlKey: true, metaKey: true }), platform),
+      ).toBeNull();
+    }
+    expect(keyEventToAction(key({ key: 'Tab', metaKey: true }), 'other')).toBeNull();
+    expect(keyEventToAction(key({ key: 'Tab' }), 'mac')).toBeNull();
+  });
+
   test('F2 renames, with or without focus, and needs no modifier', () => {
     expect(keyEventToAction(key({ key: 'F2' }), 'other')).toEqual({ type: 'rename-tab' });
     expect(keyEventToAction(key({ key: 'F2' }), 'mac')).toEqual({ type: 'rename-tab' });
@@ -331,6 +357,13 @@ describe('keyEventToAction — terminal context', () => {
     expect(term({ key: '0', ctrlKey: true })).toEqual({ type: 'font-reset' });
     expect(term({ key: 'F11' })).toEqual({ type: 'toggle-fullscreen' });
     expect(term({ key: 'F2' })).toEqual({ type: 'rename-tab' });
+  });
+
+  test('Ctrl+Tab still cycles tabs from a focused terminal on macOS', () => {
+    const macTerm = (partial: Partial<KeyDescriptor> & { key: string }) =>
+      keyEventToAction(key(partial), 'mac', 'terminal');
+    expect(macTerm({ key: 'Tab', ctrlKey: true })).toEqual({ type: 'next-tab' });
+    expect(macTerm({ key: 'Tab', ctrlKey: true, shiftKey: true })).toEqual({ type: 'prev-tab' });
   });
 
   test('everything else belongs to the shell', () => {

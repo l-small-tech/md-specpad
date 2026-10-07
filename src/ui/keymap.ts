@@ -144,13 +144,18 @@ export function keyEventToAction(
     return { type: 'toggle-fullscreen' };
   }
 
-  if (!mod || wrongMod || e.altKey) {
-    return null;
+  // Ctrl+Tab cycles tabs (Shift reverses) on EVERY platform — it is the one
+  // chord here that is Ctrl on macOS too, ahead of the mod/wrongMod guard
+  // that would reject Ctrl there. macOS keeps Cmd+Tab for the app switcher
+  // (the keydown never reaches a webview), and Ctrl+Tab is what mac browsers
+  // and editors use. (Cmd+Shift+[ / ] is not bound: in a terminal tab that is
+  // the pane-cycling chord.)
+  if (e.key === 'Tab' && e.ctrlKey && !e.metaKey && !e.altKey) {
+    return e.shiftKey ? { type: 'prev-tab' } : { type: 'next-tab' };
   }
 
-  // Ctrl/Cmd+Tab cycles tabs (Shift reverses). `key` is 'Tab'.
-  if (e.key === 'Tab') {
-    return e.shiftKey ? { type: 'prev-tab' } : { type: 'next-tab' };
+  if (!mod || wrongMod || e.altKey) {
+    return null;
   }
 
   // mod+S / mod+Shift+S (save / save as) are the only M1+ Shift-combos.

@@ -516,6 +516,12 @@ the pill (no controller, no manifest), every window enumeration skips
 - **Every window is the full app** — same `main.tsx` boot, own JS context,
   own stores, own session controller. The window label decides the role:
   `main` vs `w-<nanoid>` (torn-off).
+- **Every window wears main's frame**: `ui/window-chrome.ts` restates the
+  config's per-platform chrome for `main.tsx`'s `WINDOW_OPTIONS` —
+  undecorated on Windows/Linux (TabBar + WindowControls + ResizeBorders),
+  the native frame with an overlay title bar on macOS, where the app draws
+  no controls or resize strips. Its test reads `tauri.conf.json` and
+  `tauri.macos.conf.json`, so the two cannot drift.
 - **One manifest per window, in the one session dir**: `session.json` for
   main, `session-<label>.json` for secondaries. `buffers/` is shared (tab
   ids are global nanoids). Note-slug collisions across windows are guarded
@@ -714,7 +720,7 @@ elsewhere (`navigator.platform`-based helper).
 | + button / palette "New tab" | new tab, of the type in front (`core/new-tab.ts`) | M1/M9 |
 | mod+Shift+N | new-tab type picker (note / drawing / Marp presentation / terminal) | M9 |
 | mod+W | close tab (confirm per semantics) | M1/M2 |
-| mod+Tab / mod+Shift+Tab | next / previous tab | M1 |
+| Ctrl+Tab / Ctrl+Shift+Tab | next / previous tab — Ctrl on macOS too (Cmd+Tab is the system app switcher and never reaches the app) | M1 |
 | F2 | rename tab | M1 |
 | mod+F | editor search panel | M1 (CM6 handles it when focused) |
 | mod+1 / mod+2 / mod+3 | raw / split / wysiwyg | M1 (targets exist M4/M5) |
@@ -965,7 +971,8 @@ there.
 
 Whisper's flow: the first tap opens the mic through `pcm-capture.ts` (an
 `AudioWorkletNode` collecting 16 kHz f32 frames in memory — nothing touches
-disk) and, in parallel, `ipc.whisperPrepare` warms the model so a missing
+disk; the worklet is its own same-origin file, `pcm-tap.worklet.js`, because
+the release CSP refuses a `blob:`/`data:` worklet) and, in parallel, `ipc.whisperPrepare` warms the model so a missing
 one fails the capture before anything is said. The second tap stops the mic
 and enters the `transcribing` phase: the PCM goes to `ipc.whisperTranscribe`
 as a raw body and the answer becomes the note (Android) or lands in the
