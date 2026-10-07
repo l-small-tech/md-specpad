@@ -42,7 +42,7 @@ do not rewrite them.
 | `external-links.ts` | reference | link policy: is an href external, what host does it REALLY reach, how to elide it for the confirm prompt |
 | `whiteboard/` | feature | the `.svg` whiteboard format — see `whiteboard/README.md` |
 | `code/` | feature | the parsed model of a code file for Review mode — see the `code/` section below |
-| `git/` | feature | the git tab's pure half: `types.ts` (the model — checkouts, status groups, the detail selection, the conflict tracker and the finish-worktree flow's state; wire shapes mirrored from `ipc/commands.ts` field for field) plus the modules the store computes with — status grouping, branch-name/slug validation, the conflict-marker scan, the agent conflict prompt, the finish-flow reducer, worktree planning, diff text helpers and stderr hints (each with its own suite) |
+| `git/` | feature | the git tab's pure half: `types.ts` (the model — checkouts, status groups, the detail selection, the conflict tracker and the finish-worktree flow's state; wire shapes mirrored from `ipc/commands.ts` field for field) plus the modules the store computes with — status grouping, branch-name/slug validation, the conflict-marker scan, the agent conflict prompt, the finish-flow reducer, worktree planning, diff text helpers, stderr hints and the push progress reader (each with its own suite) |
 | `session/plan-flush.ts` | reference | pure flush planner + executor (I3, I4) |
 | `export/doc-source.ts` | feature | shared export vocabulary (`DocSource`, `ExportFormat`) |
 | `export/docx.ts` | feature | markdown → .docx (same remark/GFM parse as the preview, mapped onto `docx` objects; images via injected resolver) |

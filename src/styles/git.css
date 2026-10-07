@@ -837,6 +837,77 @@
   border-radius: 3px;
 }
 
+/* A push: one line of title, the settings dialog's progress bar, one plain
+   sentence; git's own lines only when asked for. */
+.git-push-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 4px;
+  font-size: 12px;
+}
+
+.git-push-head > .git-header-spacer {
+  flex: 1 1 auto;
+}
+
+.git-push-icon {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.git-push-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-push-pct {
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The drawer is --bg-alt, the settings track's own colour: sink the track. */
+.git-push-bar {
+  margin: 2px 10px 0;
+  background: var(--bg);
+}
+
+.git-push-detail {
+  margin: 0;
+  padding: 5px 10px 8px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.git-push > .git-drawer-body {
+  border-top: 1px solid var(--border);
+}
+
+.git-push.is-failed .git-push-icon,
+.git-push.is-failed .git-push-title {
+  color: var(--danger);
+}
+
+.git-push.is-failed .git-push-detail {
+  color: var(--fg);
+}
+
+.git-push.is-failed .settings-progress-bar {
+  background: var(--danger);
+}
+
+.git-push.is-cancelled .git-push-icon {
+  color: var(--fg-muted);
+}
+
+.git-push.is-cancelled .settings-progress-bar {
+  background: var(--fg-muted);
+}
+
 /* ---- finish flow ------------------------------------------------------- */
 
 .git-steps {

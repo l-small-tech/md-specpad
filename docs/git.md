@@ -157,7 +157,10 @@ conflict markers, and **Mark resolved** stages it when you are done.
 ## Fetch, pull and push
 
 The three status-bar buttons stream git's output into a drawer at the bottom
-of the right column, with **Cancel** while it runs. Nothing prompts for a password:
+of the right column, with **Cancel** while it runs. **Push** shows a progress
+bar instead, with one plain sentence about what is happening (packing,
+uploading, the server saving your changes); **Show log** opens git's own
+output underneath. Nothing prompts for a password:
 if git needs credentials, a credential helper with its own window (Git
 Credential Manager on Windows and macOS) or an SSH agent answers, and if
 nothing does the drawer shows git's message with a one-line reading of it —
