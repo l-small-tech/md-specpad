@@ -499,7 +499,10 @@ to whoever authored it, and that is what makes carrying it safe.
    - unmodeled elements inside one of our layers → `RawElement`, verbatim
      (this is also how a scan layer's hidden OCR group survives);
    - renderable top-level content that isn't one of our layers → one locked
-     **foreign** layer named "Imported", verbatim, keeping its z-order;
+     **foreign** layer named "Imported", verbatim, keeping its z-order — and
+     verbatim on every later open too: a `wb:kind="foreign"` layer's children
+     are never modeled, because the element writers would drop the
+     `transform`/`style`/`id` they don't know;
    - unknown attributes → `extras`; unknown metadata keys → `meta`.
 
    Serializing our own output is a **fixed point** — that is the invariant the
