@@ -125,7 +125,7 @@ function foldMarker(open: boolean): HTMLElement {
   svg.setAttribute('viewBox', '0 0 16 16');
   svg.setAttribute('aria-hidden', 'true');
   const path = document.createElementNS(svgNS, 'path');
-  path.setAttribute('d', 'M4 6l4 4 4-4');
+  path.setAttribute('d', 'M3 5.5l5 5 5-5');
   path.setAttribute('fill', 'none');
   path.setAttribute('stroke', 'currentColor');
   path.setAttribute('stroke-width', '1.8');

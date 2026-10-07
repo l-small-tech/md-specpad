@@ -343,21 +343,24 @@ const baseTheme = EditorView.theme({
   // and lines up with the text; the marker sizes off the editor font.
   '.cm-foldGutter .cm-gutterElement': {
     cursor: 'pointer',
-    width: '1.4em',
+    width: 'calc(1em + 3px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '0',
+    padding: '0 0 0 3px',
   },
   '.cm-fold-marker': {
     display: 'inline-flex',
-    width: '1.1em',
-    height: '1.1em',
+    width: '1em',
+    height: '1em',
     color: 'var(--fg-muted)',
     borderRadius: '3px',
     transition: 'transform 120ms ease, color 120ms ease',
   },
   '.cm-fold-marker svg': { width: '100%', height: '100%', display: 'block' },
+  // The gutter already separates the text from the edge; keep the whole
+  // left margin tight when it is showing (default content padding is 12px).
+  '.cm-scroller:has(.cm-foldGutter) .cm-content': { paddingLeft: '4px' },
   '.cm-fold-marker-closed': { transform: 'rotate(-90deg)' },
   '.cm-foldGutter .cm-gutterElement:hover .cm-fold-marker': {
     color: 'var(--fg)',
