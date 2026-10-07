@@ -5,8 +5,8 @@ the difference explains everything about saving.
 
 ## Notes — the tabs you never save
 
-Any tab you create with **Ctrl+N** (Cmd+N on Mac) or the `+` button is a
-*note*. Notes save themselves:
+Any tab you create with the `+` button (or **Ctrl+Shift+N** → **Markdown
+File**) is a *note*. Notes save themselves:
 
 - Everything you type is stored on your computer automatically, within a few
   seconds of typing it.
@@ -85,14 +85,14 @@ toggle auto save or to reach Save As.
 
 ### Export and print
 
-- **Export as HTML** — **right-click the tab → Export…** (or the command
-  palette) saves the document as a single standalone `.html` file: styling is
-  built in, local images are embedded, and mermaid diagrams are rendered —
-  ready to share or open in any browser.
-- **Print / Save as PDF** — in the command palette (desktop only). Opens the
-  system print dialog with a clean, print-styled copy of the document; on
-  Windows the dialog includes "Save as PDF". On Android, use Export as HTML
-  instead.
+- **Export…** — **right-click the tab → Export…** (or the command palette,
+  or right-click a markdown file in the sidebar). A preview opens with three
+  formats: **PDF** (a themed document), **DOCX** (a Word document in Word's
+  standard styles), and **HTML** (a single standalone `.html` file with the
+  styling built in, local images embedded and mermaid diagrams rendered —
+  ready to share or open in any browser). Pick a theme for PDF and HTML,
+  choose whether embedded `.svg` images are recolored to it (**Theme SVG**),
+  then click **Export…**. A Marp slide deck always exports as HTML.
 
 ### If a file changes behind your back
 
@@ -105,14 +105,15 @@ you have it open, a banner appears at the top of that tab:
 
 ## Working with tabs
 
-- **New tab**: Ctrl+N or the `+` button.
+- **New tab**: the `+` button, or Ctrl+Shift+N to pick the tab's type. (Ctrl+N
+  opens a new *window*.)
 - **Switch tabs**: click, or Ctrl+Tab / Ctrl+Shift+Tab to cycle.
 - **Close**: the × on the tab, Ctrl+W, or middle-click. Closing the last tab
   always leaves one fresh empty note.
-- **Close all**: right-click a tab for the menu, or right-click the empty
-  space in the tab bar.
-- **Tab bar menu**: right-click the empty space beside the tabs for New tab,
-  the command palette, Themes, Settings, full screen, and Close all tabs.
+- **Close all**: right-click a tab → **Close all**.
+- **App menu**: the **⌄** beside the `+` button holds the app's own commands —
+  Search workspaces, Command palette, Themes, Settings, Distraction-free, Full
+  screen and Help.
 - **Reorder**: drag tabs left and right.
 - **Rename**: double-click the tab name, press F2, or right-click →
   Rename. Renaming also renames the file on disk, so tab and file always

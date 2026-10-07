@@ -31,8 +31,9 @@ A few things to try:
 1. **Type a first line** like `Shopping list`. Notice the tab's name changes
    to match it — tabs name themselves after the first line, so you don't
    have to.
-2. **Press Ctrl+N** (Cmd+N on Mac) to open another tab. Each tab is its own
-   note.
+2. **Click the `+` button** on the tab bar (or press Ctrl+Shift+N — Cmd+Shift+N
+   on Mac — and pick **Markdown File**) to open another tab. Each tab is its
+   own note.
 3. **Close the app** — no "do you want to save?" questions. Open it again:
    everything is back.
 4. **Try a viewing mode**: at the bottom-left of the window, click **Split**.

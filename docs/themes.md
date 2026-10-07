@@ -8,8 +8,8 @@ Pick a theme in the **⌄ menu → Themes** — the arrow beside the `+` button 
 the tab bar. Every installed theme is listed there, with a ✓ on the one you're
 using, and picking one applies it instantly.
 (The same list is also in **Settings → Theme**.) It starts with **System**
-(**Light Green** when your computer is in light mode, **Dark Green** in dark
-mode, switching live when it changes), then every theme grouped by its declared
+(the app's built-in green palette, light or dark to match your computer and
+switching live when it changes), then every theme grouped by its declared
 mode:
 
 - **Light** — **Light Green**, **Beacon** (maximum-contrast black-on-white),
@@ -239,9 +239,10 @@ and `avif` files work; keep them modest in size, since the picture is loaded
 with the theme. If the file is missing, the theme still applies, just without
 the picture.
 
-The terminal's **font** is not part of the theme: terminal cells use the same
-Editor font and size as your notes, so Ctrl/Cmd `+` / `-` resizes them too
-(and `Ctrl+Shift` with `+` / `-` zooms one pane on its own).
+The terminal's **font** is not part of the theme: it comes from **Settings →
+Terminal → Font** (Fira Code by default, or *Match editor font*), and its size
+follows the editor's font size, so Ctrl/Cmd `+` / `-` resizes it too (inside a
+terminal those chords zoom just that pane).
 
 ### Light themes and AI agents
 

@@ -3,7 +3,8 @@
 A terminal tab (desktop only) puts a real shell — or an AI coding agent —
 right next to your notes. Open one from the **+ ⌄** picker next to the tabs,
 from the sidebar's right-click **New** page (it starts in that folder), or with
-Ctrl+N while a terminal is in front. This page covers the two things that make
+the `+` button while a terminal is in front (it makes another of whatever kind
+of tab is in front). This page covers the two things that make
 a terminal tab feel like part of the notepad: it *knows where it is*, and it
 can *type for you*.
 

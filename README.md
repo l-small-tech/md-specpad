@@ -93,10 +93,10 @@ The notepad half. Fast, plain, and built to never lose a word.
 - 🪟 **Multiple windows** — drag a tab out to open it in its own window, or
   drop it onto another window. Extra windows come back on restart.
 - 🎨 **Fifteen built-in themes**, including maximum-contrast and
-  color-vision-friendly pairs. Themes are tiny files; an **AI theme** button
-  writes a new one from a description.
+  color-vision-friendly pairs. Themes are tiny files; **Open harness here**
+  opens your coding agent in the themes folder to write or edit one.
 - 🔤 **Eight bundled open-source fonts**, Fira Code with ligatures by default.
-- 📤 **Export to HTML or PDF**, themed to match, embedded SVGs recolored.
+- 📤 **Export to PDF, DOCX or HTML**, themed to match, embedded SVGs recolored.
 
 ### Prompts that carry their context
 
@@ -220,6 +220,9 @@ terminal:
 [Settings (incl. voice notes & harness)](docs/settings.md) ·
 [Themes](docs/themes.md) ·
 [Terminal tabs](docs/terminal.md) ·
+[Drawings and diagrams](docs/diagrams.md) ·
+[The Git tab](docs/git.md) ·
+[Prompts](docs/prompts.md) ·
 [Keyboard shortcuts](docs/keyboard-shortcuts.md)
 
 ## Known limitations
@@ -297,8 +300,8 @@ Checks: `pnpm run check && pnpm test`, and in `src-tauri/`:
 
 Start with [src/README.md](src/README.md) — it owns the frontend-wide rules.
 Each source directory has a README specifying its architecture, contracts,
-and invariants. [CLAUDE.md](CLAUDE.md) is the guide for coding agents
-working in this repo, which is how most of it gets built.
+and invariants. Coding agents working in this repo (which is how most of it gets built)
+start from the same READMEs.
 
 ## Releasing (maintainers)
 

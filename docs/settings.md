@@ -1,18 +1,25 @@
 # Settings
 
-Open Settings with the **⚙** button in the toolbar or **Ctrl+,** (Cmd+, on
-Mac). Changes apply immediately — there's no OK button to press — and are
-remembered. Press Esc or click outside the panel to close it.
+Open Settings from the **⌄ menu** beside the `+` button on the tab bar
+(**Settings**), or press **Ctrl+,** (Cmd+, on Mac). Changes apply immediately —
+there's no OK button to press — and are remembered. Press Esc or click outside
+the panel to close it.
+
+The dialog is split into tabs along its top — **Appearance**, **Editor**,
+**Files**, **Voice notes**, **Terminal**, **Harness** and **Updates** (the last
+three only on desktop) — and reopens on the tab you last used. The **Open Docs**
+button in its header opens this guide.
 
 ## Appearance
 
 - **Theme** — one list that combines the light/dark mode and the color scheme:
   - **System** follows your computer's light/dark setting, switching live
-    when it changes: **Light Green** in light mode, **Dark Green** in dark.
+    when it changes, using the app's built-in green palette.
   - Below it every theme is grouped by its declared mode: **Light**
-    (**Light Green**, **Paper**, **Solarized Light**, **Nord Light**) and
-    **Dark** (**Dark Green**, **Solarized Dark**, **Nord Dark**, **Dracula**,
-    **Monokai**) — themes you add yourself join the group their `mode`
+    (**Light Green**, **Beacon**, **Skylark**, **Lagoon**, **Marmalade**,
+    **Honeycomb**, **Ultramarine**, **Dragonfruit**) and **Dark** (**Dark
+    Green**, **Vantablack**, **Nightjar**, **Abyss**, **Garnet**, **Cyanotype**,
+    **Amethyst**) — themes you add yourself join the group their `mode`
     declares. They all ship as example *theme files* you can edit, and each
     keeps its one look — light or dark — whatever your computer's light/dark
     setting.
@@ -20,7 +27,7 @@ remembered. Press Esc or click outside the panel to close it.
   See **[Themes](themes.md)** for how to make your own (an AI can write one for
   you in seconds) — a theme can set the whole palette *and* recolor individual
   markdown elements (headings, bold, links, …). The same list — plus the
-  **Open folder**, **New theme…**, **Reload**, and **Help** buttons — lives in
+  **Open harness here**, **Reload**, and **Help** buttons — lives in
   the **⌄ menu → Themes** (the arrow beside the `+` button on the tab bar).
 - **This window only** — a theme normally applies to every open window and is
   remembered for next launch. Tick this box (or **right-click** a theme in the
@@ -47,6 +54,15 @@ remembered. Press Esc or click outside the panel to close it.
   Cascadia Code, Victor Mono) can join character pairs like `->` into a
   single arrow glyph. Purely cosmetic; turn it off if you prefer to see
   the characters as typed.
+- **Review mode margins** — how wide the text column is in Review mode:
+  **Narrow** margins put more text on screen, **Normal** (the default) is in
+  between, and **Wide** margins give a centered, book-like column.
+
+## Editor
+
+- **Default mode (new tabs)** — which of the four viewing modes
+  ([explained here](editing-modes.md)) a new tab starts in: Raw, Split,
+  Edit, or Review.
 - **Cursor style** — the shape of the editing caret: **Bar** (the default, a
   slim vertical line), **Thin** (a hairline bar), **Thick** (a bold bar), or
   **Underscore** (an underline beneath the character).
@@ -55,35 +71,19 @@ remembered. Press Esc or click outside the panel to close it.
 - **Collapsible headings** — off by default. When on, Raw and Split modes
   get a fold gutter next to the text: move the mouse over the gutter column
   and click the arrow beside a heading to collapse everything under it up to
-  the next heading of the same level (code blocks and lists fold too), just
-  like functions in a code editor. The arrows stay out of sight until the
+  the next heading of the same level (lists, code blocks, quotes and tables
+  fold too), just like functions in a code editor. The arrows stay out of sight until the
   pointer is over the gutter; a collapsed section's arrow always shows. Ctrl+Shift+[
   and Ctrl+Shift+] fold and unfold the section the caret is in; Ctrl+Alt+[ and
   Ctrl+Alt+] fold and unfold them all. A heading you mark **running** (see
   [Editing modes](editing-modes.md#marking-headings-as-running-or-complete))
   collapses on its own the moment the mark lands, whether you set it from the
-  right-click menu or an AI agent writes it into the file.
-- **Review mode margins** — how wide the text column is in Review mode:
-  **Narrow** margins put more text on screen; **Wide** margins give a
-  centered, book-like column.
-
-## Behavior
-
-- **Default mode (new tabs)** — which of the four viewing modes
-  ([explained here](editing-modes.md)) a new tab starts in: Raw, Split,
-  Edit, or Review.
-- **Live save** — when on, files you've opened save themselves as you type,
-  just like notes do. When off (the default), files wait for Ctrl+S. You can
-  also flip it without opening Settings: press and hold the toolbar's save
-  button and pick **Auto save**. (A workspace marked **Live edit** in the
-  sidebar saves its files as you type regardless — see
-  [Live edit](notes-tabs-and-saving.md#live-edit-working-on-one-file-together).)
-- **Confirm before moving files between folders** — whether dragging a file
-  to a new folder in the sidebar asks "are you sure?" first.
-- **Review baseline branch** — which branch a code file's "what changed" view
-  compares against. Leave it empty (the default) and md-specpad looks for
-  `development`, then `main`, then `master`. Only used when the file lives in a
-  git repository and git is installed; on Android the view is hidden.
+  right-click menu or an AI agent writes it into the file. On a Mac the fold
+  chords are Cmd+Alt+[ and Cmd+Alt+].
+- **Line numbers** — off by default. When on, Raw and Split modes show a
+  line-number gutter beside the text.
+- **Smooth scrolling** — on by default; eases scrolling in the editor, the
+  preview and terminal panes.
 - **Arrange tabs by workspace** — off by default, so tabs stay wherever you
   drag them. Turn it on and the tabs of one workspace are kept side by side:
   opening or dragging a tab slots it next to the others from its folder. Either
@@ -94,13 +94,30 @@ remembered. Press Esc or click outside the panel to close it.
   (or editing) keeps it open permanently. When off, every click opens its
   own tab.
 
-## Images
+## Files
 
+- **Live save** — when on, files you've opened save themselves as you type,
+  just like notes do. When off (the default), files wait for Ctrl+S. You can
+  also flip it without opening Settings: press and hold the toolbar's save
+  button and pick **Auto save**. (A workspace marked **Live edit** in the
+  sidebar saves its files as you type regardless — see
+  [Live edit](notes-tabs-and-saving.md#live-edit-working-on-one-file-together).)
+- **Confirm before moving files between folders** — whether dragging a file
+  to a new folder in the sidebar asks "are you sure?" first.
 - **Pasted / dropped images** — where pictures you paste or drag in are
   stored, relative to the note that uses them. See
   [Pictures in your notes](pictures-and-images.md).
 - **Image folder name** — the name of the images folder used by the
   "subfolder" and "workspace root" choices.
+- **Review baseline branch** — which branch a code file's "what changed" view
+  compares against. Leave it empty (the default) and md-specpad looks for
+  `development`, then `main`, then `master`. Only used when the file lives in a
+  git repository and git is installed; on Android the view is hidden.
+- **Notes folder** — shows where your notes live, with a **Change…** button
+  to move them. When you pick a new folder the app offers to bring your
+  existing notes along. The default location is inside your personal app-data
+  folder; many people point it at a synced folder (Dropbox, OneDrive, etc.)
+  instead so notes follow them between computers.
 
 ## Voice notes
 
@@ -224,31 +241,20 @@ A **harness** is a terminal coding agent — the thing the new-tab menu's
 
 A harness tab renders a touch larger than your notes — two pixels over the
 editor's font size — since an agent's output is mostly read, not typed. It
-still follows Ctrl+= / Ctrl+-. (**Open harness here** in ☰ Menu → Themes
+still follows Ctrl+= / Ctrl+-. (**Open harness here** in the **⌄ menu → Themes**
 opens the same harness in your themes folder, and **Open harness in docs** in
-☰ Menu → Help opens it in this user guide's folder.)
+**⌄ menu → Help…** opens it in this user guide's folder.)
 
 The app only ever *opens* a harness — in effect a `cd` into the folder and
 then the harness's own command. It never types a prompt into it or adds flags
 of its own; what the harness does next is up to you.
 
-## Notes folder
-
-Shows where your notes live, with a **Change…** button to move them. When
-you pick a new folder the app offers to bring your existing notes along.
-The default location is inside your personal app-data folder; many people
-point it at a synced folder (Dropbox, OneDrive, etc.) instead so notes
-follow them between computers.
-
-## Documentation
-
-**Open docs** opens this user guide in the sidebar as a read-only
-**Documentation** workspace.
-
 ## Updates
 
-The bottom row shows the version you're running and a **Check for updates**
-button. The app also checks quietly on its own shortly after launch:
+The **Updates** tab shows the version you're running, a **Check for updates**
+button, and the **Check for updates automatically** box (on by default). With
+it on, the app checks quietly on its own at most once a week and never installs
+anything by itself:
 
 - If a newer version exists, a small **"Update available"** chip appears in
   the status bar — nothing pops up over your work.

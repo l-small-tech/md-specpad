@@ -38,6 +38,11 @@ Two honest caveats about Edit mode:
 - **Diagrams show as code.** Mermaid diagrams (see
   [Writing markdown](writing-markdown.md)) only render in Split and Review
   modes.
+- **No YAML front matter.** A note that starts with a `---` block of
+  `key: value` lines (the kind Obsidian and static-site tools add) is shown
+  in Edit mode as a heading, and the first edit rewrites it. Edit such notes
+  in Raw or Split mode. (Marp decks are the exception — their front matter is
+  what makes them a deck.)
 
 Also note: undo history doesn't carry across a switch between Edit and the
 other modes.
@@ -145,7 +150,8 @@ browser.
 
 ## Review (Ctrl+4, code files)
 
-A code file — `.ts`, `.tsx`, `.js` or `.rs` — offers two modes: **Raw**, the
+A code file — TypeScript/JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`, `.mts`,
+`.cts`, `.mjs`, `.cjs`) or Rust (`.rs`) — offers two modes: **Raw**, the
 plain source with syntax colouring, and **Review**, which here shows structure
 instead of rendered text.
 Review is read-only. It shows the file's *structure* for someone who knows

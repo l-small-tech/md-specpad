@@ -10,6 +10,25 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- Git tab: **Start tracking with Git** turns a plain workspace folder into a
+  repository from the tab itself, and a first commit on a fresh computer asks
+  for your name and email in the commit box (saved to your global git config).
+- Git tab: **connect to GitHub, Gitea or any host** — paste the repository's
+  address (the page URL works too) and Publish uploads your branch; a server
+  repository that already has a README is brought in first. The cloud button
+  lists, edits and removes connections.
+- Git tab: **Push shows a progress bar** with a plain-language step; **Show
+  log** opens git's own output.
+- Git tab: the inspector column follows the graph selection, and a dashed
+  **ghost row** at the top of the history stands for your uncommitted changes.
+- Git tab: an **Active worktrees only** filter hides clean worktrees from the
+  strip, and a status-bar button shows or hides the workspace pane.
+- Heading marks tint the whole section under the heading; picking the same mark
+  again clears it.
+- The app only ever *opens* a harness: the Themes menu's **Open harness here**
+  and the Help menu's **Open harness in docs** start it in a folder with no
+  prompt or flags. The old "AI theme" row is gone.
+
 ## [0.10.6] — 2026-10-06
 
 - **Collapsible headings** (Settings, off by default): Raw and Split modes get a fold gutter so any heading's section can be collapsed like a function in a code editor, and a heading marked running collapses by itself.

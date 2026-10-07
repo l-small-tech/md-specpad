@@ -90,6 +90,101 @@ arrows. (In Edit mode it stays as text — that's expected.) Mermaid can do
 much more — pie charts, timelines, sequence diagrams; searching the web for
 "mermaid diagrams" will find a full guide.
 
+## What the preview leaves out
+
+- **Raw HTML** typed into a note (`<br>`, `<details>`, `<img>`, …) is dropped
+  from the preview and the HTML export; only markdown renders.
+- **Math** (`$x^2# Writing markdown
+
+Markdown is plain text with a few extra symbols for formatting. You can
+read it as-is, and MD Specpad turns it into clean, styled text in Split,
+Edit, and Review modes.
+
+The easiest way to learn: put a tab in **Split mode** (Ctrl+2) and copy the
+examples below into it.
+
+## The essentials
+
+| Type this | To get |
+| --- | --- |
+| `# Big heading` | A top-level heading |
+| `## Smaller heading` | A sub-heading (up to `######`) |
+| `**bold**` | **bold** |
+| `*italic*` | *italic* |
+| `~~crossed out~~` | ~~crossed out~~ |
+| `` `code` `` | `code` in a typewriter box |
+| `[a link](https://example.com)` | a clickable link |
+
+Leave a blank line between paragraphs — that's what starts a new one.
+
+## Lists
+
+```
+- Milk
+- Eggs
+- Bread
+```
+
+Use `-` (or `*`) for bullets, `1.` `2.` `3.` for numbered lists, and indent
+with two spaces for sub-items.
+
+### Checklists
+
+```
+- [ ] Book flights
+- [x] Renew passport
+```
+
+`[ ]` is an open box, `[x]` a checked one.
+
+## Quotes, dividers, and code blocks
+
+```
+> A quoted line, like in an email reply.
+
+---
+
+    (three dashes above make a horizontal divider)
+```
+
+For a block of code or any text you want left exactly as typed, fence it
+with three backticks:
+
+````
+```
+This text keeps its    spacing
+and line breaks.
+```
+````
+
+## Tables
+
+```
+| Name  | Amount |
+| ----- | ------ |
+| Rent  | 900    |
+| Food  | 250    |
+```
+
+The pipes don't have to line up perfectly — the preview tidies them.
+
+## Diagrams (Mermaid)
+
+MD Specpad can draw flowcharts and other diagrams from a text description,
+using a popular format called Mermaid. Fence the description with
+` ```mermaid `:
+
+````
+```mermaid
+flowchart LR
+  Idea --> Draft --> Review --> Done
+```
+````
+
+) is shown as plain text. Marp slide decks do render math.
+- **Footnotes** (`[^1]`) render, and tables, task lists, strikethrough and
+  bare web addresses all work (GitHub-flavored markdown).
+
 ## Formatting without memorizing
 
 You don't have to remember any of this:

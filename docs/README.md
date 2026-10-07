@@ -36,12 +36,12 @@ Read these in order the first time, or jump straight to what you need:
     notes: workspace colors that follow `cd`, and right-click helpers that type
     the command for you.
 11. **[Keyboard shortcuts](keyboard-shortcuts.md)** — the full list on one page.
-
-11. **[Prompts](prompts.md)** — ready-made briefs for an AI agent, copied from
+12. **[Prompts](prompts.md)** — ready-made briefs for an AI agent, copied from
     the menu (start with "theme a Marp deck and its SVGs").
-12. **[The Git tab](git.md)** — source control in a tab: changes, commits,
+13. **[The Git tab](git.md)** — source control in a tab: changes, commits,
     branches, a worktree dashboard with one-click worktrees and a guided
-    Finish flow, and merge conflicts handed to your AI agent.
+    Finish flow, connecting to GitHub or Gitea, and merge conflicts handed to
+    your AI agent.
 
 ## About this documentation
 

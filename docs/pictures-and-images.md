@@ -51,3 +51,17 @@ is made.
 Click an image file in the sidebar (or drop one on the window) and it opens
 in its own tab as a viewer. Image tabs are display-only — MD Specpad never
 edits your pictures.
+
+## Audio files
+
+An audio file (`.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.opus`, `.flac`) opens
+in a player tab: a waveform you can click or drag to seek, **Play/Pause**
+(Space), **−5s** / **+5s** (←/→), a speed button (0.75× to 2×), **loop**, a
+volume slider, and the file's facts (codec, duration, sample rate, size).
+Playback carries on while you work in other tabs.
+
+**Transcribe to note** turns the speech in the recording into a new markdown
+note, offline, with the same Whisper model voice notes use (see
+[Settings → Voice notes](settings.md#voice-notes)); it offers to download the
+model if none is installed. Long recordings take a while. The audio file itself
+is never changed.

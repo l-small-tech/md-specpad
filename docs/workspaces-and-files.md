@@ -11,7 +11,8 @@ your notes and any other folders you care about.
   at the top of the sidebar and pick a folder; it appears as its own
   section. A workspace is just a window onto that folder — nothing is
   copied or moved.
-- **Documentation** — this user guide, if you've opened it from Settings.
+- **Documentation** — this user guide, if you've opened it from the **⌄
+  menu → Help… → User guide** (or the **Open Docs** button in Settings).
   It's read-only.
 
 Handy things to know:
@@ -25,6 +26,14 @@ Handy things to know:
   real. (You can turn preview tabs off in Settings.)
 - Files you have open are highlighted; the one you're looking at is
   highlighted more.
+- The **eye** button in the sidebar header (or right-click a folder → **Hidden
+  Files**) shows hidden files and folders such as `.github` or `.obsidian` —
+  dot-names everywhere, plus files the OS marks hidden. It is one switch for
+  every workspace.
+- Besides notes, drawings and images the sidebar lists **audio files**
+  (`.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.opus`, `.flac`) — see
+  [Pictures in your notes](pictures-and-images.md) — and PDF/Word documents
+  you can import.
 - Drag the sidebar's right edge to make it wider or narrower.
 
 ## Giving workspaces colors
@@ -52,7 +61,7 @@ while you both have the file open — see
 The sidebar normally lists only what the app is made for: markdown and text
 notes, images, drawings, and PDF/Word documents to import. To see everything
 else too — `.js`, `.ts`, `.json`, `.rc`, files with no extension — right-click
-a workspace heading (or any folder) and turn on **Show unsupported files**. It
+a workspace heading (or any folder) and turn on **Unsupported Files**. It
 applies to that folder and every folder inside it.
 
 You can still hide them folder by folder: right-click a folder inside and
@@ -73,9 +82,11 @@ Right-click gets you everywhere:
   a terminal, or an AI session in that folder). A new file opens immediately with its name ready to
   type.
 - **Right-click a file** → **Rename**, **Reveal in explorer** (shows the
-  file in your system's file manager), or **Delete** (delete asks first —
-  there is no undo). Renaming to the same word with different capitals
-  (`notes` → `Notes`) works too.
+  file in your system's file manager), **Open in new window**, **Cut** /
+  **Copy** / **Paste** (move or copy it between folders), **Copy path**,
+  **Export…** (markdown files), or **Delete** (delete asks first — there is
+  no undo). A subfolder's menu has **Delete folder** as well. Renaming to the
+  same word with different capitals (`notes` → `Notes`) works too.
 - **Drag a file onto a folder** (or a workspace heading) to move it there —
   including a folder in a *different* workspace, even one on another drive.
   The app asks before moving; you can turn that question off in Settings.
@@ -97,12 +108,17 @@ Right-click gets you everywhere:
   folder you want it in, and press Ctrl+V.
 - **Drop an image onto a markdown file's row** in the sidebar to attach the
   picture to the end of that document (it asks first).
+- **Right-click a folder → Import** → **Document…** turns a PDF or Word
+  (`.docx`) file into a markdown note (formatting is approximated); **Scan
+  whiteboard as drawing…** / **…as image…** photograph a real whiteboard. A
+  `.pdf` or `.docx` already in the folder opens with an **Import as Markdown**
+  button.
 
 ## Setting a workspace up for AI agents
 
 AI coding agents (Claude Code, Codex, Gemini CLI…) read a file called
 `AGENTS.md` in the folder they work in. **Create new workspace…** (the **+**
-in the sidebar header, or the command palette, `Ctrl+Shift+P`) writes one for
+in the sidebar header, or the command palette, `Ctrl+K`) writes one for
 you; **Initialize workspace…** does the same for a folder you pick later:
 
 1. **Choose or create a folder.** It becomes a workspace in the sidebar.
@@ -137,8 +153,8 @@ removed.)
 
 ## The read-only Documentation workspace
 
-This guide appears as a workspace named **Documentation** (Settings →
-**Open docs**). Because it's part of the app, it works a little
+This guide appears as a workspace named **Documentation** (**⌄ menu →
+Help… → User guide**, or **Open Docs** in Settings). Because it's part of the app, it works a little
 differently: its pages open in Review mode and can't be edited, renamed,
 moved, or deleted, and you can't add files to it. Everything else — reading,
 searching, copying text out — works as usual.

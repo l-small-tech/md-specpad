@@ -25,6 +25,23 @@ There is one Git tab per repository, however many workspaces or worktrees of
 it you have. It survives restarts like any other tab, and tears off into a
 second window like any other tab.
 
+## A folder that is not a repository yet
+
+Open the Git tab on a workspace that git does not track yet and, instead of the
+repository, it shows a panel with one button: **Start tracking with Git**. That
+runs `git init` in the workspace folder (the first branch is `main` unless your
+git config says otherwise), reloads the tab as a repository, and puts *Initial
+commit* in the message box ready for your first commit. A folder that already
+sits inside a repository is left alone — nothing is nested.
+
+### Who's making these commits?
+
+Git stamps a name and email on every commit, and a fresh computer has none set.
+When that is the case the commit box asks **Who's making these commits?** with a
+name and an email field; saving writes them to your *global* git config (every
+repository on this computer commits as you from then on), and the commit goes
+ahead. If git refuses a commit for the same reason later, the form comes back.
+
 ## The layout
 
 The tab is a picture of the repository, top to bottom:
@@ -46,7 +63,9 @@ list of every file that differs from the last commit. Each row's checkbox
 is its staging state (ticked = staged, half = partly staged, empty = not
 staged) and the way to change it; the header's **Stage all** / **Unstage
 all** do the whole list. Untracked files show a `?` and a dimmed name. Hover
-a row to discard its changes (or delete an untracked file); click it to see
+a row to discard its changes (or delete an untracked file) — note that a
+brand-new file you have staged and then edited is removed from disk by
+Discard rather than reverted to the staged copy; click a row to see
 its diff against the last commit. When Commit is disabled, its tooltip says
 why. A **Merge conflicts** group appears above when a merge stops on
 conflicts. Select a commit and the same column shows that commit instead —
@@ -76,7 +95,8 @@ or Esc (which steps back to the commit, then to the working tree). Drag the
 divider between the graph and the diff, or between the two columns, to
 resize.
 
-**The status bar** carries the controls while a Git tab is active: the
+**The status bar** carries the controls while a Git tab is active: a folder
+button that shows or hides the workspace pane, the
 current branch with its upstream (click it for the branch picker — filter,
 switch, merge, delete, or type a name to create a branch here), a chip when
 the checkout is in the middle of something (merging, rebasing, a detached
@@ -111,12 +131,22 @@ of this window's terminals is standing inside it. Each card offers:
 - **Merge** — the base into this branch (to catch up), or this branch into
   the base (in the main checkout).
 - **Finish…** — the guided end of a worktree, below.
-- **Remove** — remove the worktree. A dirty one is refused; you can force it.
+- **Remove** — remove the worktree (it asks first). A worktree with
+  uncommitted or untracked files is refused by git — commit or discard them
+  first.
 
 **New worktree** asks for a slug and does the whole dance: creates
 `worktrees/<slug>` on `<prefix><slug>` from the base branch, makes sure
 `worktrees/` is in `.gitignore`, adds the folder as a workspace, and — if you
 leave the switch on — opens your harness in it, ready for a prompt.
+
+A repository with many worktrees gets a long strip. The **Active worktrees
+only** button at its end hides the clean ones — a worktree stays on the strip
+while it has uncommitted changes or an operation in progress, while one of this
+window's terminals is open inside it, or while its folder is missing; the main
+checkout and the selected card always stay. A faint *+N clean* tally stands
+where the hidden cards were; click the button again to show all. The choice is
+remembered (it is the `gitActiveWorktreesOnly` setting).
 
 ### Finishing a worktree
 
@@ -186,7 +216,8 @@ asks for a password. Then:
 
 The cloud button lists the connections (*remotes*) afterwards. From there
 you can change an address, connect another server, or disconnect. Disconnecting
-deletes nothing, either locally or on the server. Push and Pull use the one
+deletes nothing on the server and none of your files or commits; it only
+forgets the server's branches as git last saw them (`origin/…`). Push and Pull use the one
 called `origin`, or the only one there is.
 
 ## Fetch, pull and push

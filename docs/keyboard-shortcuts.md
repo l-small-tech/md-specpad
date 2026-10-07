@@ -7,7 +7,7 @@ which are the same everywhere).
 
 | Shortcut | What it does |
 | --- | --- |
-| Ctrl+N | New tab — of the same type as the one you're on (note, drawing, or terminal) |
+| Ctrl+N | New window, with one empty note in it (a new tab is the `+` button, or Ctrl+Shift+N to pick its type) |
 | Ctrl+Shift+N | New tab menu — pick the type explicitly |
 | Ctrl+W | Close the current tab |
 | Ctrl+Tab | Next tab |
@@ -29,7 +29,7 @@ which are the same everywhere).
 | Enter (on a list line) | Continue the list with a new bullet/number |
 | Tab (on a list line) | Indent one level, with any nested items below it |
 | Shift+Tab (on a list line) | Un-indent one level, with any nested items below it |
-| Ctrl+Shift+[ / Ctrl+Shift+] | Collapse / expand the heading section under the caret (with **Collapsible headings** on in Settings) |
+| Ctrl+Shift+[ / Ctrl+Shift+] (Mac: Cmd+Alt+[ / ]) | Collapse / expand the section under the caret (with **Collapsible headings** on in Settings) |
 | Ctrl+Alt+[ / Ctrl+Alt+] | Collapse / expand every section |
 
 Indenting works like a word processor. Bullet markers change with depth — `*` at
@@ -85,8 +85,9 @@ exceptions.
 | Ctrl+Shift+Home / End | Jump to the top / bottom of the scrollback |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Zoom this pane only |
 
-Still available from a terminal: new/close tab, next/previous tab, rename
-tab, Settings, the command palette, and full screen.
+Still available from a terminal: new window (Ctrl+N), the new-tab picker
+(Ctrl+Shift+N), close tab, next/previous tab, rename tab, Settings, the
+command palette, the Git tab (Ctrl+Shift+G), and full screen.
 
 ## Drawing tabs (whiteboards)
 
