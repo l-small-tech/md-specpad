@@ -364,8 +364,16 @@ const baseTheme = EditorView.theme({
   '.cm-fold-marker-closed': { transform: 'rotate(-90deg)' },
   // VS Code behaviour: arrows for open sections stay hidden until the
   // pointer is over the gutter column; a folded section's arrow always shows.
-  '.cm-fold-marker-open': { opacity: '0', transition: 'opacity 120ms ease' },
-  '.cm-foldGutter:hover .cm-fold-marker-open': { opacity: '1' },
+  // Fade like a light coming up: a slow ease-in-out both ways, a touch
+  // slower going out so the arrows linger as the pointer leaves.
+  '.cm-fold-marker-open': {
+    opacity: '0',
+    transition: 'opacity 450ms cubic-bezier(0.4, 0, 0.2, 1)',
+  },
+  '.cm-foldGutter:hover .cm-fold-marker-open': {
+    opacity: '1',
+    transition: 'opacity 350ms cubic-bezier(0.4, 0, 0.2, 1)',
+  },
   '.cm-foldGutter .cm-gutterElement:hover .cm-fold-marker': {
     color: 'var(--fg)',
     backgroundColor: 'var(--bg-hover)',
