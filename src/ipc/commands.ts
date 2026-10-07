@@ -771,7 +771,8 @@ export const ipc = {
   gitStage: (root: string, rels: string[]) => call<void>('git_stage', { root, rels }),
   gitUnstage: (root: string, rels: string[]) => call<void>('git_unstage', { root, rels }),
   /**
-   * Throw away working-tree changes: `tracked` paths are restored from HEAD,
+   * Throw away unstaged changes: `tracked` paths are restored from the index
+   * (whatever is staged stays — a staged-new file is never deleted),
    * `untracked` paths (files, or `dir/` entries as status lists them) are
    * deleted. Irreversible — the caller confirms first.
    */

@@ -1922,6 +1922,74 @@ describe('closeTabInteractive — dirty file tabs (M3)', () => {
   });
 });
 
+describe('removeWorkspace — synced (saf://) workspace with open tabs', () => {
+  const ROOT = 'saf://T';
+  const FILE = `${ROOT}/a.md`;
+
+  async function setup(choice: 'save' | 'discard' | 'cancel') {
+    const fs = makeFakeFs({ [FILE]: 'saved' });
+    const saveDiscardCancel = vi.fn(async () => choice);
+    makeController(fs, () => 111, { saveDiscardCancel });
+    const settings = await import('../stores/settings');
+    settings.settingsStore.getState().update({
+      workspaces: [
+        { name: 'Drive', path: ROOT, color: null, kind: 'synced', treeUri: 'content://tree' },
+      ],
+    });
+    const commands = await import('../../ipc/commands');
+    const release = vi.spyOn(commands.ipc, 'releaseSyncedTree').mockResolvedValue(undefined);
+    const id = tabs.tabsStore
+      .getState()
+      .openFileTab({ filePath: FILE, text: 'saved', savedMtimeMs: 1 });
+    const workspaces = () => settings.settingsStore.getState().settings.workspaces;
+    const isOpen = () => tabs.tabsStore.getState().tabs.some((t) => t.id === id);
+    return { fs, saveDiscardCancel, release, id, workspaces, isOpen };
+  }
+
+  test('a dirty tab asks first; Cancel keeps the tab AND the workspace', async () => {
+    const h = await setup('cancel');
+    tabs.tabsStore
+      .getState()
+      .tabs.find((t) => t.id === h.id)!
+      .model.pushText('edit', 'cm6');
+
+    session.removeWorkspace(ROOT);
+    await vi.waitFor(() => expect(h.saveDiscardCancel).toHaveBeenCalled());
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(h.isOpen()).toBe(true);
+    expect(h.workspaces().map((w) => w.path)).toEqual([ROOT]);
+    expect(h.release).not.toHaveBeenCalled();
+    expect(h.fs.files.get(FILE)).toBe('saved');
+  });
+
+  test('a dirty tab asks first; Save writes the file, then the workspace goes', async () => {
+    const h = await setup('save');
+    tabs.tabsStore
+      .getState()
+      .tabs.find((t) => t.id === h.id)!
+      .model.pushText('edit', 'cm6');
+
+    session.removeWorkspace(ROOT);
+    await vi.waitFor(() => expect(h.workspaces()).toEqual([]));
+
+    expect(h.saveDiscardCancel).toHaveBeenCalledTimes(1);
+    expect(h.fs.files.get(FILE)).toBe('edit');
+    expect(h.isOpen()).toBe(false);
+    expect(h.release).toHaveBeenCalledWith('content://tree');
+  });
+
+  test('a clean tab closes without a prompt and the workspace goes', async () => {
+    const h = await setup('cancel');
+
+    session.removeWorkspace(ROOT);
+    await vi.waitFor(() => expect(h.workspaces()).toEqual([]));
+
+    expect(h.saveDiscardCancel).not.toHaveBeenCalled();
+    expect(h.isOpen()).toBe(false);
+  });
+});
+
 describe('changeNotesDir (M6)', () => {
   test('moves existing notes, updates the setting, retargets tabs, and writes to the new dir', async () => {
     const fs = makeFakeFs();

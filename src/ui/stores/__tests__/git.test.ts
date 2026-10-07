@@ -229,6 +229,9 @@ function harness(opts: { active?: string | null; terminals?: GitTerminalTab[] } 
     addWorkspace: vi.fn(),
     removeWorkspace: vi.fn(() => {
       order.push('removeWorkspace');
+      return () => {
+        order.push('restoreWorkspace');
+      };
     }),
     closeTabs: vi.fn(() => {
       order.push('closeTabs');
@@ -593,6 +596,46 @@ describe('changes and commit', () => {
       'Discard changes',
     );
     expect(h.ipc.gitDiscard).toHaveBeenCalledWith(MAIN, ['a.ts'], ['new.md']);
+  });
+
+  test('discard wording: a delete says so; a staged version is said to be kept', async () => {
+    const h = harness();
+    h.ipc.gitStatus.mockResolvedValue(
+      statusFor(MAIN, {
+        entries: [
+          entry('a.ts', '.', 'M'),
+          entry('new.md', '?', '?', 'untracked'),
+          entry('added.md', 'A', 'M'),
+          { ...entry('moved.ts', 'R', 'M', 'renamed'), origPath: 'old.ts' },
+        ],
+      }),
+    );
+    await h.open();
+    const confirm = h.deps.confirm as Mock;
+    const asked = async (paths: string[]) => {
+      await h.s().discard(MAIN, paths);
+      return confirm.mock.calls.at(-1) as [string, string];
+    };
+
+    expect(await asked(['new.md'])).toEqual([
+      'Delete new.md? It is new and has never been committed.\n\nThis cannot be undone.',
+      'Delete file',
+    ]);
+    expect(await asked(['added.md'])).toEqual([
+      'Discard the unstaged changes to added.md? Its staged version is kept.\n\nThis cannot be undone.',
+      'Discard changes',
+    ]);
+    expect((await asked(['moved.ts']))[0]).toContain('Its staged version is kept.');
+    expect(await asked(['a.ts'])).toEqual([
+      'Discard changes to a.ts?\n\nThis cannot be undone.',
+      'Discard changes',
+    ]);
+    expect((await asked(['a.ts', 'new.md', 'added.md']))[0]).toBe(
+      'Discard changes to 3 files?\n\n1 untracked file will be deleted — it has never been committed.\n\nStaged changes are kept.\n\nThis cannot be undone.',
+    );
+    // Staged-new and staged-rename paths go as tracked: restored from the index, never deleted.
+    expect(h.ipc.gitDiscard).toHaveBeenCalledWith(MAIN, ['added.md'], []);
+    expect(h.ipc.gitDiscard).toHaveBeenCalledWith(MAIN, ['moved.ts'], []);
   });
 });
 
@@ -1234,6 +1277,108 @@ describe('worktrees', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test('removeWorktree: a dirty worktree is refused up front — nothing is closed or forgotten', async () => {
+    const terminals: GitTerminalTab[] = [{ id: 't1', title: 'pwsh', cwd: WT }];
+    const h = harness({ terminals });
+    await h.open();
+    h.ipc.gitStatus.mockImplementation((root: string) =>
+      Promise.resolve(
+        statusFor(
+          root,
+          root === WT
+            ? { entries: [entry('a.ts', '.', 'M'), entry('n.ts', '?', '?', 'untracked')] }
+            : {},
+        ),
+      ),
+    );
+    await h.s().removeWorktree(MAIN, WT);
+    expect(h.ipc.gitStatus).toHaveBeenCalledWith(WT);
+    expect(h.deps.confirm).not.toHaveBeenCalled();
+    expect(h.order).toEqual([]);
+    expect(h.ipc.gitWorktreeRemove).not.toHaveBeenCalled();
+    expect(h.notices().at(-1)).toBe(
+      'worktrees/a has uncommitted changes (1 changed · 1 untracked) — commit or discard them first. Nothing was removed.',
+    );
+  });
+
+  test('removeWorktree: a locked worktree is refused up front', async () => {
+    const h = harness();
+    h.ipc.gitWorktrees.mockResolvedValue([
+      summary(MAIN, 'development', true),
+      { ...summary(WT, 'feat/a', false), locked: true },
+    ]);
+    await h.open();
+    await h.s().removeWorktree(MAIN, WT);
+    expect(h.deps.confirm).not.toHaveBeenCalled();
+    expect(h.order).toEqual([]);
+    expect(h.notices().at(-1)).toContain('worktrees/a is locked');
+  });
+
+  test('removeWorktree: a missing folder skips the dirty check and is pruned', async () => {
+    const h = harness();
+    h.ipc.gitWorktrees.mockResolvedValue([
+      summary(MAIN, 'development', true),
+      { ...summary(WT, 'feat/a', false), missing: true },
+    ]);
+    await h.open();
+    h.ipc.gitStatus.mockClear();
+    await h.s().removeWorktree(MAIN, WT);
+    expect(h.ipc.gitStatus).not.toHaveBeenCalledWith(WT);
+    expect(h.ipc.gitWorktreeRemove).toHaveBeenCalledWith(MAIN, WT, false);
+  });
+
+  test('removeWorktree: --force skips the dirty check and says changes will be lost', async () => {
+    const h = harness();
+    await h.open();
+    h.ipc.gitStatus.mockImplementation((root: string) =>
+      Promise.resolve(statusFor(root, root === WT ? { entries: [entry('a.ts', '.', 'M')] } : {})),
+    );
+    await h.s().removeWorktree(MAIN, WT, { force: true });
+    expect(h.deps.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('Uncommitted changes in it will be lost.'),
+      'Remove worktree',
+    );
+    expect(h.ipc.gitWorktreeRemove).toHaveBeenCalledWith(MAIN, WT, true);
+  });
+
+  test('removeWorktree: the confirm does not claim a linked node_modules is followed', async () => {
+    const h = harness();
+    await h.open();
+    await h.s().removeWorktree(MAIN, WT);
+    const text = (h.deps.confirm as Mock).mock.calls[0]![0] as string;
+    expect(text).not.toContain('followed');
+    expect(text).toContain('A linked node_modules (junction or symlink) inside it loses the link');
+  });
+
+  test('removeWorktree: a refusal after the clean check puts the workspace entry back', async () => {
+    const terminals: GitTerminalTab[] = [{ id: 't1', title: 'pwsh', cwd: WT }];
+    const h = harness({ terminals });
+    await h.open();
+    h.ipc.gitWorktreeRemove.mockImplementation(() => {
+      h.order.push('gitWorktreeRemove');
+      return Promise.reject(
+        new IpcError(
+          'GIT_FAILED',
+          "fatal: 'C:/repo/worktrees/a' contains modified or untracked files",
+        ),
+      );
+    });
+    await h.s().removeWorktree(MAIN, WT);
+    expect(h.order).toEqual([
+      'closeTabs',
+      'removeWorkspace',
+      'refreshWatchedDirs',
+      'gitWorktreeRemove',
+      'restoreWorkspace',
+      'refreshWatchedDirs',
+    ]);
+    const message = h.notices().at(-1)!;
+    expect(message).toContain('contains modified or untracked files');
+    expect(message).toContain('The terminal tab inside it was already closed');
+    expect(h.r().error?.message).toBe(message);
+    expect(h.notices()).not.toContain('Removed worktrees/a');
   });
 
   test('removeWorktree: declined confirm does nothing; the main checkout is refused', async () => {

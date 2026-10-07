@@ -87,7 +87,13 @@ function ChangeRow({ root, row, selected }: { root: string; row: FlatChange; sel
         {state !== 'staged' && (
           <IconButton
             icon={state === 'untracked' ? 'trash' : 'undo'}
-            title={state === 'untracked' ? 'Delete this untracked file' : 'Discard changes'}
+            title={
+              state === 'untracked'
+                ? 'Delete this untracked file'
+                : state === 'partial'
+                  ? 'Discard the unstaged changes (the staged version stays)'
+                  : 'Discard changes'
+            }
             danger
             onClick={() => void actions.discard(root, [entry.path])}
           />

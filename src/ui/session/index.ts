@@ -318,11 +318,11 @@ export function createSessionController(deps: SessionControllerDeps): SessionCon
   ctx.flusher = flushRestore.flusher;
   const openSave = createOpenSave(ctx, flushRestore.saveFileTab);
   ctx.checkAllFileConflicts = openSave.checkAllFileConflicts;
-  const workspaces = createWorkspaces(ctx, openSave.openPaths);
+  const windows = createWindows(ctx, flushRestore.saveFileTab, flushRestore.readNoteTabs);
+  const workspaces = createWorkspaces(ctx, openSave.openPaths, windows.closeTabInteractive);
   const importImages = createImportImages(ctx, openSave.openPaths);
   ctx.importDocumentBytes = importImages.importDocumentBytes;
   const explorerOps = createExplorerOps(ctx, openSave.openPaths, openSave.renameFileTab);
-  const windows = createWindows(ctx, flushRestore.saveFileTab, flushRestore.readNoteTabs);
   const exporter = createExport(ctx);
 
   setInteractiveCloser((id) => void windows.closeTabInteractive(id));

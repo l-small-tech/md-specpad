@@ -63,9 +63,13 @@ list of every file that differs from the last commit. Each row's checkbox
 is its staging state (ticked = staged, half = partly staged, empty = not
 staged) and the way to change it; the header's **Stage all** / **Unstage
 all** do the whole list. Untracked files show a `?` and a dimmed name. Hover
-a row to discard its changes (or delete an untracked file) — note that a
-brand-new file you have staged and then edited is removed from disk by
-Discard rather than reverted to the staged copy; click a row to see
+a row to discard its changes (or delete an untracked file). Discard throws
+away only what is not staged: a partly staged file goes back to its staged
+version — including a brand-new or renamed file you staged and then edited,
+which keeps its staged copy rather than disappearing. To throw the staged
+part away too, unstage the file first (its box empty), then discard. Only
+untracked files are ever deleted, and the question
+says so (*Delete … ? It is new and has never been committed*). Click a row to see
 its diff against the last commit. When Commit is disabled, its tooltip says
 why. A **Merge conflicts** group appears above when a merge stops on
 conflicts. Select a commit and the same column shows that commit instead —
@@ -131,9 +135,17 @@ of this window's terminals is standing inside it. Each card offers:
 - **Merge** — the base into this branch (to catch up), or this branch into
   the base (in the main checkout).
 - **Finish…** — the guided end of a worktree, below.
-- **Remove** — remove the worktree (it asks first). A worktree with
-  uncommitted or untracked files is refused by git — commit or discard them
-  first.
+- **Remove** — remove the worktree. First it checks the worktree: one with
+  uncommitted or untracked files, or a locked one, is refused straight away
+  with a message saying why, and nothing is closed or removed — commit or
+  discard the changes (or unlock it) first. There is no force option. A
+  clean worktree asks first; the question lists the terminal tabs inside it,
+  which are closed (a shell inside the folder would stop it being deleted),
+  and says its workspace entry leaves the sidebar. A linked `node_modules`
+  (junction or symlink) inside it loses only the link — the folder it points
+  to is left alone. Files git ignores (build output, `node_modules`) are
+  deleted with the worktree. If git still refuses, the workspace entry is
+  put back; terminals it closed stay closed, and the error message says so.
 
 **New worktree** asks for a slug and does the whole dance: creates
 `worktrees/<slug>` on `<prefix><slug>` from the base branch, makes sure
