@@ -133,8 +133,9 @@ export interface SessionController {
   restore(): Promise<void>;
   /** Debounced flush request; cheap, call on every change. */
   request(): void;
-  /** Drain: resolves once everything requested so far has been flushed. */
-  flushNow(): Promise<void>;
+  /** Drain: resolves `true` once everything requested so far has been flushed,
+   *  `false` when the attempt failed (bounded — the debounced retry carries on). */
+  flushNow(): Promise<boolean>;
   /** Cancel timers and wait out any in-flight flush (does not flush pending). */
   dispose(): Promise<void>;
   /** Close a tab, confirming first when that would discard user content. */
@@ -191,8 +192,9 @@ export interface SessionController {
   moveTabToWindow(id: string, label: string): Promise<void>;
   /** M8: adopt tabs handed over by another window (skips already-owned files). */
   adoptTabs(persisted: PersistedTab[]): Promise<void>;
-  /** M8: flush, then describe every meaningful tab for a window-close handoff. */
-  exportTabsForHandoff(): Promise<PersistedTab[]>;
+  /** M8: flush, then describe every meaningful tab for a window-close handoff
+   *  (null when the flush failed — nothing safe to hand off). */
+  exportTabsForHandoff(): Promise<PersistedTab[] | null>;
   /** M8: delete this window's manifest file (after a successful handoff). */
   discardManifest(): Promise<void>;
   /** M8: last window standing — fold `tabs` into main's manifest, drop ours. */

@@ -949,7 +949,9 @@ describe('savePastedImageForTab (editor paste)', () => {
     makeController(fs);
     const tabId = tabs.tabsStore.getState().tabs[0]!.id;
     // Make it a file tab with a known directory so paths are deterministic.
-    tabs.tabsStore.getState().saveToPath(tabId, { filePath: '/ws/note.md', mtimeMs: 1 });
+    tabs.tabsStore
+      .getState()
+      .saveToPath(tabId, { filePath: '/ws/note.md', mtimeMs: 1, savedText: '' });
 
     const ref = await session.savePastedImageForTab(tabId, {
       base64: btoa('PNG'),
@@ -966,7 +968,9 @@ describe('savePastedImageForTab (editor paste)', () => {
     const fs = makeFakeFs();
     makeController(fs);
     const tabId = tabs.tabsStore.getState().tabs[0]!.id;
-    tabs.tabsStore.getState().saveToPath(tabId, { filePath: '/ws/note.md', mtimeMs: 1 });
+    tabs.tabsStore
+      .getState()
+      .saveToPath(tabId, { filePath: '/ws/note.md', mtimeMs: 1, savedText: '' });
 
     const ref = await session.savePastedImageForTab(tabId, {
       base64: btoa('PNG'),
@@ -1378,6 +1382,32 @@ describe('moveExplorerEntryInto (explorer row drag)', () => {
       expect(fs.files.has('/notes/groceries.md')).toBe(false);
     });
 
+    test('a failing flush aborts the move — unsaved note text is never marked clean', async () => {
+      const fs = makeFakeFs({ '/notes/buy-milk.md': '# Buy milk' });
+      fs.dirs.add('/ws');
+      const controller = makeController(fs);
+      await controller.restore();
+      await controller.flushNow();
+      const note = tabs.tabsStore.getState().tabs.find((t) => t.notePath === '/notes/buy-milk.md')!;
+      note.model.pushText('# Buy milk\n\nand eggs', 'cm6');
+      // Bounded so a regression to an unbounded retry loop fails, not hangs.
+      const write = fs.ipc.atomicWriteText;
+      let attempts = 0;
+      fs.ipc.atomicWriteText = async (path, text) => {
+        if (path === `${SESSION}/session.json` && attempts++ < 500) {
+          throw new Error('disk full');
+        }
+        await write(path, text);
+      };
+
+      await session.moveExplorerEntryInto('/notes/buy-milk.md', '/ws');
+
+      expect(fs.files.has('/ws/buy-milk.md')).toBe(false);
+      const tab = tabs.tabsStore.getState().tabs.find((t) => t.id === note.id)!;
+      expect(tab.kind).toBe('note');
+      expect(tab.model.isDirty('session')).toBe(true);
+    });
+
     test('closing the tab afterwards does not delete the moved file', async () => {
       const { fs, controller, id } = await openNoteAndMoveTo('/ws');
 
@@ -1441,6 +1471,121 @@ describe('saveActive / saveAsActive (M3)', () => {
 
     await controller.flushNow(); // sweeps the closedNotePaths tombstone
     expect(fs.files.has(notePath)).toBe(false);
+  });
+
+  test('Save As on a note onto its OWN name in the notes folder keeps the file it just wrote', async () => {
+    // The dialog suggests the note's on-disk name; accepting it in the notes
+    // folder must not let the graduation tombstone delete the saved file.
+    const fs = makeFakeFs();
+    const controller = makeController(fs, () => 111, {
+      saveDialog: async (suggested) => `${NOTES}/${suggested}`,
+    });
+    const t = tabs.tabsStore.getState().tabs[0]!;
+    t.model.pushText('# Idea', 'cm6');
+    await controller.flushNow();
+    expect(tabs.tabsStore.getState().tabs[0]!.notePath).toBe(`${NOTES}/idea.md`);
+
+    await controller.saveAsActive();
+    await controller.flushNow();
+    await controller.flushNow();
+
+    const tab = tabs.tabsStore.getState().tabs[0]!;
+    expect(tab.kind).toBe('file');
+    expect(tab.filePath).toBe(`${NOTES}/idea.md`);
+    expect(fs.files.get(`${NOTES}/idea.md`)).toBe('# Idea');
+    expect(fs.ops).not.toContain(`delete:${NOTES}/idea.md`);
+    expect(tabs.tabsStore.getState().closedNotePaths).toEqual([]); // tombstone consumed
+  });
+
+  test('Save As on a note to ANOTHER name in the notes folder keeps the new file, drops the old', async () => {
+    const fs = makeFakeFs();
+    const controller = makeController(fs, () => 111, {
+      saveDialog: async () => `${NOTES}/plan.md`,
+    });
+    const t = tabs.tabsStore.getState().tabs[0]!;
+    t.model.pushText('# Idea', 'cm6');
+    await controller.flushNow();
+
+    await controller.saveAsActive();
+    await controller.flushNow();
+
+    expect(tabs.tabsStore.getState().tabs[0]!.filePath).toBe(`${NOTES}/plan.md`);
+    expect(fs.files.get(`${NOTES}/plan.md`)).toBe('# Idea');
+    expect(fs.files.has(`${NOTES}/idea.md`)).toBe(false);
+  });
+
+  /** Run `onWrite` once, right after the first write to `target` lands —
+   *  i.e. while the save that issued it is still awaiting (a slow write). */
+  function typeDuringWrite(fs: FakeFs, target: string, onWrite: () => void): void {
+    const write = fs.ipc.atomicWriteText;
+    let fired = false;
+    fs.ipc.atomicWriteText = async (path, text) => {
+      await write(path, text);
+      if (path === target && !fired) {
+        fired = true;
+        onWrite();
+      }
+    };
+  }
+
+  test('Save: keystrokes typed while the write is in flight stay dirty and reach the buffer', async () => {
+    const fs = makeFakeFs({ '/docs/a.md': 'original' });
+    const controller = makeController(fs);
+    await controller.openPaths(['/docs/a.md']);
+    const tab = tabs.tabsStore.getState().activeTab()!;
+    tab.model.pushText('edited', 'cm6');
+    typeDuringWrite(fs, '/docs/a.md', () => tab.model.pushText('edited more', 'cm6'));
+
+    await controller.saveActive();
+
+    expect(fs.files.get('/docs/a.md')).toBe('edited');
+    const after = tabs.tabsStore.getState().activeTab()!;
+    expect(after.model.getPersisted('file')).toBe('edited');
+    expect(after.dirty).toBe(true);
+
+    // The next flush keeps the late keystrokes crash-safe: a buffer, not deleted.
+    await controller.flushNow();
+    expect(fs.files.get(`${SESSION}/buffers/${tab.id}.md`)).toBe('edited more');
+    const manifest = JSON.parse(fs.files.get(`${SESSION}/session.json`)!) as {
+      tabs: Array<{ id: string; hasBuffer: boolean }>;
+    };
+    expect(manifest.tabs.find((x) => x.id === tab.id)!.hasBuffer).toBe(true);
+  });
+
+  test('live save: keystrokes typed during the write are saved by the follow-up flush', async () => {
+    const fs = makeFakeFs({ '/docs/a.md': 'original' });
+    const controller = makeController(fs);
+    const settings = await import('../stores/settings');
+    settings.settingsStore.getState().update({ liveSave: true });
+    await controller.openPaths(['/docs/a.md']);
+    const tab = tabs.tabsStore.getState().activeTab()!;
+    tab.model.pushText('edited', 'cm6');
+    typeDuringWrite(fs, '/docs/a.md', () => tab.model.pushText('edited more', 'cm6'));
+
+    // The mid-write keystroke requested another flush, which the drain runs:
+    // it must find the tab still dirty and save the late text too.
+    await controller.flushNow();
+    expect(fs.ops.filter((op) => op === 'write:/docs/a.md')).toHaveLength(2);
+    expect(fs.files.get('/docs/a.md')).toBe('edited more');
+    expect(tabs.tabsStore.getState().activeTab()!.dirty).toBe(false);
+  });
+
+  test('Save As: keystrokes typed while the write is in flight stay dirty', async () => {
+    const fs = makeFakeFs();
+    const controller = makeController(fs, () => 111, { saveDialog: async () => '/docs/idea.md' });
+    const t = tabs.tabsStore.getState().tabs[0]!;
+    t.model.pushText('# Idea', 'cm6');
+    await controller.flushNow();
+    typeDuringWrite(fs, '/docs/idea.md', () => t.model.pushText('# Idea\n\nmore', 'cm6'));
+
+    await controller.saveAsActive();
+
+    expect(fs.files.get('/docs/idea.md')).toBe('# Idea');
+    const after = tabs.tabsStore.getState().tabs[0]!;
+    expect(after.kind).toBe('file');
+    expect(after.dirty).toBe(true);
+    await controller.flushNow();
+    expect(fs.files.get(`${SESSION}/buffers/${t.id}.md`)).toBe('# Idea\n\nmore');
   });
 
   test('Save As cancelled at the dialog changes nothing', async () => {
@@ -2071,6 +2216,60 @@ describe('multi-window tear-off (M8)', () => {
     expect(fs.files.get('/docs/a.md')).toBe('original'); // never force-saved
   });
 
+  /** Make every manifest write fail — for `limit` attempts, so a regression to
+   *  an unbounded retry loop fails the test instead of hanging the runner. */
+  function failManifestWrites(fs: FakeFs, limit = 500): { attempts: () => number } {
+    const write = fs.ipc.atomicWriteText;
+    let attempts = 0;
+    fs.ipc.atomicWriteText = async (path, text) => {
+      if (path === `${SESSION}/session.json` && attempts++ < limit) {
+        throw new Error('disk full');
+      }
+      await write(path, text);
+    };
+    return { attempts: () => attempts };
+  }
+
+  test('a failing flush aborts the tear-off: no spawn, the tab stays, one attempt', async () => {
+    const fs = makeFakeFs();
+    const spawned: unknown[] = [];
+    const controller = makeController(fs, () => 111, {
+      spawnTabWindow: async (manifest) => {
+        spawned.push(manifest);
+        return 'w-spawned';
+      },
+    });
+    const t = tabs.tabsStore.getState().tabs[0]!;
+    t.model.pushText('# Unsaved', 'cm6');
+    const failing = failManifestWrites(fs);
+
+    await expect(controller.moveTabToNewWindow(t.id, null)).resolves.toBeNull();
+
+    expect(spawned).toHaveLength(0);
+    expect(failing.attempts()).toBe(1);
+    const still = tabs.tabsStore.getState().tabs.find((x) => x.id === t.id);
+    expect(still?.model.getText()).toBe('# Unsaved');
+  });
+
+  test('a failing flush aborts a move to another window: nothing sent, the tab stays', async () => {
+    const fs = makeFakeFs();
+    const sent: unknown[] = [];
+    const controller = makeController(fs, () => 111, {
+      sendTabsToWindow: async (_label, tabs) => {
+        sent.push(tabs);
+        return true;
+      },
+    });
+    const t = tabs.tabsStore.getState().tabs[0]!;
+    t.model.pushText('# Unsaved', 'cm6');
+    failManifestWrites(fs);
+
+    await controller.moveTabToWindow(t.id, 'w-target');
+
+    expect(sent).toHaveLength(0);
+    expect(tabs.tabsStore.getState().tabs.some((x) => x.id === t.id)).toBe(true);
+  });
+
   test('a failed window spawn adopts the tab right back', async () => {
     const fs = makeFakeFs();
     const controller = makeController(fs, () => 111, {
@@ -2372,7 +2571,7 @@ describe('multi-window tear-off (M8)', () => {
     const fileTab = tabs.tabsStore.getState().activeTab()!;
     fileTab.model.pushText('unsaved edit', 'cm6');
 
-    const out = await controller.exportTabsForHandoff();
+    const out = (await controller.exportTabsForHandoff())!;
 
     // The initial empty Untitled was dropped; only the file tab travels.
     expect(out).toHaveLength(1);
@@ -2446,7 +2645,7 @@ describe('multi-window tear-off (M8)', () => {
     await controller.restore();
     await controller.flushNow();
 
-    const out = await controller.exportTabsForHandoff();
+    const out = (await controller.exportTabsForHandoff())!;
     await controller.bequeathTabsToMain(out);
 
     // Our manifest is gone — this window will NOT resurrect next launch …
@@ -2470,7 +2669,7 @@ describe('multi-window tear-off (M8)', () => {
     await controller.restore();
     await controller.flushNow();
 
-    await controller.bequeathTabsToMain(await controller.exportTabsForHandoff());
+    await controller.bequeathTabsToMain((await controller.exportTabsForHandoff())!);
 
     expect(fs.files.has(`${SESSION}/session-w-abc.json`)).toBe(false);
     const merged = JSON.parse(fs.files.get(`${SESSION}/session.json`)!) as {
@@ -2495,7 +2694,7 @@ describe('multi-window tear-off (M8)', () => {
     await controller.restore();
     await controller.flushNow();
 
-    await controller.bequeathTabsToMain(await controller.exportTabsForHandoff());
+    await controller.bequeathTabsToMain((await controller.exportTabsForHandoff())!);
 
     expect(fs.files.has(`${SESSION}/session-w-abc.json`)).toBe(false);
     const merged = JSON.parse(fs.files.get(`${SESSION}/session.json`)!) as {

@@ -359,7 +359,12 @@ export function createExplorerOps(
     let source = sourcePath;
     const noteOwner = ctx.tabOwning(pathKey(sourcePath));
     if (noteOwner?.kind === 'note') {
-      await ctx.flusher.flushNow();
+      if (!(await ctx.flusher.flushNow())) {
+        // The file on disk is not the tab's text; moving it would graduate
+        // the tab to a file tab marked clean over stale bytes.
+        uiStore.getState().showNotice(`Could not save "${noteOwner.title}" — it was not moved.`);
+        return false;
+      }
       const flushed = tabsStore.getState().tabs.find((t) => t.id === noteOwner.id);
       if (flushed?.notePath) {
         source = flushed.notePath;

@@ -38,10 +38,11 @@ export const updateStore = createStore<UpdateState>()(() => ({
 export const useUpdateStore = <T>(selector: (s: UpdateState) => T): T =>
   useStore(updateStore, selector);
 
-let beforeRestart: () => Promise<void> = () => Promise.resolve();
+let beforeRestart: () => Promise<boolean> = () => Promise.resolve(true);
 
-/** main.tsx injects the pre-restart flush so an update never loses typing. */
-export function setBeforeRestart(hook: () => Promise<void>): void {
+/** main.tsx injects the pre-restart flush so an update never loses typing.
+ *  The hook resolves whether the session was saved; false holds the relaunch. */
+export function setBeforeRestart(hook: () => Promise<boolean>): void {
   beforeRestart = hook;
 }
 
@@ -123,7 +124,14 @@ export async function downloadAndInstall(): Promise<void> {
   updateStore.setState({ phase: 'downloading' });
   try {
     await update.downloadAndInstall();
-    await beforeRestart().catch(() => {});
+    if (!(await beforeRestart().catch(() => false))) {
+      // The session could not be saved: relaunching now would throw away
+      // whatever is only in memory. The update is installed and applies at
+      // the next launch; the button stays up to retry once saving works.
+      updateStore.setState({ phase: 'available' });
+      uiStore.getState().showNotice('Could not save your work, so the app did not restart.');
+      return;
+    }
     const { relaunch } = await import('@tauri-apps/plugin-process');
     await relaunch();
   } catch (err) {

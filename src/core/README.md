@@ -177,10 +177,17 @@ Two rules the modules enforce and the tests pin:
    aborts BEFORE the manifest. `planFlush` stays pure — if you need more
    information in a plan, add it to `AppSessionView` and pass it in (M2 did
    exactly this with the optional `suppressedRenamePaths`, which lets the
-   flusher stop planning a rename it has failed ~3× in a row).
+   flusher stop planning a rename it has failed ~3× in a row). Two safety
+   rules the planner enforces: a name being renamed away from stays taken
+   for the whole plan (the rename may fail and leave the file there), and
+   a delete never targets a path the plan writes or any tab points to (a
+   tombstone can be stale — Save As onto the note's own file).
 5. **Debouncer** — `flushNow()` drains everything requested before the
-   call; a failed run stays dirty and retries. maxWait is armed on the
-   first unflushed request and never pushed back.
+   call and resolves `true`; a failed run stays dirty and retries on the
+   timers. `flushNow()` makes at most one attempt of its own and resolves
+   `false` when it fails — never a hot retry loop; callers that hand data on
+   must check it. maxWait is armed on the first unflushed request and never
+   pushed back.
 
 ## Session persistence — how the pieces compose (M2)
 

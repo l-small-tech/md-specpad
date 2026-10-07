@@ -124,6 +124,56 @@ describe('createDebouncedFlusher', () => {
     expect(flusher.isIdle()).toBe(true);
   });
 
+  test('flushNow resolves true once drained', async () => {
+    const run = vi.fn(async () => {});
+    const flusher = createDebouncedFlusher({ idleMs: IDLE, maxWaitMs: MAX_WAIT, run });
+    flusher.request();
+    await expect(flusher.flushNow()).resolves.toBe(true);
+    await expect(flusher.flushNow()).resolves.toBe(true); // idle: nothing to do
+  });
+
+  test('flushNow on a persistently failing run makes ONE attempt and resolves false', async () => {
+    const onError = vi.fn();
+    // Fails "forever" — bounded at 100 only so a regression to the old hot
+    // retry loop fails this test instead of hanging the runner.
+    let calls = 0;
+    const run = vi.fn(async () => {
+      calls += 1;
+      if (calls <= 100) {
+        throw new Error('disk full');
+      }
+    });
+    const flusher = createDebouncedFlusher({ idleMs: IDLE, maxWaitMs: MAX_WAIT, run, onError });
+
+    flusher.request();
+    await expect(flusher.flushNow()).resolves.toBe(false);
+    expect(run).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(flusher.isIdle()).toBe(false); // the work is still pending
+
+    // …and the normal debounced retry still re-attempts on its own.
+    await vi.advanceTimersByTimeAsync(IDLE);
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  test('flushNow retries once itself when the in-flight run it waited on failed', async () => {
+    const gate = deferred();
+    let calls = 0;
+    const run = vi.fn(() => {
+      calls += 1;
+      return calls === 1 ? gate.promise : Promise.resolve();
+    });
+    const flusher = createDebouncedFlusher({ idleMs: IDLE, maxWaitMs: MAX_WAIT, run });
+
+    flusher.request();
+    await vi.advanceTimersByTimeAsync(IDLE); // run #1 in flight
+    const drained = flusher.flushNow();
+    gate.reject(new Error('transient'));
+    await expect(drained).resolves.toBe(true);
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(flusher.isIdle()).toBe(true);
+  });
+
   test('dispose cancels timers and ignores later requests', async () => {
     const run = vi.fn(async () => {});
     const flusher = createDebouncedFlusher({ idleMs: IDLE, maxWaitMs: MAX_WAIT, run });

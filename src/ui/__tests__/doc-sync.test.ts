@@ -52,7 +52,7 @@ describe('doc sync wiring', () => {
     tab(a).model.pushText('edited', 'cm6');
     expect(tab(b).dirty).toBe(true);
 
-    tabs.tabsStore.getState().markSaved(a, 99);
+    tabs.tabsStore.getState().markSaved(a, 99, 'edited');
     expect(tab(b).dirty).toBe(false);
     expect(tab(b).savedMtimeMs).toBe(99);
     expect(sent.filter((m) => m.type === 'saved')).toEqual([

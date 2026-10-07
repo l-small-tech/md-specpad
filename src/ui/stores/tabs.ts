@@ -293,17 +293,21 @@ export interface TabsState {
   /** Promote a preview tab to a permanent one (idempotent; no-op otherwise). */
   promoteTab: (id: string) => void;
   /**
-   * M3 — Save (existing file tab, same path): the model text was just written
-   * to `filePath` at `mtimeMs`. Clears the dirty dot and any conflict banner,
+   * M3 — Save (existing file tab, same path): `savedText` was just written to
+   * (or read back from) the tab's file at `mtimeMs`. Records THAT text as
+   * persisted — pass the string actually written, not the model's text after
+   * the await: edits made during a slow write must stay dirty. Clears the
+   * dirty dot only when nothing was typed since, clears any conflict banner,
    * and marks any leftover session buffer stale (obsoleteBufferTabIds).
    */
-  markSaved: (id: string, mtimeMs: number) => void;
+  markSaved: (id: string, mtimeMs: number, savedText: string) => void;
   /**
-   * M3 — Save As: write succeeded at a new `filePath`. Converts a note tab to
-   * a file tab (queuing its old note file for deletion — "the note graduated")
-   * or simply retargets an existing file tab to the new path.
+   * M3 — Save As: `savedText` was written at a new `filePath`. Converts a note
+   * tab to a file tab (queuing its old note file for deletion — "the note
+   * graduated") or simply retargets an existing file tab to the new path.
+   * Persisted state follows `savedText` exactly as in {@link markSaved}.
    */
-  saveToPath: (id: string, input: { filePath: string; mtimeMs: number }) => void;
+  saveToPath: (id: string, input: { filePath: string; mtimeMs: number; savedText: string }) => void;
   /**
    * Rename-on-disk: a file tab's file was just renamed to `filePath` at
    * `mtimeMs`. Only retargets the path + mtime baseline — content and dirty
@@ -1080,18 +1084,21 @@ export const tabsStore = createStore<TabsState>()((set, get) => {
       set({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, preview: false } : t)) });
     },
 
-    markSaved(id, mtimeMs) {
+    markSaved(id, mtimeMs, savedText) {
       const s = get();
       const tab = s.tabs.find((t) => t.id === id);
       if (!tab) {
         return;
       }
-      // The write (or reload-read) just made file and session content agree.
-      tab.model.markPersisted('file');
-      tab.model.markPersisted('session');
+      // The write (or reload-read) made file and session content agree on
+      // `savedText` — NOT necessarily the model's text now: keystrokes typed
+      // while a slow write was in flight are not on disk and stay dirty.
+      tab.model.markPersistedAs('file', savedText);
+      tab.model.markPersistedAs('session', savedText);
+      const dirty = tab.kind === 'file' && tab.model.isDirty('file');
       set({
         tabs: s.tabs.map((t) =>
-          t.id === id ? { ...t, savedMtimeMs: mtimeMs, dirty: false, conflict: false } : t,
+          t.id === id ? { ...t, savedMtimeMs: mtimeMs, dirty, conflict: false } : t,
         ),
         // Any session buffer from prior unsaved edits is now stale; delete_path
         // is idempotent so this is harmless when no buffer ever existed.
@@ -1102,7 +1109,7 @@ export const tabsStore = createStore<TabsState>()((set, get) => {
       requestFlush();
     },
 
-    saveToPath(id, { filePath, mtimeMs }) {
+    saveToPath(id, { filePath, mtimeMs, savedText }) {
       const s = get();
       const tab = s.tabs.find((t) => t.id === id);
       // Only document tabs may become file tabs — rewriting a terminal (or
@@ -1112,13 +1119,17 @@ export const tabsStore = createStore<TabsState>()((set, get) => {
       }
       // Save-As on a note tab converts it to a file tab; the note file is
       // queued for deletion the same way a closed note tab's file is (the
-      // note graduated — one source of truth per document).
+      // note graduated — one source of truth per document). planFlush skips
+      // the delete when `filePath` IS that note file (Save As onto its own
+      // name in the notes dir).
       const closedNotePaths =
         tab.kind === 'note' && tab.notePath
           ? [...s.closedNotePaths, tab.notePath]
           : s.closedNotePaths;
-      tab.model.markPersisted('file');
-      tab.model.markPersisted('session');
+      // Persisted = what was written; text typed during the write stays dirty.
+      tab.model.markPersistedAs('file', savedText);
+      tab.model.markPersistedAs('session', savedText);
+      const dirty = tab.model.isDirty('file');
       set({
         tabs: s.tabs.map((t) =>
           t.id === id
@@ -1128,7 +1139,7 @@ export const tabsStore = createStore<TabsState>()((set, get) => {
                 notePath: null,
                 filePath,
                 savedMtimeMs: mtimeMs,
-                dirty: false,
+                dirty,
                 conflict: false,
               }
             : t,
@@ -1148,10 +1159,11 @@ export const tabsStore = createStore<TabsState>()((set, get) => {
         return;
       }
       // The caller drained the flusher before moving, so the bytes at
-      // `filePath` ARE the model text: both channels are persisted and the
-      // tab is clean. No closedNotePaths entry — see the action's doc.
-      tab.model.markPersisted('file');
-      tab.model.markPersisted('session');
+      // `filePath` are the note's session snapshot — what that flush wrote.
+      // Anything typed since stays dirty (and gets a buffer next flush). No
+      // closedNotePaths entry — see the action's doc.
+      tab.model.markPersistedAs('file', tab.model.getPersisted('session'));
+      const dirty = tab.model.isDirty('file');
       set({
         tabs: s.tabs.map((t) =>
           t.id === id
@@ -1161,7 +1173,7 @@ export const tabsStore = createStore<TabsState>()((set, get) => {
                 notePath: null,
                 filePath,
                 savedMtimeMs: mtimeMs,
-                dirty: false,
+                dirty,
                 conflict: false,
               }
             : t,

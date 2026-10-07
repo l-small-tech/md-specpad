@@ -31,11 +31,14 @@
  *   for non-empty notes; the store then records the path in
  *   `closedNotePaths` for the next flush).
  * - "Save As" on a note tab converts it to a file tab; the note file is
- *   deleted the same way (the note graduated — no duplicate truth).
+ *   deleted the same way (the note graduated — no duplicate truth) — unless
+ *   the Save As wrote onto that very file. The planner never deletes a path
+ *   the same plan writes or any open tab points to.
  */
 
 import type { CursorPos, EditorMode, TabKind, TerminalSnapshot } from '../types';
 import { slugifyTitle } from '../title';
+import { pathKey } from '../tab-workspaces';
 
 /* ----------------------------- input view ------------------------------ */
 
@@ -393,6 +396,11 @@ export function planFlush(view: AppSessionView): FlushPlan {
         const to = joinPath(view.notesDir, desiredName);
         noteRenames.push({ from: path, to });
         path = to;
+        // The old name stays taken for the rest of this plan: the file is
+        // still there until the rename runs, and a failed rename (tolerated —
+        // writes are redirected back to it) leaves it there. Freeing it would
+        // let a new note reusing the old title be written onto this file.
+        taken.add(currentName.toLowerCase());
       }
     }
     plannedNotePath.set(tab.id, path);
@@ -428,10 +436,27 @@ export function planFlush(view: AppSessionView): FlushPlan {
       ...(tab.kind === 'git' && tab.git ? { git: tab.git } : {}),
     })),
   };
+  // A delete never hits a path this plan writes or any tab points to. A
+  // tombstone records a path as it was when queued; by now Save As may have
+  // written the same file (accepting the note's own name in the notes dir), or
+  // a save may have re-dirtied a buffer queued as obsolete. Deleting either
+  // would destroy the only copy on disk.
+  const live = new Set(writes.map((w) => pathKey(w.path)));
+  for (const tab of view.tabs) {
+    for (const path of [tab.filePath, tab.notePath, plannedNotePath.get(tab.id)]) {
+      if (path) {
+        live.add(pathKey(path));
+      }
+    }
+  }
+  const deletes = [...view.closedNotePaths, ...view.obsoleteBufferPaths].filter(
+    (path) => !live.has(pathKey(path)),
+  );
+
   return {
     noteRenames,
     writes,
-    deletes: [...view.closedNotePaths, ...view.obsoleteBufferPaths],
+    deletes,
     manifestPath: joinPath(view.sessionDir, view.manifestName ?? 'session.json'),
     manifest,
     assignedNotePaths,
