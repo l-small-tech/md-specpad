@@ -225,3 +225,49 @@ export function layoutGraph(
 export function graphWidth(rows: readonly GraphRow[]): number {
   return rows.reduce((w, r) => Math.max(w, r.width), 1);
 }
+
+/* ------------------------------ working tree ------------------------------ */
+
+/**
+ * The sha the working-tree row goes by — the commit that does not exist yet.
+ * Never a real sha (git's are hex), so it cannot collide with the log.
+ */
+export const WORKING_TREE_SHA = '@working-tree';
+
+/**
+ * The log with the working tree in front of it as a ghost commit: a child
+ * of `head` (no parent on an unborn branch), so `layoutGraph` lays its line
+ * down HEAD's lane. Name it first in `trunks` and that lane is lane 0 —
+ * `ghostLane` then tells which edges to draw dashed.
+ */
+export function withWorkingTree(commits: readonly GitCommit[], head: string): GitCommit[] {
+  const ghost: GitCommit = {
+    sha: WORKING_TREE_SHA,
+    short: '',
+    parents: head === '' ? [] : [head],
+    author: '',
+    at: '',
+    subject: '',
+    body: '',
+    refs: [],
+  };
+  return [ghost, ...commits];
+}
+
+/**
+ * The lane the ghost's line runs down and the last row it reaches: edges in
+ * that lane on rows 1 … `until` are the not-yet-committed line, drawn dashed.
+ * `until` is HEAD's row, or the last row when HEAD is below the window.
+ * Null when the first row is not the ghost.
+ */
+export function ghostLane(
+  rows: readonly GraphRow[],
+  head: string,
+): { lane: number; until: number } | null {
+  const first = rows[0];
+  if (first === undefined || first.sha !== WORKING_TREE_SHA) {
+    return null;
+  }
+  const headRow = rows.findIndex((r) => r.sha === head);
+  return { lane: first.lane, until: headRow === -1 ? rows.length - 1 : headRow };
+}

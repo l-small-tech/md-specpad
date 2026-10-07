@@ -769,12 +769,15 @@
   color: var(--fg);
 }
 
-.git-commit-diff {
-  display: flex;
-  flex-direction: column;
-  min-height: 320px;
-  border-top: 1px solid var(--border);
-  margin-top: 6px;
+/* The side column is the inspector: its bar stays put while the files scroll. */
+.git-side > .git-detail-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.git-side .git-commit-head {
+  padding: 10px 12px 8px;
 }
 
 /* ---- output drawer ----------------------------------------------------- */
@@ -1539,6 +1542,34 @@
 .git-graph-halo {
   opacity: 0.22;
   animation: git-halo 2.4s ease-in-out infinite;
+}
+
+/* The working tree's ghost row: the commit that is not there yet. Its node
+   is hollow and dashed, and so is its line down to HEAD. */
+.git-graph-svg path.is-ghost {
+  stroke-dasharray: 3 3.5;
+  opacity: 0.75;
+}
+
+.git-graph-node.is-ghost {
+  stroke-dasharray: 2.5 2;
+}
+
+.git-graph-row.is-ghost .git-graph-subject {
+  font-style: italic;
+  color: var(--fg-muted);
+}
+
+.git-graph-row.is-ghost .git-sha {
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+}
+
+.git-pill.is-ghost {
+  color: var(--fg-muted);
+  border-style: dashed;
+  background: transparent;
+  font-style: italic;
 }
 
 @keyframes git-halo {

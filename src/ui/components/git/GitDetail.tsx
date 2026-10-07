@@ -1,16 +1,26 @@
 /**
- * GitDetail — the right column. What it shows follows `repo.selected`:
- * a changed file (DiffView over `repo.diff`, with an EOL / binary hint bar),
- * a commit (subject, body, its files — a file click narrows the diff to it),
- * a worktree's files against the base branch, the finish-worktree stepper,
- * or nothing while nothing is selected (GitTab then gives the graph the
- * whole column). A thin bar names what is shown and closes it (Esc too).
+ * GitDetail — the two places `repo.selected` is shown.
+ *
+ * `GitInspector` is the side column: what the selected graph node holds.
+ * Nothing selected (or one of the working tree's files) → the working tree:
+ * conflicts, the commit box and the change list (ChangesSection). A commit
+ * → its subject, body and files. A worktree card's "vs base" → that file
+ * list. The finish-worktree stepper. A thin bar names what is shown and
+ * closes it (Esc too) — back to the working tree.
+ *
+ * `GitDiffDetail` is the pane under the graph, open only while a file is
+ * picked — a working-tree file, or one of a commit's files — and shows its
+ * DiffView over `repo.diff` with an EOL / binary hint bar. Closing it steps
+ * back one level: to the commit, or to the working tree.
  */
 
 import { relativeTime } from '../../../core/notes-overview';
 import { gitStore } from '../../stores/git';
 import { DiffView } from '../DiffView';
+import { ChangesSection } from './ChangesSection';
+import { ConflictsSection } from './ConflictsSection';
 import { FinishFlow } from './FinishFlow';
+import { GitSkeleton } from './GitStates';
 import { Icon } from './icons';
 import {
   checkoutLabel,
@@ -22,16 +32,20 @@ import {
   useRepoSlice,
 } from './shared';
 
-/** The thin bar above the detail: what is shown, and the close (Esc) button. */
-function DetailBar({ root, label }: { root: string; label: string }) {
+/** The thin bar above a view: what is shown, and the close (Esc) button. */
+function DetailBar({
+  label,
+  closeTitle,
+  onClose,
+}: {
+  label: string;
+  closeTitle: string;
+  onClose: () => void;
+}) {
   return (
     <div className="git-detail-bar">
       <span className="git-detail-label">{label}</span>
-      <IconButton
-        icon="close"
-        title="Close (Esc)"
-        onClick={() => gitStore.getState().select(root, null)}
-      />
+      <IconButton icon="close" title={closeTitle} onClick={onClose} />
     </div>
   );
 }
@@ -79,7 +93,7 @@ function CommitPane({ root, sha, path }: { root: string; sha: string; path?: str
   const now = useNow();
   const commit = log.find((c) => c.sha === sha) ?? null;
   return (
-    <div className="git-detail-scroll">
+    <>
       <div className="git-commit-head">
         <div className="git-commit-title">
           <span className="git-sha">{shortSha(sha)}</span>
@@ -123,12 +137,7 @@ function CommitPane({ root, sha, path }: { root: string; sha: string; path?: str
           </div>
         ))
       )}
-      {path !== undefined && (
-        <div className="git-commit-diff">
-          <DiffPane root={root} />
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 
@@ -138,7 +147,7 @@ function WorktreeDiffPane({ root, path }: { root: string; path: string }) {
   const checkouts = useRepoSlice(root, (r) => r.checkouts) ?? [];
   const branch = checkouts.find((c) => c.path === path)?.branch ?? null;
   return (
-    <div className="git-detail-scroll">
+    <>
       <div className="git-commit-head">
         <div className="git-commit-title">
           <Icon name="diff" />
@@ -163,43 +172,96 @@ function WorktreeDiffPane({ root, path }: { root: string; path: string }) {
           </div>
         ))
       )}
-    </div>
+    </>
   );
 }
 
-export function GitDetail({ root }: { root: string }) {
+/** The side column: the working tree, or whatever graph node is selected. */
+export function GitInspector({ root }: { root: string }) {
   const selected = useRepoSlice(root, (r) => r.selected) ?? null;
-  if (selected === null) {
-    return null;
+  const hasStatus = useRepoSlice(root, (r) => r.status !== null) ?? false;
+  const loadingStatus = useRepoSlice(root, (r) => r.loading.status) ?? false;
+  const back = () => gitStore.getState().select(root, null);
+  const backTitle = 'Back to the changes (Esc)';
+  if (selected === null || selected.kind === 'file') {
+    if (!hasStatus && loadingStatus) {
+      return <GitSkeleton />;
+    }
+    return (
+      <>
+        <ConflictsSection root={root} />
+        <ChangesSection root={root} />
+      </>
+    );
   }
   switch (selected.kind) {
-    case 'file':
-      return (
-        <>
-          <DetailBar root={root} label={`Diff · ${selected.path}`} />
-          <DiffPane root={root} />
-        </>
-      );
     case 'commit':
       return (
         <>
-          <DetailBar root={root} label={`Commit ${shortSha(selected.sha)}`} />
+          <DetailBar
+            label={`Commit ${shortSha(selected.sha)}`}
+            closeTitle={backTitle}
+            onClose={back}
+          />
           <CommitPane root={root} sha={selected.sha} path={selected.path} />
         </>
       );
     case 'worktree-diff':
       return (
         <>
-          <DetailBar root={root} label={`${checkoutLabel(selected.path, root)} vs base`} />
+          <DetailBar
+            label={`${checkoutLabel(selected.path, root)} vs base`}
+            closeTitle={backTitle}
+            onClose={back}
+          />
           <WorktreeDiffPane root={root} path={selected.path} />
         </>
       );
     case 'finish':
       return (
         <>
-          <DetailBar root={root} label="Finish worktree" />
+          <DetailBar label="Finish worktree" closeTitle={backTitle} onClose={back} />
           <FinishFlow root={root} />
         </>
       );
   }
+}
+
+/** True while `selected` names a file whose diff the pane under the graph shows. */
+export function hasDiffDetail(selected: { kind: string; path?: string } | null): boolean {
+  return selected !== null && (selected.kind === 'file' || selected.path !== undefined);
+}
+
+/** The pane under the graph: the picked file's diff. */
+export function GitDiffDetail({ root }: { root: string }) {
+  const selected = useRepoSlice(root, (r) => r.selected) ?? null;
+  if (selected === null) {
+    return null;
+  }
+  const actions = gitStore.getState();
+  if (selected.kind === 'file') {
+    return (
+      <>
+        <DetailBar
+          label={`Diff · ${selected.path}`}
+          closeTitle="Close the diff (Esc)"
+          onClose={() => actions.select(root, null)}
+        />
+        <DiffPane root={root} />
+      </>
+    );
+  }
+  if (selected.kind === 'commit' && selected.path !== undefined) {
+    return (
+      <>
+        <DetailBar
+          label={`${shortSha(selected.sha)} · ${selected.path}`}
+          closeTitle="Close the diff (Esc)"
+          onClose={() => actions.select(root, { kind: 'commit', sha: selected.sha })}
+        />
+        <DiffPane root={root} />
+      </>
+    );
+  }
+  return null;
 }

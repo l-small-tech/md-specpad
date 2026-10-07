@@ -5,28 +5,31 @@
  * scroll positions and collapsed sections are worth keeping).
  *
  * Layout: the WorktreeStrip (one card per checkout — the checkout picker)
- * on top; below it two columns — the side (conflicts, changes + commit;
- * scrollable) and the main column: the commit graph, and under it, only
- * while something is selected, the detail (diff / commit / worktree files /
- * finish flow) with the output drawer at its foot. Both dividers drag like
- * EditorHost's Split one: the ratios are module-level, shared by every git
- * tab for the session, and applied straight to the style so dragging never
- * re-renders. The network buttons and the branch picker live in the status
- * bar (GitStatusBar), where the mode segments would otherwise sit.
+ * on top; below it two columns. The side column is the inspector
+ * (GitInspector): it follows the graph's selection — the working tree
+ * (conflicts, commit box, change list) while nothing or one of its files is
+ * selected, else the selected commit's files, a worktree's files against
+ * the base, or the finish flow. The main column is the commit graph — with
+ * the working tree's ghost row on top while there is something to commit —
+ * and under it, only while a file is picked, its diff (GitDiffDetail), with
+ * the output drawer at the foot. Both dividers drag like EditorHost's Split
+ * one: the ratios are module-level, shared by every git tab for the
+ * session, and applied straight to the style so dragging never re-renders.
+ * The network buttons and the branch picker live in the status bar
+ * (GitStatusBar), where the mode segments would otherwise sit.
  *
  * Everything shown is `useGitStore` state; every click is a store action.
  * Mount → `ensureRepo`; becoming active → `refresh`. One keydown handler on
- * the host root takes Escape: close the dialog, else clear the selection.
+ * the host root takes Escape: close the dialog, else step the selection
+ * back one level (diff → its commit → the working tree).
  */
 
 import { memo, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { gitStore, repoKey, useGitStore } from '../../stores/git';
 import { useTabsStore } from '../../stores/tabs';
 import '../../../styles/git.css';
-import { ChangesSection } from './ChangesSection';
-import { ConflictsSection } from './ConflictsSection';
-import { GitDetail } from './GitDetail';
-import { GitSkeleton, GitUnavailable } from './GitStates';
+import { GitDiffDetail, GitInspector, hasDiffDetail } from './GitDetail';
+import { GitUnavailable } from './GitStates';
 import { GraphPane } from './GraphPane';
 import { NewWorktreeDialog } from './NewWorktreeDialog';
 import { OutputDrawer } from './OutputDrawer';
@@ -75,10 +78,8 @@ function GitTabImpl({ tabId, active }: { tabId: string; active: boolean }) {
   const checkout = useTabsStore((s) => s.tabs.find((t) => t.id === tabId)?.gitCheckout ?? null);
   const key = root === null ? '' : repoKey(root);
   const unavailable = useGitStore((s) => s.repos[key]?.unavailable ?? null);
-  const hasStatus = useGitStore((s) => (s.repos[key]?.status ?? null) !== null);
-  const loadingStatus = useGitStore((s) => s.repos[key]?.loading.status ?? false);
   const dialogOpen = useGitStore((s) => s.repos[key]?.newWorktree.open ?? false);
-  const hasSelection = useGitStore((s) => (s.repos[key]?.selected ?? null) !== null);
+  const hasSelection = useGitStore((s) => hasDiffDetail(s.repos[key]?.selected ?? null));
   const bodyRef = useRef<HTMLDivElement>(null);
   const sideRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
@@ -145,10 +146,18 @@ function GitTabImpl({ tabId, active }: { tabId: string; active: boolean }) {
       state.closeNewWorktree(root);
       return;
     }
-    if (state.repos[key]?.selected) {
+    const selected = state.repos[key]?.selected ?? null;
+    if (selected !== null) {
       e.preventDefault();
       e.stopPropagation();
-      state.select(root, null);
+      // One level back: a commit's file diff → the commit; anything else →
+      // the working tree.
+      state.select(
+        root,
+        selected.kind === 'commit' && selected.path !== undefined
+          ? { kind: 'commit', sha: selected.sha }
+          : null,
+      );
     }
   };
 
@@ -167,14 +176,7 @@ function GitTabImpl({ tabId, active }: { tabId: string; active: boolean }) {
           <WorktreeStrip root={root} tabId={tabId} />
           <div className="git-body" ref={bodyRef}>
             <div className="git-side" ref={sideRef}>
-              {!hasStatus && loadingStatus ? (
-                <GitSkeleton />
-              ) : (
-                <>
-                  <ConflictsSection root={root} />
-                  <ChangesSection root={root} />
-                </>
-              )}
+              <GitInspector root={root} />
             </div>
             <div
               className="git-divider"
@@ -196,7 +198,7 @@ function GitTabImpl({ tabId, active }: { tabId: string; active: boolean }) {
                   />
                   <div className="git-detail">
                     <div className="git-detail-main">
-                      <GitDetail root={root} />
+                      <GitDiffDetail root={root} />
                     </div>
                   </div>
                 </>
