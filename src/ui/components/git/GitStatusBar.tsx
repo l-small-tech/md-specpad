@@ -6,7 +6,9 @@
  * (its upstream, ahead/behind, and the state chip), which opens the
  * BranchPicker above it; Fetch / Pull / Push ("Publish" when the branch has
  * no upstream yet, a count badge when there is something to push or pull);
- * Refresh; and the last error. Every click is a store action; fetch / pull / push stream into
+ * Remotes (the cloud — connect to GitHub / Gitea, change an address);
+ * Refresh; and the last error. With no remote at all, Publish opens the
+ * Remotes dialog to connect one instead of pushing. Every click is a store action; fetch / pull / push stream into
  * the tab's OutputDrawer.
  */
 
@@ -42,6 +44,7 @@ export function GitStatusBar({ root }: { root: string }) {
   const loading = useRepoSlice(root, (r) => r.loading);
   const op = useRepoSlice(root, (r) => r.op) ?? null;
   const error = useRepoSlice(root, (r) => r.error) ?? null;
+  const remotes = useRepoSlice(root, (r) => r.remotes) ?? null;
   const [picker, setPicker] = useState<MenuAnchor | null>(null);
   const explorerOpen = useUiStore((s) => s.explorerOpen);
   const actions = gitStore.getState();
@@ -72,7 +75,9 @@ export function GitStatusBar({ root }: { root: string }) {
   const busy =
     op?.running === true ||
     (loading !== undefined && (loading.status || loading.branches || loading.worktrees));
-  const noUpstream = status !== null && status.upstream === null && !status.unborn;
+  // Unknown (null) counts as connected: never flash "connect" before the read.
+  const noRemote = remotes !== null && remotes.length === 0;
+  const noUpstream = status !== null && status.upstream === null && (!status.unborn || noRemote);
   const chip = status ? stateChip(status.state) : null;
   const detached = status !== null && status.branch === null && !status.unborn;
   const branchText =
@@ -84,6 +89,7 @@ export function GitStatusBar({ root }: { root: string }) {
   const ahead = status?.ahead ?? 0;
   const behind = status?.behind ?? 0;
   const netDisabled = status === null || op?.running === true || status.unborn;
+  const notConnected = 'Not connected to a server yet — Publish connects it';
 
   return (
     <div className="git-sb" role="group" aria-label="Git">
@@ -119,8 +125,8 @@ export function GitStatusBar({ root }: { root: string }) {
       <button
         type="button"
         className="git-sb-btn"
-        title="Fetch — git fetch --all --prune"
-        disabled={status === null || op?.running === true}
+        title={noRemote ? notConnected : 'Fetch — git fetch --all --prune'}
+        disabled={status === null || op?.running === true || noRemote}
         onClick={() => void actions.fetch(root, { prune: true })}
       >
         <Icon name="cloud-down" />
@@ -130,11 +136,13 @@ export function GitStatusBar({ root }: { root: string }) {
         type="button"
         className={`git-sb-btn${behind > 0 ? ' has-work' : ''}`}
         title={
-          noUpstream
-            ? 'No upstream to pull from'
-            : `Pull — git pull (merge, never rebase)${behind > 0 ? ` · ${behind} behind` : ''}`
+          noRemote
+            ? notConnected
+            : noUpstream
+              ? 'No upstream to pull from'
+              : `Pull — git pull (merge, never rebase)${behind > 0 ? ` · ${behind} behind` : ''}`
         }
-        disabled={netDisabled || noUpstream}
+        disabled={netDisabled || noUpstream || noRemote}
         onClick={() => void actions.pull(root)}
       >
         <Icon name="download" />
@@ -145,16 +153,32 @@ export function GitStatusBar({ root }: { root: string }) {
         type="button"
         className={`git-sb-btn${noUpstream ? ' is-accent' : ahead > 0 ? ' has-work' : ''}`}
         title={
-          noUpstream
-            ? 'Publish — git push -u origin HEAD: publish this branch and track it'
-            : `Push — git push${ahead > 0 ? ` · ${ahead} ahead` : ''}`
+          noRemote
+            ? 'Publish — connect this repository to GitHub, Gitea or another server and upload it'
+            : noUpstream
+              ? 'Publish — git push -u: publish this branch and track it'
+              : `Push — git push${ahead > 0 ? ` · ${ahead} ahead` : ''}`
         }
-        disabled={netDisabled}
-        onClick={() => void actions.push(root, noUpstream ? { setUpstream: true } : undefined)}
+        disabled={noRemote ? status === null || op?.running === true : netDisabled}
+        onClick={() => void (noUpstream ? actions.publish(root) : actions.push(root))}
       >
         <Icon name="upload" />
         {noUpstream ? 'Publish' : 'Push'}
         {!noUpstream && ahead > 0 && <span className="git-sb-badge">{ahead}</span>}
+      </button>
+      <button
+        type="button"
+        className="git-sb-btn is-icon"
+        title={
+          noRemote
+            ? 'Remotes — connect this repository to GitHub, Gitea or another server'
+            : 'Remotes — the servers this repository uploads to'
+        }
+        aria-label="Remotes"
+        disabled={status === null}
+        onClick={() => actions.openRemotes(root)}
+      >
+        <Icon name="cloud" />
       </button>
       <button
         type="button"
