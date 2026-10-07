@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- **Fixed: no spelling suggestions on headings (Windows).** Right-clicking a heading used to swap the usual menu for the Mark running / Mark complete one, which hid the spell checker's suggestions. The mark items now sit at the bottom of the usual menu, so you get both.
+
 ## [0.10.4] — 2026-10-05
 
 - Git tab: the three Staged / Changes / Untracked lists are now one list of every file changed since the last commit, with a checkbox per row that shows and sets whether it is staged. The commit box sits above the list so it never gets pushed down.
