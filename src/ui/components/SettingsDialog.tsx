@@ -795,6 +795,18 @@ function SettingsBody({ initialTab }: { initialTab: SettingsTabId }) {
               <label className="settings-row settings-row-inline">
                 <input
                   type="checkbox"
+                  checked={settings.collapsibleHeadings}
+                  onChange={(e) => update({ collapsibleHeadings: e.target.checked })}
+                />
+                <span className="settings-label">
+                  Collapsible headings (Raw and Split modes; a heading marked running collapses on
+                  its own)
+                </span>
+              </label>
+
+              <label className="settings-row settings-row-inline">
+                <input
+                  type="checkbox"
                   checked={settings.smoothScrolling}
                   onChange={(e) => update({ smoothScrolling: e.target.checked })}
                 />

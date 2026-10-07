@@ -141,6 +141,18 @@ tint it with `.heading-mark .heading-mark-<mark>` (app.css).
 - `heading-mark-menu.ts` is the shared menu, built on
   `whiteboard-menu.ts`'s `openContextMenu`. Only heading right-clicks are
   taken; everywhere else the native copy/paste menu stays.
+- `heading-fold-cm6.ts` (markdown only, behind the `collapsibleHeadings`
+  setting via a Compartment in `cm6.ts`): CM6's `codeFolding` + `foldGutter`
+  + `foldKeymap` — the markdown grammar's own fold service already folds a
+  heading's section, and `cm6.ts` switches the grammar's paragraph folds
+  off so arrows sit on headings, lists and code blocks only — plus an update
+  listener that folds a heading the moment a change turns it into a running
+  one (`linesTurnedRunning`, pure and tested). It keys off the document
+  change, not the menu, so Edit mode's write-back and an agent saving the
+  file collapse the section too; the fold is dispatched from a microtask
+  because CM6 forbids dispatching inside an update. Turning the setting off
+  reconfigures the compartment to `[]`, which drops the fold state (unfolds
+  everything) with it.
 
 ---
 

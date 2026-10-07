@@ -235,6 +235,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultMode: 'raw',
   wordWrap: true,
   lineNumbers: false,
+  collapsibleHeadings: false,
   ligatures: true,
   readerMargins: 'normal',
   smoothScrolling: true,
@@ -581,6 +582,8 @@ export function normalizeSettings(raw: unknown): Settings {
         : d.defaultMode,
     wordWrap: typeof r.wordWrap === 'boolean' ? r.wordWrap : d.wordWrap,
     lineNumbers: typeof r.lineNumbers === 'boolean' ? r.lineNumbers : d.lineNumbers,
+    collapsibleHeadings:
+      typeof r.collapsibleHeadings === 'boolean' ? r.collapsibleHeadings : d.collapsibleHeadings,
     ligatures: typeof r.ligatures === 'boolean' ? r.ligatures : d.ligatures,
     readerMargins:
       r.readerMargins === 'narrow' || r.readerMargins === 'normal' || r.readerMargins === 'wide'

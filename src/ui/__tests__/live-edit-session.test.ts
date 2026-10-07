@@ -209,6 +209,7 @@ describe('Live Edit — merging changes from disk', () => {
       setSelection() {},
       setWordWrap() {},
       setLineNumbers() {},
+      setCollapsibleHeadings() {},
       setFontSize() {},
       format() {},
       insertLinkTo() {},

@@ -26,7 +26,7 @@ import { headingMarkClass, openHeadingMarkMenu } from './heading-mark-menu';
 type SyntaxNode = ReturnType<ReturnType<typeof syntaxTree>['resolveInner']>;
 
 /** Is this line an ATX heading per the parse tree (not code, not setext)? */
-function isAtxHeadingLine(state: EditorState, line: Line): boolean {
+export function isAtxHeadingLine(state: EditorState, line: Line): boolean {
   const start = line.from + (line.text.length - line.text.trimStart().length);
   for (
     let node: SyntaxNode | null = syntaxTree(state).resolveInner(start, 1);
