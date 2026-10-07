@@ -146,6 +146,9 @@ function fakeIpc(): FakeIpc {
     gitWorktreeAdd: vi.fn(() => Promise.resolve()),
     gitWorktreeRemove: vi.fn(() => Promise.resolve()),
     gitTrustDirectory: vi.fn(() => Promise.resolve()),
+    gitInit: vi.fn((path: string) => Promise.resolve(path)),
+    gitIdentity: vi.fn(() => Promise.resolve({ name: 'Ann', email: 'ann@example.com' })),
+    gitSetIdentity: vi.fn(() => Promise.resolve()),
     readTextFile: vi.fn(() => Promise.resolve({ text: '', mtimeMs: 0 })),
     atomicWriteText: vi.fn(() => Promise.resolve()),
   };
@@ -380,6 +383,76 @@ describe('refresh', () => {
     );
     expect(await h.s().trustFolder('D:/proj')).toBe(false);
     expect(h.notices()).toEqual(['Git: could not lock config file']);
+  });
+
+  test('a folder that is not a repository can be initialised in place', async () => {
+    const h = harness();
+    h.ipc.gitRepoInfo.mockRejectedValue(new IpcError('GIT_NOT_A_REPO', 'nope'));
+    await h.open();
+    expect(h.r().unavailable).toBe('not-a-repo');
+
+    h.ipc.gitRepoInfo.mockResolvedValue(info);
+    expect(await h.s().initRepo(MAIN)).toBe(true);
+    expect(h.ipc.gitInit).toHaveBeenCalledWith(MAIN);
+    await flush();
+    expect(h.r().unavailable).toBeNull();
+    expect(h.ipc.gitStatus).toHaveBeenCalled();
+    expect(h.r().commitDraft).toBe('Initial commit');
+    expect(h.notices()).toEqual(['Git is now tracking this folder.']);
+  });
+
+  test('a failed init is a notice and leaves the panel as it was', async () => {
+    const h = harness();
+    h.ipc.gitRepoInfo.mockRejectedValue(new IpcError('GIT_NOT_A_REPO', 'nope'));
+    await h.open();
+    h.ipc.gitInit.mockRejectedValue(new IpcError('GIT_FAILED', 'fatal: cannot mkdir .git'));
+    expect(await h.s().initRepo(MAIN)).toBe(false);
+    expect(h.r().unavailable).toBe('not-a-repo');
+    expect(h.notices()).toEqual(['Git: cannot mkdir .git']);
+  });
+
+  test('the commit identity is read with the repository', async () => {
+    const h = harness();
+    await h.open();
+    await flush();
+    expect(h.ipc.gitIdentity).toHaveBeenCalledWith(MAIN);
+    expect(h.r().identity).toEqual({ name: 'Ann', email: 'ann@example.com' });
+  });
+
+  test('a failed commit re-reads the identity, and saving it validates then writes', async () => {
+    const h = harness();
+    h.ipc.gitIdentity.mockResolvedValue({ name: null, email: null });
+    await h.open();
+    await flush();
+    expect(h.r().identity).toEqual({ name: null, email: null });
+
+    // A typo never reaches git.
+    expect(await h.s().saveIdentity(MAIN, 'Ann', 'ann.example.com')).toMatch(/email/);
+    expect(h.ipc.gitSetIdentity).not.toHaveBeenCalled();
+
+    h.ipc.gitIdentity.mockResolvedValue({ name: 'Ann', email: 'ann@example.com' });
+    expect(await h.s().saveIdentity(MAIN, ' Ann ', 'ann@example.com ')).toBeNull();
+    expect(h.ipc.gitSetIdentity).toHaveBeenCalledWith('Ann', 'ann@example.com');
+    expect(h.r().identity).toEqual({ name: 'Ann', email: 'ann@example.com' });
+
+    // A commit that fails asks git again who is committing.
+    h.ipc.gitIdentity.mockClear();
+    h.ipc.gitCommit.mockRejectedValue(
+      new IpcError('GIT_FAILED', 'Author identity unknown\n\n*** Please tell me who you are.'),
+    );
+    h.s().setCommitDraft(MAIN, 'first');
+    await h.s().commit(MAIN);
+    expect(h.ipc.gitIdentity).toHaveBeenCalled();
+    expect(h.notices().at(-1)).toMatch(/name and email/);
+  });
+
+  test('a failed identity save is shown under the form', async () => {
+    const h = harness();
+    await h.open();
+    h.ipc.gitSetIdentity.mockRejectedValue(
+      new IpcError('GIT_FAILED', 'error: could not lock config file'),
+    );
+    expect(await h.s().saveIdentity(MAIN, 'Ann', 'a@b.c')).toBe('Git: could not lock config file');
   });
 
   test('forget drops the repository', async () => {

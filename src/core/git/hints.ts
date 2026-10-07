@@ -107,6 +107,12 @@ export function firstGitLine(message: string): string {
   return (line ?? '').replace(/^(?:fatal|error|warning): /, '');
 }
 
+/** git refusing to commit because no `user.name` / `user.email` is set — common on a first commit. */
+const IDENTITY_UNKNOWN =
+  /Author identity unknown|Please tell me who you are|unable to auto-detect email address/i;
+const IDENTITY_HINT =
+  'Git needs your name and email before it can commit — add them in the commit box, then commit again.';
+
 /** The notice for a rejected git command — what the status bar says. */
 export function gitFailureText(err: unknown): string {
   const message = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
@@ -126,6 +132,9 @@ export function gitFailureText(err: unknown): string {
     case 'GIT_INVALID_ARG':
       return `Git refused an argument: ${firstGitLine(message)}`;
     case 'GIT_FAILED': {
+      if (IDENTITY_UNKNOWN.test(message)) {
+        return IDENTITY_HINT;
+      }
       const line = firstGitLine(message);
       return line === '' ? 'Git failed' : `Git: ${line}`;
     }

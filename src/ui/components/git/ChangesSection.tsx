@@ -8,9 +8,21 @@
  *
  * mod+Enter in the message box commits. Handled on the textarea itself (and
  * stopped there) so the global shortcut listener never sees it.
+ *
+ * When git does not know who is committing (no `user.name` / `user.email` —
+ * every fresh machine), the commit button gives way to a two-field form that
+ * saves them and commits in one click, instead of a failed commit and a
+ * terminal recipe.
  */
 
-import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
+import { identityMissing, type CommitIdentity } from '../../../core/git/identity';
 import { flattenStatus, type ChangeState, type FlatChange } from '../../../core/git/status';
 import { gitStore } from '../../stores/git';
 import { Empty, IconButton, PathLabel, Section, StatusGlyph, useRepoSlice } from './shared';
@@ -85,6 +97,94 @@ function ChangeRow({ root, row, selected }: { root: string; row: FlatChange; sel
   );
 }
 
+/**
+ * "Who's making these commits?" — asked once per computer. Submitting saves
+ * both values to the global git config and, when the commit is otherwise
+ * ready (`canCommit`), commits straight away.
+ */
+function IdentityForm({
+  root,
+  identity,
+  canCommit,
+}: {
+  root: string;
+  identity: CommitIdentity;
+  canCommit: boolean;
+}) {
+  const [name, setName] = useState(identity.name ?? '');
+  const [email, setEmail] = useState(identity.email ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    const problem = await gitStore.getState().saveIdentity(root, name, email);
+    setBusy(false);
+    setError(problem);
+    if (problem === null && canCommit) {
+      await gitStore.getState().commit(root);
+    }
+  };
+
+  return (
+    <form className="git-identity" onSubmit={(e) => void submit(e)}>
+      <p className="git-identity-title">One quick thing before your first commit</p>
+      <p className="git-identity-hint">
+        Git signs every commit with a name and email. You only need to do this once on this
+        computer.
+      </p>
+      <label className="git-identity-field">
+        <span>Your name</span>
+        <input
+          type="text"
+          value={name}
+          placeholder="Ada Lovelace"
+          autoComplete="name"
+          spellCheck={false}
+          autoFocus={identity.name === null}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+        />
+      </label>
+      <label className="git-identity-field">
+        <span>Email</span>
+        <input
+          type="email"
+          value={email}
+          placeholder="ada@example.com"
+          autoComplete="email"
+          spellCheck={false}
+          autoFocus={identity.name !== null}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+        />
+      </label>
+      <p className="git-identity-hint">
+        Sharing code on GitHub? Use the email on your GitHub account so commits link to your
+        profile. GitHub also gives you a private no-reply address if you&apos;d rather not show
+        yours.
+      </p>
+      {error !== null && (
+        <p className="git-identity-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="git-commit-row">
+        <span className="git-header-spacer" />
+        <button
+          type="submit"
+          className="git-btn git-btn-accent"
+          disabled={busy}
+          title="Saved with git config --global user.name / user.email"
+        >
+          {busy ? 'Saving…' : canCommit ? 'Save and commit' : 'Save'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function ChangesSection({ root }: { root: string }) {
   const entries = useRepoSlice(root, (r) => r.status?.entries);
   const groups = useRepoSlice(root, (r) => r.groups);
@@ -93,6 +193,7 @@ export function ChangesSection({ root }: { root: string }) {
   const amend = useRepoSlice(root, (r) => r.amend) ?? false;
   const status = useRepoSlice(root, (r) => r.status) ?? null;
   const op = useRepoSlice(root, (r) => r.op) ?? null;
+  const identity = useRepoSlice(root, (r) => r.identity) ?? null;
   const actions = gitStore.getState();
 
   const rows = flattenStatus(entries ?? []);
@@ -141,27 +242,31 @@ export function ChangesSection({ root }: { root: string }) {
           onChange={(e) => actions.setCommitDraft(root, e.target.value)}
           onKeyDown={onKeyDown}
         />
-        <div className="git-commit-row">
-          <label className="git-check" title="git commit --amend — fold into the last commit">
-            <input
-              type="checkbox"
-              checked={amend}
-              disabled={status === null || status.unborn}
-              onChange={() => actions.toggleAmend(root)}
-            />
-            Amend
-          </label>
-          <span className="git-header-spacer" />
-          <button
-            type="button"
-            className="git-btn git-btn-accent"
-            disabled={reason !== null}
-            title={reason ?? (amend ? 'git commit --amend' : 'git commit')}
-            onClick={() => void actions.commit(root)}
-          >
-            {merging ? 'Commit merge' : amend ? 'Amend' : 'Commit'}
-          </button>
-        </div>
+        {identity !== null && identityMissing(identity) ? (
+          <IdentityForm root={root} identity={identity} canCommit={reason === null} />
+        ) : (
+          <div className="git-commit-row">
+            <label className="git-check" title="git commit --amend — fold into the last commit">
+              <input
+                type="checkbox"
+                checked={amend}
+                disabled={status === null || status.unborn}
+                onChange={() => actions.toggleAmend(root)}
+              />
+              Amend
+            </label>
+            <span className="git-header-spacer" />
+            <button
+              type="button"
+              className="git-btn git-btn-accent"
+              disabled={reason !== null}
+              title={reason ?? (amend ? 'git commit --amend' : 'git commit')}
+              onClick={() => void actions.commit(root)}
+            >
+              {merging ? 'Commit merge' : amend ? 'Amend' : 'Commit'}
+            </button>
+          </div>
+        )}
       </div>
       <Section
         title="Changes"

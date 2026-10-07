@@ -609,6 +609,60 @@
   gap: 8px;
 }
 
+/* "One quick thing before your first commit": the name/email form that
+   stands in for the commit button until git knows who is committing. */
+.git-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--border));
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--accent) 6%, var(--bg));
+}
+
+.git-identity-title {
+  margin: 0;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.git-identity-hint {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.git-identity-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+
+.git-identity-field input {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--editor-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+
+.git-identity-field input:focus {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.git-identity-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 11px;
+}
+
 /* The flat change list: the checkbox is the staging state AND the control;
    a hairline at the row's left edge repeats it in the worktree cards' dirty
    colours (staged / changed / untracked), so a glance reads the list. */
@@ -896,6 +950,17 @@
 .git-state-hint {
   margin: 0;
   line-height: 1.5;
+}
+
+.git-state-cta {
+  margin: 6px 0 2px;
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.git-state-fine {
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .git-skeleton {

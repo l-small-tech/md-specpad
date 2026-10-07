@@ -62,6 +62,14 @@ describe('networkHint', () => {
 });
 
 describe('gitFailureText', () => {
+  test('a commit without a name and email points at the commit box form', () => {
+    const err = new CodedError(
+      'GIT_FAILED',
+      'Author identity unknown\n\n*** Please tell me who you are.\n\nRun\n',
+    );
+    expect(gitFailureText(err)).toMatch(/name and email/);
+  });
+
   test("one line per code, git's own words for GIT_FAILED", () => {
     expect(gitFailureText(new CodedError('GIT_NOT_FOUND', 'x'))).toBe(
       'Git is not installed or not on PATH',
