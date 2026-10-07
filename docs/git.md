@@ -82,7 +82,7 @@ switch, merge, delete, or type a name to create a branch here), a chip when
 the checkout is in the middle of something (merging, rebasing, a detached
 HEAD), then **Fetch**, **Pull** (with a count when you are behind) and
 **Push** (with a count when you are ahead; **Publish** when the branch has no
-upstream yet), and refresh.
+upstream yet), the cloud button for **Remotes**, and refresh.
 
 **Distraction-free** — the ⤢ at the right end of the worktree cards hides
 the tab bar, exactly as it does on a document; the status bar stays, since
@@ -153,6 +153,41 @@ The panel watches the files as the agent works: each row flips from
 file is staged and marker-free. **Abort merge** puts everything back. If you
 would rather do a file by hand, click it: it opens as plain text with the
 conflict markers, and **Mark resolved** stages it when you are done.
+
+## Connecting to GitHub, Gitea and other hosts
+
+A repository on your computer does not upload anywhere until it is connected
+to one on a server. To connect it:
+
+1. Create a new repository on GitHub, Gitea, GitLab, Codeberg or wherever you
+   keep your work. Leave it empty if the site asks; a README is fine too.
+2. Copy its address. The **Code** or **Clone** button shows it, and the
+   address in your browser's bar works as well.
+3. In the Git tab, click **Publish** (or the cloud button) and paste the
+   address. The line under the field says what the app understood, for
+   example *ann/notes on GitHub*.
+4. Leave **Upload my work now** ticked and click **Connect**.
+
+The app checks the repository first. If a sign-in window opens (Git
+Credential Manager on Windows and macOS), sign in there; the app itself never
+asks for a password. Then:
+
+- **The server repository is empty:** your branch is uploaded with the usual
+  progress bar, and Push and Pull work from then on.
+- **The server repository already has files** (usually a README or licence
+  the site added): the app explains this and offers **Bring them in and
+  upload**. That merges the server's files into your workspace and then
+  uploads. Nothing of yours is overwritten. If the same file changed on both
+  sides, it shows up under **Merge conflicts** like any other merge.
+- **Your workspace has no commits yet:** it is connected, and Publish uploads
+  your first commit once you make it.
+- **Something went wrong** (a typo in the address, no access, no network):
+  the app says what in plain words, with **Change address** and **Try again**.
+
+The cloud button lists the connections (*remotes*) afterwards. From there
+you can change an address, connect another server, or disconnect. Disconnecting
+deletes nothing, either locally or on the server. Push and Pull use the one
+called `origin`, or the only one there is.
 
 ## Fetch, pull and push
 

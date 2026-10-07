@@ -149,6 +149,11 @@ function fakeIpc(): FakeIpc {
     gitInit: vi.fn((path: string) => Promise.resolve(path)),
     gitIdentity: vi.fn(() => Promise.resolve({ name: 'Ann', email: 'ann@example.com' })),
     gitSetIdentity: vi.fn(() => Promise.resolve()),
+    gitRemotes: vi.fn(() => Promise.resolve([])),
+    gitRemoteAdd: vi.fn(() => Promise.resolve()),
+    gitRemoteSetUrl: vi.fn(() => Promise.resolve()),
+    gitRemoteRemove: vi.fn(() => Promise.resolve()),
+    gitCompareRef: vi.fn(() => Promise.resolve('missing')),
     readTextFile: vi.fn(() => Promise.resolve({ text: '', mtimeMs: 0 })),
     atomicWriteText: vi.fn(() => Promise.resolve()),
   };
@@ -710,6 +715,258 @@ describe('network ops', () => {
       markerCounts: { 'a.ts': 1, 'b.ts': 0 },
     });
     expect(h.r().groups.conflicted).toHaveLength(2);
+  });
+});
+
+describe('remotes', () => {
+  const GH = 'https://github.com/ann/notes';
+  const origin = { name: 'origin', url: `${GH}.git`, pushUrl: null };
+  const remoteBranch = (name: string): GitBranch => ({ ...branch(name), kind: 'remote' });
+
+  /** A repo with no remote and an unpublished `development`. */
+  async function unconnected() {
+    const h = harness();
+    h.ipc.gitStatus.mockImplementation((root: string) =>
+      Promise.resolve(statusFor(root, { upstream: null })),
+    );
+    await h.open();
+    return h;
+  }
+
+  /** After `remote add`, git reports the remote (and, once fetched, its branches). */
+  function connectWith(h: Awaited<ReturnType<typeof unconnected>>, serverBranches: string[]) {
+    h.ipc.gitRemoteAdd.mockImplementation(() => {
+      h.ipc.gitRemotes.mockResolvedValue([origin]);
+      return Promise.resolve();
+    });
+    h.ipc.gitBranches.mockResolvedValue([
+      branch('development', true),
+      ...serverBranches.map((b) => remoteBranch(`origin/${b}`)),
+    ]);
+  }
+
+  test('reads remotes with branches; Publish with none opens connect', async () => {
+    const h = await unconnected();
+    expect(h.r().remotes).toEqual([]);
+    await h.s().publish(MAIN);
+    expect(h.net.calls).toHaveLength(0);
+    expect(h.r().remotesDialog).toMatchObject({ view: 'connect', name: 'origin', publish: true });
+    h.s().closeRemotes(MAIN);
+    expect(h.r().remotesDialog).toBeNull();
+  });
+
+  test('Publish with remotes pushes -u to origin, else the first remote', async () => {
+    const h = await unconnected();
+    h.ipc.gitRemotes.mockResolvedValue([{ name: 'gitea', url: 'x', pushUrl: null }]);
+    await h.s().refresh(MAIN, { force: true });
+    const p = h.s().publish(MAIN);
+    expect(h.net.calls[0]!.options).toEqual({ root: MAIN, remote: 'gitea', setUpstream: true });
+    h.net.calls[0]!.finish(okResult());
+    await p;
+  });
+
+  test('connect validates before touching git', async () => {
+    const h = await unconnected();
+    h.s().openRemotes(MAIN);
+    await h.s().saveRemote(MAIN);
+    expect(h.r().remotesDialog?.error).toMatch(/Paste/);
+    h.s().setRemotesField(MAIN, { url: 'https://github.com/ann' });
+    expect(h.r().remotesDialog?.error).toBeNull();
+    await h.s().saveRemote(MAIN);
+    expect(h.r().remotesDialog?.error).toMatch(/profile/);
+    h.s().setRemotesField(MAIN, { url: GH, name: 'my remote' });
+    await h.s().saveRemote(MAIN);
+    expect(h.r().remotesDialog?.error).toMatch(/letters/);
+    expect(h.ipc.gitRemoteAdd).not.toHaveBeenCalled();
+  });
+
+  test('an empty server: add, fetch, then publish with the push card', async () => {
+    const h = await unconnected();
+    connectWith(h, []);
+    h.s().openRemotes(MAIN);
+    h.s().setRemotesField(MAIN, { url: `${GH}/tree/main` });
+    const save = h.s().saveRemote(MAIN);
+    await flush();
+    expect(h.ipc.gitRemoteAdd).toHaveBeenCalledWith(MAIN, 'origin', GH);
+    expect(h.r().remotesDialog?.view).toBe('checking');
+    expect(h.net.calls[0]!.options).toEqual({ root: MAIN, remote: 'origin', prune: false });
+    h.net.calls[0]!.finish(okResult());
+    await flush();
+    expect(h.ipc.gitCompareRef).not.toHaveBeenCalled();
+    expect(h.r().remotesDialog).toBeNull();
+    expect(h.net.calls[1]!.kind).toBe('push');
+    expect(h.net.calls[1]!.options).toEqual({ root: MAIN, remote: 'origin', setUpstream: true });
+    expect(h.r().op?.kind).toBe('push');
+    h.net.calls[1]!.finish(okResult());
+    await save;
+  });
+
+  test('a server repo made with a README: stop, explain, bring it in, then publish', async () => {
+    const h = await unconnected();
+    connectWith(h, ['development']);
+    h.ipc.gitCompareRef.mockResolvedValue('unrelated');
+    h.s().openRemotes(MAIN);
+    h.s().setRemotesField(MAIN, { url: GH });
+    const save = h.s().saveRemote(MAIN);
+    await flush();
+    h.net.calls[0]!.finish(okResult());
+    await save;
+    expect(h.ipc.gitCompareRef).toHaveBeenCalledWith(MAIN, 'origin/development');
+    expect(h.r().remotesDialog).toMatchObject({
+      view: 'bring-in',
+      target: 'origin/development',
+      relation: 'unrelated',
+      remote: 'origin',
+    });
+    expect(h.r().op).toBeNull();
+    expect(h.net.calls).toHaveLength(1);
+
+    const bring = h.s().bringInRemote(MAIN);
+    await flush();
+    expect(h.ipc.gitMerge).toHaveBeenCalledWith(MAIN, 'origin/development', false, true);
+    expect(h.r().remotesDialog).toBeNull();
+    expect(h.net.calls[1]!.options).toEqual({ root: MAIN, remote: 'origin', setUpstream: true });
+    h.net.calls[1]!.finish(okResult());
+    await bring;
+  });
+
+  test('bring-in that conflicts hands over to the conflict tracker, no push', async () => {
+    const h = await unconnected();
+    connectWith(h, ['development']);
+    h.ipc.gitCompareRef.mockResolvedValue('diverged');
+    h.s().openRemotes(MAIN);
+    h.s().setRemotesField(MAIN, { url: GH });
+    const save = h.s().saveRemote(MAIN);
+    await flush();
+    h.net.calls[0]!.finish(okResult());
+    await save;
+    h.ipc.gitMerge.mockResolvedValueOnce({
+      outcome: 'conflicts',
+      head: 'aaa1111',
+      conflicted: ['README.md'],
+    });
+    h.ipc.gitStatus.mockResolvedValue(
+      statusFor(MAIN, {
+        upstream: null,
+        state: 'merging',
+        mergeHead: 'zzz',
+        entries: [entry('README.md', 'U', 'U', 'unmerged')],
+      }),
+    );
+    await h.s().bringInRemote(MAIN);
+    expect(h.ipc.gitMerge).toHaveBeenCalledWith(MAIN, 'origin/development', false, false);
+    expect(h.r().conflictTracker?.files).toEqual(['README.md']);
+    expect(h.r().remotesDialog).toBeNull();
+    expect(h.net.calls).toHaveLength(1);
+    expect(h.notices().at(-1)).toMatch(/Merge conflicts/);
+  });
+
+  test('a refused bring-in stays in the dialog with git’s reason', async () => {
+    const h = await unconnected();
+    connectWith(h, ['development']);
+    h.ipc.gitCompareRef.mockResolvedValue('unrelated');
+    h.s().openRemotes(MAIN);
+    h.s().setRemotesField(MAIN, { url: GH });
+    const save = h.s().saveRemote(MAIN);
+    await flush();
+    h.net.calls[0]!.finish(okResult());
+    await save;
+    h.ipc.gitMerge.mockRejectedValueOnce(
+      new IpcError('GIT_FAILED', 'error: untracked working tree files would be overwritten'),
+    );
+    await h.s().bringInRemote(MAIN);
+    expect(h.r().remotesDialog).toMatchObject({ view: 'bring-in', busy: false });
+    expect(h.r().remotesDialog?.error).toMatch(/would be overwritten/);
+  });
+
+  test('an unreachable server: failed with the hint; fix the address and it re-checks', async () => {
+    const h = await unconnected();
+    connectWith(h, []);
+    h.s().openRemotes(MAIN);
+    h.s().setRemotesField(MAIN, { url: 'https://github.com/ann/nots' });
+    const save = h.s().saveRemote(MAIN);
+    await flush();
+    h.net.calls[0]!.finish(
+      okResult({ ok: false, exitCode: 128, stderr: 'remote: Repository not found.' }),
+    );
+    await save;
+    expect(h.r().remotesDialog).toMatchObject({ view: 'failed', remote: 'origin' });
+    expect(h.r().remotesDialog?.error).toMatch(/points at nothing/);
+
+    h.s().editRemote(MAIN, 'origin');
+    expect(h.r().remotesDialog).toMatchObject({ view: 'edit', url: `${GH}.git`, remote: 'origin' });
+    h.s().setRemotesField(MAIN, { url: GH });
+    const edit = h.s().saveRemote(MAIN);
+    await flush();
+    expect(h.ipc.gitRemoteSetUrl).toHaveBeenCalledWith(MAIN, 'origin', GH);
+    expect(h.r().remotesDialog?.view).toBe('checking');
+    h.net.calls[1]!.finish(okResult());
+    await flush();
+    h.net.calls[2]!.finish(okResult());
+    await edit;
+    expect(h.net.calls[2]!.kind).toBe('push');
+  });
+
+  test('connect without publishing just connects', async () => {
+    const h = await unconnected();
+    connectWith(h, []);
+    h.s().openRemotes(MAIN);
+    h.s().setRemotesField(MAIN, { url: GH, publish: false });
+    await h.s().saveRemote(MAIN);
+    expect(h.net.calls).toHaveLength(0);
+    expect(h.r().remotesDialog).toBeNull();
+    expect(h.notices().at(-1)).toBe('Connected to ann/notes on GitHub');
+  });
+
+  test('no commits yet and an empty server: connected, asks for a first commit', async () => {
+    const h = await unconnected();
+    h.ipc.gitStatus.mockImplementation((root: string) =>
+      Promise.resolve(statusFor(root, { upstream: null, unborn: true, head: '' })),
+    );
+    await h.s().refresh(MAIN, { force: true });
+    connectWith(h, []);
+    h.s().openRemotes(MAIN);
+    h.s().setRemotesField(MAIN, { url: GH });
+    const save = h.s().saveRemote(MAIN);
+    await flush();
+    h.net.calls[0]!.finish(okResult());
+    await save;
+    expect(h.net.calls).toHaveLength(1);
+    expect(h.notices().at(-1)).toMatch(/first commit/);
+  });
+
+  test('list, edit and remove (with a confirm that says nothing is deleted)', async () => {
+    const h = await unconnected();
+    h.ipc.gitRemotes.mockResolvedValue([origin]);
+    await h.s().refresh(MAIN, { force: true });
+    h.s().openRemotes(MAIN);
+    expect(h.r().remotesDialog?.view).toBe('list');
+    h.s().showRemotesView(MAIN, 'connect');
+    expect(h.r().remotesDialog).toMatchObject({ view: 'connect', name: 'remote-2' });
+    h.s().showRemotesView(MAIN, 'list');
+
+    h.s().editRemote(MAIN, 'origin');
+    h.s().setRemotesField(MAIN, { url: 'git@github.com:ann/notes.git' });
+    await h.s().saveRemote(MAIN);
+    expect(h.ipc.gitRemoteSetUrl).toHaveBeenCalledWith(
+      MAIN,
+      'origin',
+      'git@github.com:ann/notes.git',
+    );
+    expect(h.r().remotesDialog?.view).toBe('list');
+
+    h.ipc.gitRemoteRemove.mockImplementation(() => {
+      h.ipc.gitRemotes.mockResolvedValue([]);
+      return Promise.resolve();
+    });
+    await h.s().removeRemote(MAIN, 'origin');
+    expect(h.deps.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('Nothing is deleted'),
+      'Remove connection',
+    );
+    expect(h.ipc.gitRemoteRemove).toHaveBeenCalledWith(MAIN, 'origin');
+    // The last one gone: the dialog offers to connect again.
+    expect(h.r().remotesDialog?.view).toBe('connect');
   });
 });
 

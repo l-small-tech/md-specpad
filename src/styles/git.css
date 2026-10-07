@@ -1115,6 +1115,103 @@
   border-top: 1px solid var(--border);
 }
 
+.git-dialog-footer > .git-header-spacer {
+  flex: 1 1 auto;
+}
+
+/* ---- remotes dialog ----------------------------------------------------- */
+
+.git-remote-lead {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* What the pasted address was understood as, under the field. */
+.git-remote-reading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.git-remote-reading .git-icon {
+  color: var(--accent);
+}
+
+.git-remote-reading.is-bad {
+  color: var(--danger);
+}
+
+.git-remote-wait {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.git-remote-wait .git-spinner {
+  flex: none;
+  margin-top: 3px;
+}
+
+.git-remote-wait p + p {
+  margin-top: 4px;
+}
+
+.git-remote-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.git-remote-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+}
+
+.git-remote-row + .git-remote-row {
+  border-top: 1px solid var(--border);
+}
+
+.git-remote-row > .git-icon {
+  color: var(--fg-muted);
+}
+
+.git-remote-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.git-remote-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.git-remote-url {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.git-remote-row .git-btn.is-icon {
+  padding: 3px 5px;
+}
+
 /* Finish preflight blockers — why the flow could not start. */
 .git-blockers {
   list-style: none;

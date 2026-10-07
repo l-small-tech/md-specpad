@@ -32,6 +32,7 @@ import { GitDiffDetail, GitInspector, hasDiffDetail } from './GitDetail';
 import { GitUnavailable } from './GitStates';
 import { GraphPane } from './GraphPane';
 import { NewWorktreeDialog } from './NewWorktreeDialog';
+import { RemotesDialog } from './RemotesDialog';
 import { OutputDrawer } from './OutputDrawer';
 import { WorktreeStrip } from './WorktreeStrip';
 
@@ -79,6 +80,7 @@ function GitTabImpl({ tabId, active }: { tabId: string; active: boolean }) {
   const key = root === null ? '' : repoKey(root);
   const unavailable = useGitStore((s) => s.repos[key]?.unavailable ?? null);
   const dialogOpen = useGitStore((s) => s.repos[key]?.newWorktree.open ?? false);
+  const remotesOpen = useGitStore((s) => (s.repos[key]?.remotesDialog ?? null) !== null);
   const hasSelection = useGitStore((s) => hasDiffDetail(s.repos[key]?.selected ?? null));
   const bodyRef = useRef<HTMLDivElement>(null);
   const sideRef = useRef<HTMLDivElement>(null);
@@ -146,6 +148,12 @@ function GitTabImpl({ tabId, active }: { tabId: string; active: boolean }) {
       state.closeNewWorktree(root);
       return;
     }
+    if (remotesOpen) {
+      e.preventDefault();
+      e.stopPropagation();
+      state.closeRemotes(root);
+      return;
+    }
     const selected = state.repos[key]?.selected ?? null;
     if (selected !== null) {
       e.preventDefault();
@@ -207,6 +215,7 @@ function GitTabImpl({ tabId, active }: { tabId: string; active: boolean }) {
             </div>
           </div>
           <NewWorktreeDialog root={root} />
+          <RemotesDialog root={root} />
         </>
       )}
     </div>

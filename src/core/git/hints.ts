@@ -43,6 +43,17 @@ const NETWORK_HINTS: readonly [RegExp, string][] = [
     /terminal prompts disabled|could not read Username|could not read Password|No credential helper|Authentication failed|Invalid username or (?:password|token)|HTTP Basic: Access denied/i,
     'Git could not ask for credentials — this app never prompts in a terminal. Configure a credential helper (`git config --global credential.helper manager` on Windows, `osxkeychain` on macOS, `libsecret` on Linux) or use SSH with an agent, then try again.',
   ],
+  // Before the SSH row: a wrong address ALSO ends in "Could not read from
+  // remote repository", and the address is the thing to fix. A remote NAME
+  // (no slash or colon) git cannot find means no such remote is configured.
+  [
+    /No such remote|No remote configured|'[\w.-]+' does not appear to be a git repository/i,
+    'This repository is not connected to a server yet — Publish (or the cloud button in the status bar) connects it to GitHub, Gitea or another host.',
+  ],
+  [
+    /repository not found|does not appear to be a git repository|remote error: access denied|The project you were looking for could not be found/i,
+    'The address points at nothing this account can reach — check it under Remotes (the cloud button in the status bar), and that you are signed in with access to the repository.',
+  ],
   [
     /Permission denied \(publickey|Host key verification failed|no matching host key type|Could not read from remote repository/i,
     'SSH refused the connection. Start ssh-agent with your key loaded (`ssh-add`), check `~/.ssh/config` for this host, or switch the remote to HTTPS.',
@@ -74,14 +85,6 @@ const NETWORK_HINTS: readonly [RegExp, string][] = [
   [
     /protected branch|pre-receive hook declined|GH006|GH013|remote rejected/i,
     'The remote refused the push — a protected branch or a server-side hook. Push another branch or open a pull request instead.',
-  ],
-  [
-    /repository not found|does not appear to be a git repository|remote error: access denied|The project you were looking for could not be found/i,
-    'The remote URL points at nothing Git can reach — check `git remote -v` and your access to it.',
-  ],
-  [
-    /No such remote|does not appear to be a git repository|No remote configured|no such remote|'origin' does not appear/i,
-    'No remote is configured for this repository — add one with `git remote add origin <url>`.',
   ],
 ];
 

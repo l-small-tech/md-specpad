@@ -399,6 +399,16 @@ pub fn run() {
             #[cfg(desktop)]
             commands::git::git_op_cancel,
             #[cfg(desktop)]
+            commands::git::git_remotes,
+            #[cfg(desktop)]
+            commands::git::git_remote_add,
+            #[cfg(desktop)]
+            commands::git::git_remote_set_url,
+            #[cfg(desktop)]
+            commands::git::git_remote_remove,
+            #[cfg(desktop)]
+            commands::git::git_compare_ref,
+            #[cfg(desktop)]
             commands::pty::pty_spawn,
             #[cfg(desktop)]
             commands::pty::pty_write,
