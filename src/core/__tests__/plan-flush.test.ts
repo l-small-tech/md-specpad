@@ -205,6 +205,103 @@ describe('planFlush — note tabs', () => {
     expect(plan.noteRenames).toEqual([]);
     expect(plan.assignedNotePaths).toEqual({ t2: '/notes/grand-plan.md' });
   });
+
+  test('a name being renamed away from stays taken — the rename may fail and leave the file there', () => {
+    // t1 retitled "Idea" → "Grand Plan"; t2 is a new note titled "Idea". If
+    // t1's rename fails (tolerated: its writes go back to idea.md), giving t2
+    // idea.md would make both tabs write the same file.
+    const plan = planFlush(
+      view({
+        existingNoteFiles: ['idea.md'],
+        tabs: [
+          tab({ id: 't1', notePath: '/notes/idea.md', title: 'Grand Plan', text: 'old note' }),
+          tab({ id: 't2', title: 'Idea', text: 'new note', sessionDirty: true }),
+        ],
+      }),
+    );
+    expect(plan.noteRenames).toEqual([{ from: '/notes/idea.md', to: '/notes/grand-plan.md' }]);
+    expect(plan.assignedNotePaths).toEqual({ t2: '/notes/idea-2.md' });
+  });
+
+  test('a failed rename followed by a new note with the old title never overwrites the old file', async () => {
+    // End to end through the executor, rename failing as a sync-tool lock would.
+    const files = new Map<string, string>([['/notes/idea.md', 'old note']]);
+    const io: FlushIo = {
+      atomicWriteText: async (path, text) => {
+        files.set(path, text);
+      },
+      renamePath: async () => {
+        throw new Error('EBUSY: locked by the sync client');
+      },
+      deletePath: async (path) => {
+        files.delete(path);
+      },
+    };
+    const plan = planFlush(
+      view({
+        existingNoteFiles: ['idea.md'],
+        tabs: [
+          tab({ id: 't1', notePath: '/notes/idea.md', title: 'Grand Plan', text: 'old note' }),
+          tab({ id: 't2', title: 'Idea', text: 'new note', sessionDirty: true }),
+        ],
+      }),
+    );
+    await executeFlushPlan(plan, io);
+    expect(files.get('/notes/idea.md')).toBe('old note');
+  });
+});
+
+describe('planFlush — deletes never hit a live path', () => {
+  test('a tombstoned note path a file tab now points to is NOT deleted (Save As onto its own name)', () => {
+    const plan = planFlush(
+      view({
+        closedNotePaths: ['/notes/idea.md'],
+        tabs: [tab({ id: 't1', kind: 'file', filePath: '/notes/idea.md', text: 'x' })],
+      }),
+    );
+    expect(plan.deletes).toEqual([]);
+  });
+
+  test('the comparison ignores separator style and case (Windows dialog paths)', () => {
+    const plan = planFlush(
+      view({
+        notesDir: 'C:\\Users\\me\\notes',
+        closedNotePaths: ['C:\\Users\\me\\notes/idea.md'],
+        tabs: [tab({ id: 't1', kind: 'file', filePath: 'c:\\users\\me\\notes\\Idea.md' })],
+      }),
+    );
+    expect(plan.deletes).toEqual([]);
+  });
+
+  test('a path this plan writes is not deleted by it (buffer re-dirtied after a save)', () => {
+    const plan = planFlush(
+      view({
+        obsoleteBufferPaths: ['/session/buffers/f1.md'],
+        tabs: [
+          tab({
+            id: 'f1',
+            kind: 'file',
+            filePath: '/docs/a.md',
+            text: 'typed during the save',
+            sessionDirty: true,
+            fileDirty: true,
+          }),
+        ],
+      }),
+    );
+    expect(plan.writes.map((w) => w.path)).toEqual(['/session/buffers/f1.md']);
+    expect(plan.deletes).toEqual([]);
+  });
+
+  test('a tombstone no tab points to is still deleted', () => {
+    const plan = planFlush(
+      view({
+        closedNotePaths: ['/notes/idea.md'],
+        tabs: [tab({ id: 't1', kind: 'file', filePath: '/docs/idea.md', text: 'x' })],
+      }),
+    );
+    expect(plan.deletes).toEqual(['/notes/idea.md']);
+  });
 });
 
 describe('planFlush — file tabs, deletes, manifest', () => {

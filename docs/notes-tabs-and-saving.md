@@ -79,9 +79,15 @@ toggle auto save or to reach Save As.
 ### Save and Save As
 
 - **Ctrl+S** — save the current file. On a *note* tab this acts as Save As,
-  turning the note into a regular file wherever you choose.
+  turning the note into a regular file wherever you choose. The note's own
+  file in the notes folder is then removed — unless you saved right over it
+  (the name the dialog suggests), in which case that file is what you keep.
 - **Ctrl+Shift+S** — Save As: save a copy under a new name or location. The
   tab switches over to the new file.
+
+Anything you type while a save is still being written (a slow cloud drive,
+say) keeps its unsaved dot and is saved next time — a save only clears the
+dot for the text it actually wrote.
 
 ### Export and print
 
@@ -124,7 +130,9 @@ you have it open, a banner appears at the top of that tab:
 Want two documents side by side? Drag a tab out of the window and release
 it — the tab opens in its own window right where you dropped it. You can
 also right-click a tab and pick **Move to new window** (on Linux this menu
-item is the way to do it).
+item is the way to do it). A tab only moves once its text is safely on disk:
+if the app can't save right now (a full disk, say), the tab stays where it
+is and a notice says so.
 
 Extra windows are full editors: everything above about notes, files, and
 saving applies in each one. They're part of your session too — quit the app

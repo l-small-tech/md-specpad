@@ -62,11 +62,15 @@ export function createOpenSave(ctx: SessionCtx, saveFileTab: (id: string) => Pro
       return; // user cancelled
     }
     try {
-      await ctx.ipc.atomicWriteText(target, tab.model.getText());
+      // Record exactly what was written — edits made during the await stay dirty.
+      const text = tab.model.getText();
+      await ctx.ipc.atomicWriteText(target, text);
       const stat = await ctx.ipc.statPath(target);
-      tabsStore
-        .getState()
-        .saveToPath(tab.id, { filePath: target, mtimeMs: stat.mtimeMs ?? ctx.now() });
+      tabsStore.getState().saveToPath(tab.id, {
+        filePath: target,
+        mtimeMs: stat.mtimeMs ?? ctx.now(),
+        savedText: text,
+      });
     } catch (error) {
       uiStore.getState().showNotice(`Could not save "${tab.title}".`);
       ctx.deps.onError?.(error);
@@ -383,7 +387,7 @@ export function createOpenSave(ctx: SessionCtx, saveFileTab: (id: string) => Pro
     try {
       const { text, mtimeMs } = await ctx.ipc.readTextFile(path);
       tab.model.pushText(text, 'file-load');
-      tabsStore.getState().markSaved(id, mtimeMs);
+      tabsStore.getState().markSaved(id, mtimeMs, text);
       diffViewStore.getState().close(id);
     } catch (error) {
       uiStore.getState().showNotice(`Could not reload "${tab.title}".`);

@@ -578,10 +578,13 @@ export function createFlushRestore(ctx: SessionCtx) {
       // A transient stat failure must not block the save.
     }
     try {
-      await ctx.ipc.atomicWriteText(filePath, tab.model.getText());
+      // Record exactly what was written: on a slow drive the user keeps
+      // typing during the await, and those edits must stay dirty.
+      const text = tab.model.getText();
+      await ctx.ipc.atomicWriteText(filePath, text);
       const after = await ctx.ipc.statPath(filePath);
-      tabsStore.getState().markSaved(id, after.mtimeMs ?? ctx.now());
-      return true;
+      tabsStore.getState().markSaved(id, after.mtimeMs ?? ctx.now(), text);
+      return !tab.model.isDirty('file');
     } catch (error) {
       uiStore.getState().showNotice(`Could not save "${tab.title}".`);
       ctx.deps.onError?.(error);

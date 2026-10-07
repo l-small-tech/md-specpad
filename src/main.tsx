@@ -1183,8 +1183,9 @@ async function boot(): Promise<void> {
   // every window's session so installing an update costs zero typed text.
   setBeforeRestart(async () => {
     void emit('flush-all').catch(() => {});
-    await controller.flushNow();
+    const saved = await controller.flushNow();
     await delay(600); // give the other windows a beat to finish their flush
+    return saved; // false holds the relaunch (this window's text isn't on disk)
   });
   // The updater/process plugins are desktop-only (mobile updates via the store),
   // so skip the check on Android — otherwise it logs "updater.check not allowed".
@@ -1224,6 +1225,11 @@ async function boot(): Promise<void> {
     );
     if (others.length === 0) {
       const tabs = await controller.exportTabsForHandoff(); // flushes first
+      if (tabs === null) {
+        // The flush failed: keep this window's last good manifest so its tabs
+        // come back next launch, instead of folding unwritten ones into main's.
+        return;
+      }
       await controller.dispose();
       if (tabs.length === 0) {
         await controller.discardManifest().catch(() => {});
@@ -1232,8 +1238,10 @@ async function boot(): Promise<void> {
       }
       return;
     }
-    // Latest note text lands on disk before anything is torn down.
-    await controller.flushNow();
+    // Latest note text lands on disk before anything is torn down. When it
+    // cannot, the manifest is kept (below): like a crash, the window's last
+    // good state returns next launch rather than its tabs vanishing unsaved.
+    const flushed = await controller.flushNow();
     // Closing a terminal tab through the store is what kills its shells (the
     // pane's unmount cleanup sends the pty kill) — destroying the webview
     // outright would leave the child processes running until app exit.
@@ -1248,7 +1256,9 @@ async function boot(): Promise<void> {
       await delay(150); // one beat for React to unmount the panes
     }
     await controller.dispose();
-    await controller.discardManifest().catch(() => {});
+    if (flushed) {
+      await controller.discardManifest().catch(() => {});
+    }
   }
 
   // Close path: never prompt. Windows close independently — the app exits

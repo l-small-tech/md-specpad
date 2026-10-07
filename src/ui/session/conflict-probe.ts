@@ -88,7 +88,7 @@ export async function probeTabConflict(ctx: SessionCtx, id: string): Promise<boo
           return false;
         }
         if (!changed && text !== persisted) {
-          tabsStore.getState().markSaved(id, mtimeMs);
+          tabsStore.getState().markSaved(id, mtimeMs, text);
           return false;
         }
         if (!changed) {

@@ -334,7 +334,7 @@ describe('markSaved (M3)', () => {
       .model.pushText('hi edited', 'cm6');
     expect(state().tabs.find((t) => t.id === id)!.dirty).toBe(true);
 
-    state().markSaved(id, 42);
+    state().markSaved(id, 42, 'hi edited');
 
     const tab = state().tabs.find((t) => t.id === id)!;
     expect(tab.dirty).toBe(false);
@@ -343,6 +343,22 @@ describe('markSaved (M3)', () => {
     expect(tab.model.isDirty('file')).toBe(false);
     expect(tab.model.isDirty('session')).toBe(false);
     expect(state().obsoleteBufferTabIds).toContain(id);
+  });
+
+  test('records the text WRITTEN: edits made during a slow write stay dirty', () => {
+    const id = state().openFileTab({ filePath: '/docs/hi.md', text: 'hi', savedMtimeMs: 1 });
+    const model = state().tabs.find((t) => t.id === id)!.model;
+    model.pushText('hi edited', 'cm6'); // the text the save writes…
+    model.pushText('hi edited more', 'cm6'); // …and a keystroke while it is in flight
+
+    state().markSaved(id, 42, 'hi edited');
+
+    const tab = state().tabs.find((t) => t.id === id)!;
+    expect(tab.model.getPersisted('file')).toBe('hi edited');
+    expect(tab.model.isDirty('file')).toBe(true);
+    expect(tab.model.isDirty('session')).toBe(true);
+    expect(tab.dirty).toBe(true);
+    expect(tab.savedMtimeMs).toBe(42);
   });
 });
 
@@ -360,7 +376,11 @@ describe('saveToPath (M3)', () => {
     });
     expect(tabAt(0).notePath).toBe('/notes/grocery-list.md');
 
-    state().saveToPath(id, { filePath: '/docs/grocery-list.md', mtimeMs: 9 });
+    state().saveToPath(id, {
+      filePath: '/docs/grocery-list.md',
+      mtimeMs: 9,
+      savedText: '# Grocery list',
+    });
 
     const tab = tabAt(0);
     expect(tab.kind).toBe('file');
@@ -373,7 +393,7 @@ describe('saveToPath (M3)', () => {
 
   test('Save As on an existing file tab just retargets the path', () => {
     const id = state().openFileTab({ filePath: '/docs/a.md', text: 'a', savedMtimeMs: 1 });
-    state().saveToPath(id, { filePath: '/docs/b.md', mtimeMs: 2 });
+    state().saveToPath(id, { filePath: '/docs/b.md', mtimeMs: 2, savedText: 'a' });
     const tab = state().tabs.find((t) => t.id === id)!;
     expect(tab.filePath).toBe('/docs/b.md');
     expect(tab.savedMtimeMs).toBe(2);
@@ -382,7 +402,7 @@ describe('saveToPath (M3)', () => {
 
   test('is a no-op on a terminal tab — its kind must never become file', () => {
     const id = state().openTerminalTab({ profileId: 'shell' });
-    state().saveToPath(id, { filePath: '/docs/oops.md', mtimeMs: 3 });
+    state().saveToPath(id, { filePath: '/docs/oops.md', mtimeMs: 3, savedText: '' });
     const tab = state().tabs.find((t) => t.id === id)!;
     expect(tab.kind).toBe('terminal');
     expect(tab.filePath).toBeNull();

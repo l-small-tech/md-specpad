@@ -8,11 +8,19 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const check = vi.fn();
 vi.mock('@tauri-apps/plugin-updater', () => ({ check: () => check() }));
+const relaunch = vi.fn();
+vi.mock('@tauri-apps/plugin-process', () => ({ relaunch: () => relaunch() }));
 
 import { DEFAULT_SETTINGS } from '../../core/settings';
 import { settingsStore } from '../stores/settings';
 import { uiStore } from '../stores/ui';
-import { checkForUpdate, checkForUpdateIfDue, updateStore } from '../update';
+import {
+  checkForUpdate,
+  checkForUpdateIfDue,
+  downloadAndInstall,
+  setBeforeRestart,
+  updateStore,
+} from '../update';
 
 // 2026-09-02 is a Wednesday; 2026-08-30 the Sunday that opened its week.
 const WEDNESDAY = new Date(2026, 8, 2, 15, 0).getTime();
@@ -77,5 +85,32 @@ describe('checkForUpdate (manual)', () => {
     await checkForUpdate({ manual: true });
     expect(check).toHaveBeenCalledTimes(1);
     expect(settings().lastUpdateCheck).not.toBe(LAST_MONDAY);
+  });
+});
+
+describe('downloadAndInstall', () => {
+  async function installable() {
+    const install = vi.fn().mockResolvedValue(undefined);
+    check.mockResolvedValue({ version: '9.9.9', downloadAndInstall: install });
+    await checkForUpdate({ manual: false });
+    relaunch.mockReset().mockResolvedValue(undefined);
+    return install;
+  }
+
+  test('relaunches once the pre-restart flush saved the session', async () => {
+    await installable();
+    setBeforeRestart(async () => true);
+    await downloadAndInstall();
+    expect(relaunch).toHaveBeenCalledOnce();
+  });
+
+  test('a session that could not be saved holds the relaunch — nothing in memory is thrown away', async () => {
+    const install = await installable();
+    setBeforeRestart(async () => false);
+    await downloadAndInstall();
+    expect(install).toHaveBeenCalledOnce();
+    expect(relaunch).not.toHaveBeenCalled();
+    expect(updateStore.getState().phase).toBe('available');
+    expect(uiStore.getState().notice).toMatch(/did not restart/);
   });
 });

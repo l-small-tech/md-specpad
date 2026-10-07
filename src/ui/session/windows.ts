@@ -230,14 +230,26 @@ export function createWindows(
     if (!spawn) {
       return null;
     }
-    await ctx.flusher.flushNow();
+    // The descriptor carries paths, not text: unless the flush landed, the
+    // new window would read stale (or missing) files and the edits would be
+    // lost with the detach. Keep the tab here instead.
+    if (!(await ctx.flusher.flushNow())) {
+      uiStore.getState().showNotice('Could not save the tab — it stays in this window.');
+      return null;
+    }
     const tab = tabsStore.getState().tabs.find((t) => t.id === id);
     if (!tab) {
       return null;
     }
     const descriptor = persistedDescriptor(tab, { handover: true });
     tabsStore.getState().detachTab(id);
-    await ctx.flusher.flushNow();
+    if (!(await ctx.flusher.flushNow())) {
+      // This window's manifest still claims the tab; handing it over now
+      // could restore it in two windows. Its files are on disk — take it back.
+      await adoptPersistedTabs([descriptor]);
+      uiStore.getState().showNotice('Could not save the session — the tab stays in this window.');
+      return null;
+    }
     try {
       return await spawn({ schema: 1, activeTabId: descriptor.id, tabs: [descriptor] }, pos, opts);
     } catch (error) {
@@ -262,14 +274,22 @@ export function createWindows(
     if (!send) {
       return;
     }
-    await ctx.flusher.flushNow();
+    // Same guards as moveTabOut: no handover unless both flushes landed.
+    if (!(await ctx.flusher.flushNow())) {
+      uiStore.getState().showNotice('Could not save the tab — it stays in this window.');
+      return;
+    }
     const tab = tabsStore.getState().tabs.find((t) => t.id === id);
     if (!tab) {
       return;
     }
     const descriptor = persistedDescriptor(tab, { handover: true });
     tabsStore.getState().detachTab(id);
-    await ctx.flusher.flushNow();
+    if (!(await ctx.flusher.flushNow())) {
+      await adoptPersistedTabs([descriptor]);
+      uiStore.getState().showNotice('Could not save the session — the tab stays in this window.');
+      return;
+    }
     const acked = await send(targetLabel, [descriptor]).catch(() => false);
     if (!acked) {
       await adoptPersistedTabs([descriptor]);
@@ -411,9 +431,15 @@ export function createWindows(
    * everything, then describe each tab worth keeping. A pristine never-flushed
    * Untitled is dropped — folding an empty placeholder into main's manifest
    * would just add noise.
+   *
+   * Null when the flush failed: the descriptors would reference files that
+   * were never written. The caller then leaves this window's manifest (the
+   * last one that did land) in place rather than folding a lie into main's.
    */
-  async function exportTabsForHandoff(): Promise<PersistedTab[]> {
-    await ctx.flusher.flushNow();
+  async function exportTabsForHandoff(): Promise<PersistedTab[] | null> {
+    if (!(await ctx.flusher.flushNow())) {
+      return null;
+    }
     return (
       tabsStore
         .getState()

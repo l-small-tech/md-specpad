@@ -259,7 +259,9 @@ anything by itself:
 - If a newer version exists, a small **"Update available"** chip appears in
   the status bar — nothing pops up over your work.
 - Click the chip and the update downloads, installs, and restarts the app.
-  Your open tabs are written to disk first, so updating never loses a word.
+  Your open tabs are written to disk first, so updating never loses a word —
+  if they can't be written (a full disk, say), the app does not restart and
+  tells you so; the installed update then applies the next time you start it.
 - Every update is cryptographically checked before it's installed, and a
   failed check-for-updates never bothers you (if you're offline, nothing
   happens).
