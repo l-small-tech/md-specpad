@@ -125,10 +125,18 @@ code, comments → quote), so themes need nothing new. Like `'xml'` and
 
 ## Heading marks (both text editors)
 
-Right-click an ATX heading → Mark running / Mark complete / Clear mark. The
+Right-click an ATX heading → Mark running / Mark complete / Clear mark
+(picking the ticked mark again clears it, `markAfterPick`). The
 mark is a trailing glyph in the heading text (`core/heading-mark.ts`), so the
 editors only (a) decide a line IS a heading, (b) rewrite its tail, and (c)
-tint it with `.heading-mark .heading-mark-<mark>` (app.css).
+tint it with `.heading-mark .heading-mark-<mark>` (app.css). The rest of the
+section — body and unmarked sub-headings, up to the next heading of the same
+or a higher level — gets `.heading-mark-section .heading-mark-section-<mark>`;
+`sectionMarks` (core) decides which mark each section shows (its own, else
+the innermost marked ancestor's). Sections are built from TOP-LEVEL headings
+only (a heading inside a list or quote still gets its own tint but does not
+open a section). In Edit mode the band is per block, so block margins leave
+small gaps in the bar; in CM6 lines are contiguous.
 
 - `heading-marks-cm6.ts` (markdown language only): a `ViewPlugin` of line
   decorations over the visible ranges, and a `contextmenu` handler that

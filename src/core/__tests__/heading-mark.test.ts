@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   markOfText,
   parseHeadingLine,
+  sectionMarks,
   setHeadingLineMark,
   stripMark,
   withMarkText,
@@ -70,5 +71,31 @@ describe('heading text helpers (Edit mode works on node text)', () => {
     expect(stripMark('Plan ✅ ')).toBe('Plan');
     expect(withMarkText('Plan ⏳', 'complete')).toBe('Plan ✅');
     expect(withMarkText('', 'running')).toBe('⏳');
+  });
+});
+
+describe('sectionMarks', () => {
+  const h = (level: number, mark: 'running' | 'complete' | null = null) => ({ level, mark });
+
+  test('sub-headings inherit the enclosing mark', () => {
+    expect(sectionMarks([h(2, 'running'), h(3), h(4), h(2)])).toEqual([
+      'running',
+      'running',
+      'running',
+      null,
+    ]);
+  });
+
+  test('a sub-heading’s own mark wins, and the parent’s resumes after it', () => {
+    expect(sectionMarks([h(1, 'running'), h(2, 'complete'), h(3), h(2)])).toEqual([
+      'running',
+      'complete',
+      'complete',
+      'running',
+    ]);
+  });
+
+  test('a higher-level heading closes the section', () => {
+    expect(sectionMarks([h(3, 'complete'), h(2), h(3)])).toEqual(['complete', null, null]);
   });
 });

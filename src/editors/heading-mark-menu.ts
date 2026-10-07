@@ -1,8 +1,9 @@
 /**
  * The heading right-click menu both text editors share (Raw/Split's CM6 and
  * Edit mode's Milkdown): Mark running / Mark complete / Clear mark, with the
- * current choice ticked. Decides nothing — the caller reads the heading's
- * mark (`core/heading-mark.ts`) and applies the one picked.
+ * current choice ticked; picking the ticked one again clears it. Decides
+ * nothing else — the caller reads the heading's mark (`core/heading-mark.ts`)
+ * and applies the result.
  *
  * Where the items go depends on the platform. The spell checker's
  * suggestions live only in the webview's native menu (no web API exposes
@@ -56,6 +57,14 @@ if (typeof document !== 'undefined') {
   );
 }
 
+/** The mark a pick leaves: picking the checked mark again clears it (pure; tested). */
+export function markAfterPick(
+  current: HeadingMark | null,
+  picked: HeadingMark,
+): HeadingMark | null {
+  return picked === current ? null : picked;
+}
+
 /** The heading items as native-menu entries (pure; exported for tests). */
 export function headingMarkNativeItems(current: HeadingMark | null): NativeMenuItem[] {
   return [
@@ -87,8 +96,10 @@ export function openHeadingMarkMenu(
       select: (id) => {
         window.__mdSpecpadNativeMenu = null;
         const mark = HEADING_MARKS.find((m) => m === id);
-        if (mark || id === CLEAR_ID) {
-          apply(mark ?? null);
+        if (mark) {
+          apply(markAfterPick(current, mark));
+        } else if (id === CLEAR_ID) {
+          apply(null);
         }
       },
     };
@@ -99,7 +110,7 @@ export function openHeadingMarkMenu(
     ...HEADING_MARKS.map((mark) => ({
       label: `Mark ${HEADING_MARK_LABELS[mark].toLowerCase()}`,
       checked: current === mark,
-      onSelect: () => apply(mark),
+      onSelect: () => apply(markAfterPick(current, mark)),
     })),
     'separator',
     { label: 'Clear mark', disabled: current === null, onSelect: () => apply(null) },
@@ -111,4 +122,13 @@ export function openHeadingMarkMenu(
 /** The class list a marked heading carries in either editor. */
 export function headingMarkClass(mark: HeadingMark): string {
   return `heading-mark heading-mark-${mark}`;
+}
+
+/**
+ * The class list a line or block INSIDE a marked section carries (body text
+ * and unmarked sub-headings): the same hue as the heading, without its
+ * breathing, so the section reads as one band.
+ */
+export function sectionMarkClass(mark: HeadingMark): string {
+  return `heading-mark-section heading-mark-section-${mark}`;
 }

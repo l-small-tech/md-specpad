@@ -3777,8 +3777,26 @@ body.explorer-dragging * {
   --heading-mark-hue: #34c759;
 }
 
-/* Edit mode's headings have no inner padding; keep the text off the bar. */
-.milkdown .ProseMirror .heading-mark {
+/* The rest of a marked section — body lines and unmarked sub-headings —
+   keeps the heading's bar with a fainter wash and no breathing (lines come
+   and go as CM6 scrolls; a per-line animation would drift out of phase). */
+.heading-mark-section {
+  --heading-mark-hue: var(--fg-muted);
+  box-shadow: inset 3px 0 0 var(--heading-mark-hue);
+  background-color: color-mix(in srgb, var(--heading-mark-hue) 5%, transparent);
+}
+
+.heading-mark-section-running {
+  --heading-mark-hue: #e8a13a;
+}
+
+.heading-mark-section-complete {
+  --heading-mark-hue: #34c759;
+}
+
+/* Edit mode's blocks have no inner padding; keep the text off the bar. */
+.milkdown .ProseMirror .heading-mark,
+.milkdown .ProseMirror .heading-mark-section {
   padding-left: 10px;
 }
 
