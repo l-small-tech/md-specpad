@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+## [0.10.5] — 2026-10-06
+
 - **Collapsible headings** (Settings, off by default): Raw and Split modes get a fold gutter so any heading's section can be collapsed like a function in a code editor, and a heading marked running collapses by itself.
 - Git tab: a ⤢ button at the right of the worktree cards goes distraction-free, as on a document. The status bar with the branch picker and Fetch / Pull / Push stays; Esc or the top-edge cluster brings the tab bar back.
 - **Fixed: no spelling suggestions on headings (Windows).** Right-clicking a heading used to swap the usual menu for the Mark running / Mark complete one, which hid the spell checker's suggestions. The mark items now sit at the bottom of the usual menu, so you get both.
