@@ -4,7 +4,8 @@
  * lazily loaded wysiwyg chunk (I8).
  *
  * The mark is the trailing glyph of the heading's text (`core/heading-mark.ts`),
- * so a node decoration tints any heading whose text ends in one, and the
+ * so a node decoration tints any heading whose text ends in one (and every
+ * top-level block of its section), and the
  * right-click menu rewrites only that tail: the glyph and the blank before
  * it, never the rest of the heading (its inline marks and links survive).
  * The edit is an ordinary transaction — NOT tagged programmatic — so the
@@ -15,23 +16,54 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
 import { Decoration, DecorationSet, type EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
-import { markOfText, stripMark, withMarkText, type HeadingMark } from '../core/heading-mark';
-import { headingMarkClass, openHeadingMarkMenu } from './heading-mark-menu';
+import {
+  markOfText,
+  sectionMarks,
+  stripMark,
+  withMarkText,
+  type HeadingMark,
+} from '../core/heading-mark';
+import { headingMarkClass, openHeadingMarkMenu, sectionMarkClass } from './heading-mark-menu';
 
 const key = new PluginKey<DecorationSet>('md-specpad-heading-marks');
 
 function build(doc: ProseNode): DecorationSet {
   const decos: Decoration[] = [];
+  const own = new Set<number>();
   doc.descendants((node, pos) => {
     if (node.type.name === 'heading') {
       const mark = markOfText(node.textContent);
       if (mark) {
+        own.add(pos);
         decos.push(Decoration.node(pos, pos + node.nodeSize, { class: headingMarkClass(mark) }));
       }
       return false;
     }
     return true;
   });
+
+  // Sections over the top-level blocks: everything after a marked heading
+  // (paragraphs, lists, code, unmarked sub-headings) shares its hue up to
+  // the next heading of the same or a higher level.
+  const blocks: { node: ProseNode; pos: number }[] = [];
+  doc.forEach((node, pos) => blocks.push({ node, pos }));
+  const headings = blocks.filter((b) => b.node.type.name === 'heading');
+  const shown = sectionMarks(
+    headings.map((b) => ({
+      level: Number(b.node.attrs.level) || 1,
+      mark: markOfText(b.node.textContent),
+    })),
+  );
+  let mark: HeadingMark | null = null;
+  let h = 0;
+  for (const { node, pos } of blocks) {
+    if (node.type.name === 'heading') {
+      mark = shown[h++] ?? null;
+    }
+    if (mark && !own.has(pos)) {
+      decos.push(Decoration.node(pos, pos + node.nodeSize, { class: sectionMarkClass(mark) }));
+    }
+  }
   return DecorationSet.create(doc, decos);
 }
 

@@ -77,3 +77,28 @@ export function setHeadingLineMark(line: string, mark: HeadingMark | null): stri
   const space = next === '' ? (gap ?? '') : (gap ?? ' ');
   return `${indent}${hashes}${space}${next}${tail}${cr}`;
 }
+
+/** A heading in document order: its level (1–6) and its own mark. */
+export interface SectionHeading {
+  level: number;
+  mark: HeadingMark | null;
+}
+
+/**
+ * The mark each heading's section shows, in document order: its own mark,
+ * else the innermost enclosing marked heading's. A section runs from its
+ * heading to the next heading of the same or a higher level, so everything
+ * under `## Build ⏳` — text and `###` sub-headings alike — reads as running,
+ * until a sub-heading carries a mark of its own.
+ */
+export function sectionMarks(headings: readonly SectionHeading[]): (HeadingMark | null)[] {
+  const open: SectionHeading[] = [];
+  return headings.map(({ level, mark }) => {
+    while (open.length > 0 && open[open.length - 1]!.level >= level) {
+      open.pop();
+    }
+    const shown = mark ?? open[open.length - 1]?.mark ?? null;
+    open.push({ level, mark: shown });
+    return shown;
+  });
+}

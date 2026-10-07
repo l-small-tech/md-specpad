@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { headingMarkNativeItems } from '../heading-mark-menu';
+import { headingMarkNativeItems, markAfterPick } from '../heading-mark-menu';
 
 describe('headingMarkNativeItems', () => {
   test('an unmarked heading: nothing ticked, Clear mark disabled', () => {
@@ -16,5 +16,17 @@ describe('headingMarkNativeItems', () => {
     expect(items.find((i) => i.id === 'complete')?.checked).toBe(true);
     expect(items.find((i) => i.id === 'running')?.checked).toBe(false);
     expect(items.find((i) => i.id === 'clear')?.enabled).toBe(true);
+  });
+});
+
+describe('markAfterPick', () => {
+  test('picking the checked mark again clears it', () => {
+    expect(markAfterPick('running', 'running')).toBeNull();
+    expect(markAfterPick('complete', 'complete')).toBeNull();
+  });
+
+  test('picking another mark switches to it', () => {
+    expect(markAfterPick(null, 'running')).toBe('running');
+    expect(markAfterPick('running', 'complete')).toBe('complete');
   });
 });
