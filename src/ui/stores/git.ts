@@ -61,10 +61,18 @@ import {
   type FinishEvent,
   type FinishPreflightFacts,
 } from '../../core/git/finish-flow';
-import { errorCode, gitFailureText, networkHint } from '../../core/git/hints';
+import { errorCode, firstGitLine, gitFailureText, networkHint } from '../../core/git/hints';
 import { validateIdentity, type CommitIdentity } from '../../core/git/identity';
 import { conflictPrompt } from '../../core/git/prompts';
 import { branchForWorktree, validateBranchName } from '../../core/git/refs';
+import {
+  connectPlan,
+  parseRemoteUrl,
+  publishRemote,
+  remoteBranchNames,
+  suggestRemoteName,
+  validateRemoteName,
+} from '../../core/git/remotes';
 import { emptyGroups, groupStatus, mergingInto } from '../../core/git/status';
 import type {
   ConflictTracker,
@@ -78,6 +86,8 @@ import type {
   GitNetKind,
   GitNetResult,
   GitOutputLine,
+  GitRefRelation,
+  GitRemote,
   GitStatus,
   GitStatusEntry,
   DiffGroup,
@@ -120,6 +130,11 @@ export type GitIpc = Pick<
   | 'gitInit'
   | 'gitIdentity'
   | 'gitSetIdentity'
+  | 'gitRemotes'
+  | 'gitRemoteAdd'
+  | 'gitRemoteSetUrl'
+  | 'gitRemoteRemove'
+  | 'gitCompareRef'
   | 'readTextFile'
   | 'atomicWriteText'
 >;
@@ -212,6 +227,32 @@ export interface NewWorktreeDraft {
   busy: boolean;
 }
 
+/**
+ * The Remotes dialog — "where this repository uploads to". `list` shows the
+ * remotes; `connect` adds one (and, with `publish`, goes on to `checking`:
+ * fetch it, compare, then publish or stop at `bring-in` when the server
+ * already has commits on this branch); `edit` changes a remote's address;
+ * `failed` says why the check could not finish.
+ */
+export type RemotesView = 'list' | 'connect' | 'edit' | 'checking' | 'bring-in' | 'failed';
+
+export interface RemotesDialog {
+  view: RemotesView;
+  /** connect: the new remote's name; edit: the remote being changed. */
+  name: string;
+  url: string;
+  /** connect: upload the branch once connected. */
+  publish: boolean;
+  busy: boolean;
+  /** Validation, git or network error, in plain words. */
+  error: string | null;
+  /** The remote the connect check is about (set from `checking` on). */
+  remote: string | null;
+  /** bring-in: the remote-tracking branch to merge, and how it relates to HEAD. */
+  target: string | null;
+  relation: GitRefRelation | null;
+}
+
 /** `untrusted`: git's `safe.directory` check refused the repository (`GIT_UNTRUSTED`). */
 export type RepoUnavailable = 'no-git' | 'not-a-repo' | 'untrusted';
 
@@ -235,6 +276,8 @@ export interface RepoState {
   /** `status.entries` grouped for the four change sections (core/git/status.ts `groupStatus`). */
   groups: StatusGroups;
   branches: GitBranch[];
+  /** The repository's remotes; null until first read. */
+  remotes: GitRemote[] | null;
   log: GitCommit[];
   logExhausted: boolean;
   /** sha → the commit's files, once fetched. */
@@ -257,6 +300,7 @@ export interface RepoState {
   conflictTracker: ConflictTracker | null;
   finish: FinishState | null;
   newWorktree: NewWorktreeDraft;
+  remotesDialog: RemotesDialog | null;
 }
 
 export interface GitState {
@@ -345,8 +389,34 @@ export interface GitState {
     mainRoot: string,
     opts?: { remote?: string | null; setUpstream?: boolean },
   ) => Promise<void>;
+  /**
+   * Publish the branch (`push -u <remote> HEAD`, `origin` or the first
+   * remote) — or, with no remote at all, open the Remotes dialog to connect.
+   */
+  publish: (mainRoot: string) => Promise<void>;
   cancelOp: (mainRoot: string) => void;
   dismissOp: (mainRoot: string) => void;
+
+  /* remotes */
+  /** Open the Remotes dialog: the list, or straight to connect (`connect`, or no remotes). */
+  openRemotes: (mainRoot: string, opts?: { connect?: boolean }) => void;
+  closeRemotes: (mainRoot: string) => void;
+  /** `list` <-> `connect` within the dialog. */
+  showRemotesView: (mainRoot: string, view: 'list' | 'connect') => void;
+  setRemotesField: (
+    mainRoot: string,
+    patch: Partial<Pick<RemotesDialog, 'name' | 'url' | 'publish'>>,
+  ) => void;
+  /** Change a remote's address (`edit` view, prefilled). */
+  editRemote: (mainRoot: string, name: string) => void;
+  /** connect: add the remote, then check + publish when asked; edit: set its URL. */
+  saveRemote: (mainRoot: string) => Promise<void>;
+  /** `remote remove`, after a confirm that says nothing is deleted. */
+  removeRemote: (mainRoot: string, name: string) => Promise<void>;
+  /** bring-in: merge the server's commits (unrelated histories allowed), then publish. */
+  bringInRemote: (mainRoot: string) => Promise<void>;
+  /** failed: run the connect check again. */
+  retryRemoteCheck: (mainRoot: string) => Promise<void>;
 
   /* worktrees */
   openNewWorktree: (mainRoot: string) => void;
@@ -395,6 +465,7 @@ export function emptyRepoState(mainRoot: string, checkout?: string | null): Repo
     status: null,
     groups: { staged: [], unstaged: [], untracked: [], conflicted: [] },
     branches: [],
+    remotes: null,
     log: [],
     logExhausted: false,
     commitFiles: {},
@@ -413,6 +484,22 @@ export function emptyRepoState(mainRoot: string, checkout?: string | null): Repo
     conflictTracker: null,
     finish: null,
     newWorktree: EMPTY_NEW_WORKTREE,
+    remotesDialog: null,
+  };
+}
+
+function remotesDialog(view: RemotesView, fields: Partial<RemotesDialog> = {}): RemotesDialog {
+  return {
+    view,
+    name: '',
+    url: '',
+    publish: true,
+    busy: false,
+    error: null,
+    remote: null,
+    target: null,
+    relation: null,
+    ...fields,
   };
 }
 
@@ -632,8 +719,15 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       const seq = ++state.seq.branches;
       setLoading(mainRoot, 'branches', true);
       let branches: GitBranch[];
+      let remotes: GitRemote[] | null;
       try {
-        branches = await getDeps().ipc.gitBranches(sel);
+        [branches, remotes] = await Promise.all([
+          getDeps().ipc.gitBranches(sel),
+          // Best effort: a failure here keeps the last known list.
+          getDeps()
+            .ipc.gitRemotes(sel)
+            .catch(() => null),
+        ]);
       } catch (err) {
         if (seq !== state.seq.branches) {
           return;
@@ -646,7 +740,11 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       if (seq !== state.seq.branches || !current || !sameCheckout(current.selectedCheckout, sel)) {
         return;
       }
-      patch(mainRoot, (r) => ({ branches, loading: { ...r.loading, branches: false } }));
+      patch(mainRoot, (r) => ({
+        branches,
+        remotes: remotes ?? r.remotes,
+        loading: { ...r.loading, branches: false },
+      }));
     };
 
     const loadLog = async (mainRoot: string, sel: string, skip: number): Promise<void> => {
@@ -1011,14 +1109,15 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
 
     /* ----------------------------- network ops ---------------------------- */
 
+    /** Run one network op into `op`; resolves with git's result (null when rejected). */
     const startNet = async (
       mainRoot: string,
       kind: GitNetKind,
       options: { remote?: string | null; prune?: boolean; setUpstream?: boolean },
-    ): Promise<void> => {
+    ): Promise<GitNetResult | null> => {
       const r = repo(mainRoot);
       if (!r) {
-        return;
+        return null;
       }
       const deps = getDeps();
       const state = it(mainRoot);
@@ -1054,7 +1153,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         patch(mainRoot, (cur) =>
           cur.op ? { op: { ...cur.op, running: false, error: gitFailureText(err) } } : {},
         );
-        return;
+        return null;
       }
       state.opCancel = op.cancel;
       let result: GitNetResult | null = null;
@@ -1099,6 +1198,90 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         );
       }
       await get().refresh(mainRoot, { force: true });
+      return result;
+    };
+
+    /* ------------------------------- remotes ------------------------------ */
+
+    const patchDialog = (mainRoot: string, fields: Partial<RemotesDialog>) =>
+      patch(mainRoot, (r) =>
+        r.remotesDialog ? { remotesDialog: { ...r.remotesDialog, ...fields } } : {},
+      );
+
+    /** How the app names a remote: `ann/notes on GitHub`, else its name. */
+    const describeRemote = (mainRoot: string, name: string): string => {
+      const url = repo(mainRoot)?.remotes?.find((x) => x.name === name)?.url ?? '';
+      const parsed = parseRemoteUrl(url);
+      if ('error' in parsed || parsed.repo === null) {
+        return name;
+      }
+      return parsed.provider ? `${parsed.repo} on ${parsed.provider}` : parsed.repo;
+    };
+
+    /**
+     * The connect check: fetch `remote`, compare this branch with the server's
+     * copy, then publish, ask to bring the server's commits in, or stop.
+     * Closing the dialog midway stops the flow after the step in flight.
+     */
+    const runConnect = async (mainRoot: string, remote: string): Promise<void> => {
+      patchDialog(mainRoot, { view: 'checking', remote, busy: true, error: null });
+      const failed = (error: string) =>
+        patchDialog(mainRoot, { view: 'failed', busy: false, error });
+      const result = await startNet(mainRoot, 'fetch', { remote, prune: false });
+      const r = repo(mainRoot);
+      if (!r?.remotesDialog) {
+        return;
+      }
+      if (!result?.ok) {
+        failed(
+          r.op?.hint ??
+            r.op?.error ??
+            (firstGitLine(result?.stderr ?? '') || 'The repository could not be reached.'),
+        );
+        return;
+      }
+      // The fetch drawer has nothing to say to someone connecting; the push
+      // card (or the dialog) takes over from here.
+      patch(mainRoot, () => ({ op: null }));
+      const status = r.status;
+      const branch = status?.branch ?? null;
+      if (status === null || branch === null) {
+        failed('Connected — but this checkout is not on a branch, so there is nothing to upload.');
+        return;
+      }
+      let relation: GitRefRelation = 'missing';
+      if (remoteBranchNames(r.branches, remote).includes(branch)) {
+        try {
+          relation = await getDeps().ipc.gitCompareRef(r.selectedCheckout, `${remote}/${branch}`);
+        } catch (err) {
+          failed(gitFailureText(err));
+          return;
+        }
+      }
+      if (!repo(mainRoot)?.remotesDialog) {
+        return;
+      }
+      const plan = connectPlan(relation, status.unborn);
+      switch (plan.kind) {
+        case 'publish':
+          patch(mainRoot, () => ({ remotesDialog: null }));
+          await startNet(mainRoot, 'push', { remote, setUpstream: true });
+          return;
+        case 'first-commit':
+          patch(mainRoot, () => ({ remotesDialog: null }));
+          getDeps().notice(
+            `Connected to ${describeRemote(mainRoot, remote)} — make your first commit, then Publish to upload it.`,
+          );
+          return;
+        case 'bring-in':
+          patchDialog(mainRoot, {
+            view: 'bring-in',
+            busy: false,
+            target: `${remote}/${branch}`,
+            relation,
+          });
+          return;
+      }
     };
 
     /* ------------------------------ finish flow --------------------------- */
@@ -1679,14 +1862,33 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         }
       },
 
-      fetch: (mainRoot, opts = {}) =>
-        startNet(mainRoot, 'fetch', { remote: opts.remote ?? null, prune: opts.prune ?? false }),
-      pull: (mainRoot) => startNet(mainRoot, 'pull', {}),
-      push: (mainRoot, opts = {}) =>
-        startNet(mainRoot, 'push', {
+      fetch: async (mainRoot, opts = {}) => {
+        await startNet(mainRoot, 'fetch', {
+          remote: opts.remote ?? null,
+          prune: opts.prune ?? false,
+        });
+      },
+      pull: async (mainRoot) => {
+        await startNet(mainRoot, 'pull', {});
+      },
+      push: async (mainRoot, opts = {}) => {
+        await startNet(mainRoot, 'push', {
           remote: opts.remote ?? null,
           setUpstream: opts.setUpstream ?? false,
-        }),
+        });
+      },
+      async publish(mainRoot) {
+        const r = repo(mainRoot);
+        if (!r) {
+          return;
+        }
+        const remote = publishRemote(r.remotes ?? []);
+        if (remote === null) {
+          get().openRemotes(mainRoot, { connect: true });
+          return;
+        }
+        await startNet(mainRoot, 'push', { remote, setUpstream: true });
+      },
       cancelOp(mainRoot) {
         it(mainRoot).opCancel?.();
       },
@@ -1696,6 +1898,174 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
           return;
         }
         patch(mainRoot, () => ({ op: null }));
+      },
+
+      openRemotes(mainRoot, opts = {}) {
+        const r = repo(mainRoot);
+        if (!r) {
+          return;
+        }
+        const remotes = r.remotes ?? [];
+        patch(mainRoot, () => ({
+          remotesDialog:
+            opts.connect || remotes.length === 0
+              ? remotesDialog('connect', { name: suggestRemoteName(remotes) })
+              : remotesDialog('list'),
+        }));
+        // The list may be stale (a remote added in a terminal).
+        void get().refresh(mainRoot, { force: true, parts: ['branches'] });
+      },
+      closeRemotes(mainRoot) {
+        patch(mainRoot, () => ({ remotesDialog: null }));
+      },
+      showRemotesView(mainRoot, view) {
+        const r = repo(mainRoot);
+        if (!r?.remotesDialog || r.remotesDialog.busy) {
+          return;
+        }
+        patch(mainRoot, () => ({
+          remotesDialog:
+            view === 'connect'
+              ? remotesDialog('connect', { name: suggestRemoteName(r.remotes ?? []) })
+              : remotesDialog('list'),
+        }));
+      },
+      setRemotesField(mainRoot, fields) {
+        patchDialog(mainRoot, { ...fields, error: null });
+      },
+      editRemote(mainRoot, name) {
+        const r = repo(mainRoot);
+        const found = r?.remotes?.find((x) => x.name === name);
+        if (!r || !found) {
+          return;
+        }
+        // From a failed check, keep `remote`: saving re-runs the check.
+        const from = r.remotesDialog?.view === 'failed' ? r.remotesDialog.remote : null;
+        patch(mainRoot, () => ({
+          remotesDialog: remotesDialog('edit', { name, url: found.url, remote: from }),
+        }));
+      },
+      async saveRemote(mainRoot) {
+        const r = repo(mainRoot);
+        const d = r?.remotesDialog;
+        if (!r || !d || d.busy || (d.view !== 'connect' && d.view !== 'edit')) {
+          return;
+        }
+        const parsed = parseRemoteUrl(d.url);
+        if ('error' in parsed) {
+          patchDialog(mainRoot, { error: parsed.error });
+          return;
+        }
+        const name = d.name.trim();
+        if (d.view === 'connect') {
+          const nameError = validateRemoteName(name, r.remotes ?? []);
+          if (nameError !== null) {
+            patchDialog(mainRoot, { error: nameError });
+            return;
+          }
+        }
+        patchDialog(mainRoot, { busy: true, error: null, url: parsed.url });
+        const root = r.selectedCheckout;
+        try {
+          if (d.view === 'connect') {
+            await getDeps().ipc.gitRemoteAdd(root, name, parsed.url);
+          } else {
+            await getDeps().ipc.gitRemoteSetUrl(root, name, parsed.url);
+          }
+        } catch (err) {
+          patchDialog(mainRoot, { busy: false, error: gitFailureText(err) });
+          return;
+        }
+        await get().refresh(mainRoot, { force: true, parts: ['branches'] });
+        if (!repo(mainRoot)?.remotesDialog) {
+          return;
+        }
+        if (d.view === 'edit') {
+          if (d.remote !== null) {
+            await runConnect(mainRoot, d.remote);
+          } else {
+            patch(mainRoot, () => ({ remotesDialog: remotesDialog('list') }));
+          }
+          return;
+        }
+        if (d.publish) {
+          await runConnect(mainRoot, name);
+          return;
+        }
+        patch(mainRoot, () => ({ remotesDialog: null }));
+        getDeps().notice(`Connected to ${describeRemote(mainRoot, name)}`);
+      },
+      async removeRemote(mainRoot, name) {
+        const r = repo(mainRoot);
+        if (!r) {
+          return;
+        }
+        const ok = await getDeps().confirm(
+          `Disconnect from ${describeRemote(mainRoot, name)}?\n\nNothing is deleted — not your files, not your commits, and nothing on the server. The app just stops uploading there.`,
+          'Remove connection',
+        );
+        if (!ok) {
+          return;
+        }
+        const root = r.selectedCheckout;
+        await mutate(mainRoot, ['status', 'branches', 'log'], () =>
+          getDeps().ipc.gitRemoteRemove(root, name),
+        );
+        const after = repo(mainRoot);
+        if (after?.remotesDialog && (after.remotes ?? []).length === 0) {
+          patch(mainRoot, () => ({
+            remotesDialog: remotesDialog('connect', { name: suggestRemoteName([]) }),
+          }));
+        }
+      },
+      async bringInRemote(mainRoot) {
+        const r = repo(mainRoot);
+        const d = r?.remotesDialog;
+        if (!r || !d || d.view !== 'bring-in' || d.busy || !d.target || !d.remote) {
+          return;
+        }
+        const remote = d.remote;
+        const target = d.target;
+        const root = r.selectedCheckout;
+        patchDialog(mainRoot, { busy: true, error: null });
+        let outcome: GitMergeOutcome | null = null;
+        const ok = await mutate(mainRoot, ALL_PARTS, async () => {
+          const o = await getDeps().ipc.gitMerge(root, target, false, d.relation === 'unrelated');
+          outcome = o;
+          if (o.outcome === 'conflicts') {
+            armTracker(
+              mainRoot,
+              root,
+              r.status?.branch ?? 'HEAD',
+              target,
+              o.conflicted,
+              r.status?.head ?? null,
+            );
+          }
+        });
+        const merged = outcome as GitMergeOutcome | null;
+        if (!ok || merged === null) {
+          patchDialog(mainRoot, {
+            busy: false,
+            error: repo(mainRoot)?.error?.message ?? 'The files could not be brought in.',
+          });
+          return;
+        }
+        patch(mainRoot, () => ({ remotesDialog: null }));
+        if (merged.outcome === 'conflicts') {
+          getDeps().notice(
+            'Some files changed on both sides — settle them under Merge conflicts, then Publish.',
+          );
+          return;
+        }
+        await startNet(mainRoot, 'push', { remote, setUpstream: true });
+      },
+      async retryRemoteCheck(mainRoot) {
+        const d = repo(mainRoot)?.remotesDialog;
+        if (!d || d.view !== 'failed' || d.remote === null) {
+          return;
+        }
+        await runConnect(mainRoot, d.remote);
       },
 
       openNewWorktree(mainRoot) {

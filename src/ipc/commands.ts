@@ -366,6 +366,18 @@ export interface GitMergeOutcome {
   conflicted: string[];
 }
 
+export interface GitRemote {
+  name: string;
+  /** The fetch URL; empty when only a push URL is configured. */
+  url: string;
+  /** A separate push URL, when one differs from `url`. */
+  pushUrl: string | null;
+}
+
+/** How HEAD stands against another ref (`gitCompareRef`). */
+export type GitRefRelation =
+  'missing' | 'unborn' | 'same' | 'ahead' | 'behind' | 'diverged' | 'unrelated';
+
 export interface GitNetResult {
   ok: boolean;
   exitCode: number | null;
@@ -787,10 +799,11 @@ export const ipc = {
   /**
    * `merge --no-edit <target>` into the checkout's current branch. A conflict
    * is an OUTCOME (`conflicts` with the paths), not an error; a refusal (dirty
-   * tree, unrelated histories) is `GIT_FAILED`.
+   * tree, unrelated histories) is `GIT_FAILED`. `allowUnrelated` is the
+   * connect flow's opt-in for a server repository created with a README.
    */
-  gitMerge: (root: string, target: string, noFf: boolean) =>
-    call<GitMergeOutcome>('git_merge', { root, target, noFf }),
+  gitMerge: (root: string, target: string, noFf: boolean, allowUnrelated = false) =>
+    call<GitMergeOutcome>('git_merge', { root, target, noFf, allowUnrelated }),
   gitMergeAbort: (root: string) => call<void>('git_merge_abort', { root }),
   /**
    * `worktree add`: with `createBranch`, `-b <branch> <path> [<startPoint>]`;
@@ -829,6 +842,19 @@ export const ipc = {
     onOutput: Channel<GitOutputEvent>,
   ) => call<GitNetResult>('git_push', { root, remote, setUpstream, opId, onOutput }),
   gitOpCancel: (opId: number) => call<void>('git_op_cancel', { opId }),
+  /** Every remote with its URL(s), in config order. `[]` when there are none. */
+  gitRemotes: (root: string) => call<GitRemote[]>('git_remotes', { root }),
+  /** `remote add <name> <url>`; a duplicate name is `GIT_FAILED` in git's words. */
+  gitRemoteAdd: (root: string, name: string, url: string) =>
+    call<void>('git_remote_add', { root, name, url }),
+  /** `remote set-url <name> <url>`. */
+  gitRemoteSetUrl: (root: string, name: string, url: string) =>
+    call<void>('git_remote_set_url', { root, name, url }),
+  /** `remote remove <name>`. */
+  gitRemoteRemove: (root: string, name: string) => call<void>('git_remote_remove', { root, name }),
+  /** How HEAD stands against `other` — e.g. `origin/main` after a fetch. */
+  gitCompareRef: (root: string, other: string) =>
+    call<GitRefRelation>('git_compare_ref', { root, other }),
 
   /* ---------------------------- terminal pty ---------------------------- */
   /* Desktop only: these commands are not registered on Android (no pty).

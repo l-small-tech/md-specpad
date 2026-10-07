@@ -242,11 +242,21 @@ pub(super) fn merge_failure(root: &Path, out: &GitOutput) -> GitError {
     super::classify(text, root)
 }
 
-pub(super) fn merge(root: &Path, target: &str, no_ff: bool) -> GitResult<GitMergeOutcome> {
+pub(super) fn merge(
+    root: &Path,
+    target: &str,
+    no_ff: bool,
+    allow_unrelated: bool,
+) -> GitResult<GitMergeOutcome> {
     let target = safe_arg(target)?;
     let mut args = vec!["merge", "--no-edit"];
     if no_ff {
         args.push("--no-ff");
+    }
+    if allow_unrelated {
+        // Only the connect flow asks: a repository created on GitHub / Gitea
+        // with a README shares no commit with the workspace.
+        args.push("--allow-unrelated-histories");
     }
     args.push(target);
     let out = run_git_with(Some(root), GitMode::Mutate, &args)?;
@@ -318,10 +328,24 @@ pub async fn git_delete_branch(root: String, name: String, force: bool) -> GitRe
     blocking(move || delete_branch(Path::new(&root), &name, force)).await
 }
 
-/// `merge --no-edit [--no-ff] <target>` into the current branch.
+/// `merge --no-edit [--no-ff] [--allow-unrelated-histories] <target>` into
+/// the current branch.
 #[tauri::command]
-pub async fn git_merge(root: String, target: String, no_ff: bool) -> GitResult<GitMergeOutcome> {
-    blocking(move || merge(Path::new(&root), &target, no_ff)).await
+pub async fn git_merge(
+    root: String,
+    target: String,
+    no_ff: bool,
+    allow_unrelated: Option<bool>,
+) -> GitResult<GitMergeOutcome> {
+    blocking(move || {
+        merge(
+            Path::new(&root),
+            &target,
+            no_ff,
+            allow_unrelated.unwrap_or(false),
+        )
+    })
+    .await
 }
 
 /// `merge --abort`.
@@ -555,12 +579,12 @@ mod tests {
         let tip = commit(&root, Some("ff"), false).unwrap();
         switch(&root, "main", None).unwrap();
 
-        let ff = merge(&root, "feat/ff", false).unwrap();
+        let ff = merge(&root, "feat/ff", false, false).unwrap();
         assert_eq!(ff.outcome, GitMergeResult::FastForward);
         assert_eq!(ff.head, tip);
         assert!(ff.conflicted.is_empty());
 
-        let again = merge(&root, "feat/ff", false).unwrap();
+        let again = merge(&root, "feat/ff", false, false).unwrap();
         assert_eq!(again.outcome, GitMergeResult::UpToDate);
         assert_eq!(again.head, tip);
 
@@ -571,7 +595,7 @@ mod tests {
         stage(&root, &v(&["nf.ts"])).unwrap();
         commit(&root, Some("nf"), false).unwrap();
         switch(&root, "main", None).unwrap();
-        let merged = merge(&root, "feat/nf", true).unwrap();
+        let merged = merge(&root, "feat/nf", true, false).unwrap();
         assert_eq!(merged.outcome, GitMergeResult::Merged);
         assert_eq!(merged.head, head_of(&root));
         assert_eq!(
@@ -579,11 +603,11 @@ mod tests {
             "1"
         );
         assert!(matches!(
-            merge(&root, "-x", false),
+            merge(&root, "-x", false, false),
             Err(GitError::InvalidArg(_))
         ));
         assert!(matches!(
-            merge(&root, "no/such", false),
+            merge(&root, "no/such", false, false),
             Err(GitError::Failed { .. })
         ));
     }
@@ -598,7 +622,7 @@ mod tests {
         let other = make_conflict(&root);
         let before = head_of(&root);
 
-        let c = merge(&root, other, false).unwrap();
+        let c = merge(&root, other, false, false).unwrap();
         assert_eq!(c.outcome, GitMergeResult::Conflicts);
         assert_eq!(c.conflicted, vec!["a.ts".to_string()]);
         assert_eq!(c.head, before, "HEAD does not move on a conflict");
@@ -609,7 +633,7 @@ mod tests {
         assert_eq!(head_of(&root), before);
 
         // Again, resolved by hand and continued with git's prepared message.
-        let c2 = merge(&root, other, false).unwrap();
+        let c2 = merge(&root, other, false, false).unwrap();
         assert_eq!(c2.outcome, GitMergeResult::Conflicts);
         write(&root, "a.ts", "export const a = 'both';\n");
         stage(&root, &v(&["a.ts"])).unwrap();
@@ -634,7 +658,7 @@ mod tests {
         let (_g, root) = temp_repo();
         let other = make_conflict(&root);
         write(&root, "a.ts", "uncommitted\n");
-        match merge(&root, other, false) {
+        match merge(&root, other, false, false) {
             Err(GitError::Failed { stderr }) => assert!(stderr.contains("overwritten"), "{stderr}"),
             other => panic!("expected Failed, got {other:?}"),
         }

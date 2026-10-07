@@ -118,6 +118,17 @@ export interface GitMergeOutcome {
   conflicted: string[];
 }
 
+/** A configured remote (mirrors ipc `GitRemote`). */
+export interface GitRemote {
+  name: string;
+  url: string;
+  pushUrl: string | null;
+}
+
+/** How HEAD stands against another ref (mirrors ipc `GitRefRelation`). */
+export type GitRefRelation =
+  'missing' | 'unborn' | 'same' | 'ahead' | 'behind' | 'diverged' | 'unrelated';
+
 export interface GitNetResult {
   ok: boolean;
   exitCode: number | null;

@@ -209,6 +209,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hideUnsupportedDirs: [],
   showHiddenFiles: false,
   reviewBaseBranch: '',
+  gitActiveWorktreesOnly: false,
   scanPreset: DEFAULT_SCAN_PRESET,
   scanSmoothing: DEFAULT_SCAN_SMOOTHING,
 
@@ -600,6 +601,10 @@ export function normalizeSettings(raw: unknown): Settings {
     // Empty is meaningful here (auto-detect development / main / master), so a
     // blank string is kept rather than replaced by the default.
     reviewBaseBranch: typeof r.reviewBaseBranch === 'string' ? r.reviewBaseBranch.trim() : '',
+    gitActiveWorktreesOnly:
+      typeof r.gitActiveWorktreesOnly === 'boolean'
+        ? r.gitActiveWorktreesOnly
+        : d.gitActiveWorktreesOnly,
     scanPreset:
       typeof r.scanPreset === 'string' && r.scanPreset in SCAN_PRESETS
         ? (r.scanPreset as ScanPreset)

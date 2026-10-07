@@ -544,6 +544,14 @@ export interface Settings {
    */
   reviewBaseBranch: string;
   /**
+   * The git tab's worktree strip shows only the ACTIVE checkouts: those with
+   * uncommitted changes, an operation in progress, a terminal open inside,
+   * or a missing folder — plus the main checkout and whichever one is
+   * selected. The strip's filter button flips it; no dialog field. Default
+   * false (every worktree is listed).
+   */
+  gitActiveWorktreesOnly: boolean;
+  /**
    * Whiteboard-scan panel: last-used quality preset and trace smoothing.
    * Not dialog fields — the scan panel's own selects write them, so the next
    * scan opens the way the previous one was tuned.
