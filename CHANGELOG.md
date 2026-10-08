@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-10-07
+
 - **Read PDFs in the app.** Opening a PDF now shows its pages (Review mode)
   instead of an import card: select and copy text, zoom (Ctrl +/−, Ctrl+wheel,
   fit width / fit page), jump to a page, find with Ctrl+F, follow links, and
@@ -34,9 +36,6 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 - Git tab: a worktree being removed shows **Removing…** until it is gone — no
   more brief "missing" flash — and the worktree strip scrolls with a normal
   mouse wheel and wears the app's own scrollbar.
-
-## [0.11.0] — 2026-10-07
-
 - Git tab: **Start tracking with Git** turns a plain workspace folder into a
   repository from the tab itself, and a first commit on a fresh computer asks
   for your name and email in the commit box (saved to your global git config).
