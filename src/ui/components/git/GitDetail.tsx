@@ -10,8 +10,9 @@
  *
  * `GitDiffDetail` is the pane under the graph, open only while a file is
  * picked — a working-tree file, or one of a commit's files — and shows its
- * DiffView over `repo.diff` with an EOL / binary hint bar. Closing it steps
- * back one level: to the commit, or to the working tree.
+ * DiffView over `repo.diff` (the EOL / new / deleted note rides in the
+ * DiffView's header, as does the close button; a binary file gets a hint).
+ * Closing it steps back one level: to the commit, or to the working tree.
  */
 
 import { relativeTime } from '../../../core/notes-overview';
@@ -50,39 +51,47 @@ function DetailBar({
   );
 }
 
-function DiffPane({ root }: { root: string }) {
+/** The picked file's diff. The DiffView's own header names the file and
+ *  carries the close button; the DetailBar stands in only while there is no
+ *  diff to draw (loading, nothing, binary). */
+function DiffPane({ root, label, onClose }: { root: string; label: string; onClose: () => void }) {
   const diff = useRepoSlice(root, (r) => r.diff) ?? null;
   const loading = useRepoSlice(root, (r) => r.diffLoading) ?? false;
-  if (diff === null) {
-    return <div className="git-detail-hint">{loading ? 'Loading diff…' : 'No diff to show.'}</div>;
-  }
-  if (diff.binary) {
+  const closeTitle = 'Close the diff (Esc)';
+  if (diff === null || diff.binary) {
     return (
-      <div className="git-detail-hint">
-        <code>{diff.path}</code> is a binary file — nothing to compare line by line.
-      </div>
+      <>
+        <DetailBar label={label} closeTitle={closeTitle} onClose={onClose} />
+        {diff === null ? (
+          <div className="git-detail-hint">{loading ? 'Loading diff…' : 'No diff to show.'}</div>
+        ) : (
+          <div className="git-detail-hint">
+            <code>{diff.path}</code> is a binary file — nothing to compare line by line.
+          </div>
+        )}
+      </>
     );
   }
   const left = diff.leftText ?? '';
   const right = diff.rightText ?? '';
+  const notice = diff.eolOnly
+    ? 'Only line endings differ (CRLF ⇄ LF) — the text is the same.'
+    : diff.leftText === null
+      ? 'New file — nothing on the left side.'
+      : diff.rightText === null
+        ? 'Deleted — nothing on the right side.'
+        : null;
   return (
-    <>
-      {(diff.eolOnly || diff.leftText === null || diff.rightText === null) && (
-        <div className="git-hint-bar">
-          {diff.eolOnly
-            ? 'Only line endings differ (CRLF ⇄ LF) — the text is the same.'
-            : diff.leftText === null
-              ? 'New file — nothing on the left side.'
-              : 'Deleted — nothing on the right side.'}
-        </div>
-      )}
-      <DiffView
-        oldText={left}
-        newText={right}
-        oldLabel={`${diff.leftLabel} — ${diff.path}`}
-        newLabel={`${diff.rightLabel} — ${diff.path}`}
-      />
-    </>
+    <DiffView
+      oldText={left}
+      newText={right}
+      oldLabel={diff.leftLabel}
+      newLabel={diff.rightLabel}
+      path={diff.path}
+      notice={notice}
+      onClose={onClose}
+      closeTitle={closeTitle}
+    />
   );
 }
 
@@ -241,26 +250,20 @@ export function GitDiffDetail({ root }: { root: string }) {
   const actions = gitStore.getState();
   if (selected.kind === 'file') {
     return (
-      <>
-        <DetailBar
-          label={`Diff · ${selected.path}`}
-          closeTitle="Close the diff (Esc)"
-          onClose={() => actions.select(root, null)}
-        />
-        <DiffPane root={root} />
-      </>
+      <DiffPane
+        root={root}
+        label={`Diff · ${selected.path}`}
+        onClose={() => actions.select(root, null)}
+      />
     );
   }
   if (selected.kind === 'commit' && selected.path !== undefined) {
     return (
-      <>
-        <DetailBar
-          label={`${shortSha(selected.sha)} · ${selected.path}`}
-          closeTitle="Close the diff (Esc)"
-          onClose={() => actions.select(root, { kind: 'commit', sha: selected.sha })}
-        />
-        <DiffPane root={root} />
-      </>
+      <DiffPane
+        root={root}
+        label={`${shortSha(selected.sha)} · ${selected.path}`}
+        onClose={() => actions.select(root, { kind: 'commit', sha: selected.sha })}
+      />
     );
   }
   return null;
