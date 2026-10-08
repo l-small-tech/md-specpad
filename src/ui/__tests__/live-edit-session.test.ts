@@ -7,7 +7,7 @@
  * the flush cadence whatever the global Auto save setting says, and records
  * its activity for the status chip. Same in-memory fake ipc as session.test.
  */
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const NOTES = '/notes';
 const SESSION = '/session';
@@ -82,6 +82,12 @@ function makeFakeFs(seed: Record<string, string> = {}) {
     },
   };
 }
+
+// Pay the cold load of the session graph once, under its own budget — see the
+// matching hook in session.test.ts for why the per-test hook can't absorb it.
+beforeAll(async () => {
+  await import('../session');
+}, 60_000);
 
 beforeEach(async () => {
   vi.useFakeTimers();
