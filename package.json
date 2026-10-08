@@ -47,6 +47,7 @@
     "@lezer/highlight": "^1.2.3",
     "@lezer/javascript": "1.5.4",
     "@lezer/lr": "1.4.10",
+    "@lezer/markdown": "^1.7.1",
     "@lezer/rust": "1.0.2",
     "@marp-team/marp-core": "^4.4.0",
     "@milkdown/crepe": "^7.21.2",
@@ -81,7 +82,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@lezer/markdown": "^1.7.1",
     "@tauri-apps/cli": "^2.11.4",
     "@types/mdast": "^4.0.4",
     "@types/node": "^26.1.1",

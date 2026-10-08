@@ -327,6 +327,11 @@ function EditorHostImpl({ tabId, active }: { tabId: string; active: boolean }) {
   const composerSlot = useMemo(() => document.createElement('div'), []);
   const composerHere = useVoiceStore((s) => s.phase !== 'closed' && s.tabId === tabId);
   const conflict = useTabsStore((s) => s.tabs.find((t) => t.id === tabId)?.conflict ?? false);
+  // The diff pane's syntax colouring follows the document's extension.
+  const docPath = useTabsStore((s) => {
+    const t = s.tabs.find((tab) => tab.id === tabId);
+    return t ? (t.filePath ?? t.notePath) : null;
+  });
   const diffEntry = useDiffView((s) => s.byTab[tabId] ?? null);
   // The diff pane exists only while its conflict does — resolving the
   // conflict any way (Reload, Keep mine, a save, an auto-clear on re-check)
@@ -1004,6 +1009,7 @@ function EditorHostImpl({ tabId, active }: { tabId: string; active: boolean }) {
           }
           oldLabel="On disk"
           newLabel="In editor"
+          path={docPath}
         />
       )}
       {/* Hidden (not unmounted) while the diff is shown — same I7 rule as an
