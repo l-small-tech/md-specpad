@@ -721,6 +721,66 @@ body.tab-drag-live * {
   font-variant-numeric: tabular-nums;
 }
 
+/* The pane menu's search helpers turn it into this small form: a regex, a
+   Match case box and the exact command it will type, shown live. */
+.term-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 340px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  font-size: 13px;
+}
+
+.term-search-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--fg);
+}
+
+.term-search-input {
+  font-family: var(--font-mono);
+}
+
+.term-search-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg);
+}
+
+/* The command itself — selectable, unlike the rest of the menu. */
+.term-search-preview {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.term-search-word {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.term-search-hint {
+  color: var(--fg-muted);
+}
+
+.term-search-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 /* The app's popover menus (the ribbon's ☰ button, the tab bar's own
    right-click menu) — a .tab-menu widened for shortcut hints. The Themes page
    lists every installed theme, so the popover scrolls rather than running off

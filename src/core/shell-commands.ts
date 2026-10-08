@@ -1,7 +1,11 @@
 /**
  * Commands the app TYPES into a shell on the user's behalf — the right-click
- * helpers on a terminal pane ("Change directory…", "List files", "Open
- * <agent>"). The point of those helpers is to teach: what gets typed is what
+ * helpers on a terminal pane ("Change directory…", "Up a folder", "List
+ * files", "Show hidden files", "Search in files…", "Find files by name…",
+ * "Open in File Explorer", "Open <agent>"). Each must run as typed in
+ * PowerShell 5 and 7 and in bash/zsh on Windows, macOS and Linux — so
+ * PowerShell gets a cmdlet name wherever its alias would hit a native program
+ * with other flags on macOS and Linux (`ls -Force`). The point of those helpers is to teach: what gets typed is what
  * the user would have typed, so each command is spelled the way that shell
  * expects it and quoted only when it has to be (`cd ..\src`, not
  * `cd '..\src'`).
@@ -15,7 +19,7 @@
  *   cmd         double quotes when the token has a space or a metacharacter;
  *               `cd /d` so a change of drive works too.
  *   POSIX       single quotes, `'` as `'\''`; `cd --` for a name that begins
- *               with `-`.
+ *               with `-`. fish additionally doubles `\` inside the quotes.
  *
  * `relativePath` decides how a folder picked in the OS dialog is spelled:
  * relative when it lies in the same workspace as the pane's cwd (`cdTarget`),
@@ -23,7 +27,7 @@
  * a drive letter (or a UNC share); POSIX paths compare exactly.
  */
 
-import type { ShellKind } from './terminal-shells';
+import type { DesktopOs, ShellKind } from './terminal-shells';
 import { workspaceForPath, type WorkspaceRoot } from './tab-workspaces';
 
 /** How paths are compared and rooted — the OS, not the shell (Git Bash on Windows walks Windows paths). */
@@ -141,11 +145,25 @@ export function quotePosix(arg: string): string {
   return `'${arg.replaceAll("'", `'\\''`)}'`;
 }
 
+/**
+ * fish is POSIX quoting with one twist: inside single quotes `\\` still
+ * collapses to `\`, so a backslash (a regex's `\.`) has to be doubled.
+ */
+export function quoteFish(arg: string): string {
+  if (arg !== '' && POSIX_BARE.test(arg)) {
+    return arg;
+  }
+  return `'${arg.replaceAll('\\', '\\\\').replaceAll("'", `'\\''`)}'`;
+}
+
+/** PowerShell also closes a single-quoted string on the typographic quotes `‘ ’ ‚ ‛`. */
+const POWERSHELL_QUOTES = /['‘’‚‛]/g;
+
 export function quotePowerShell(arg: string): string {
   if (arg !== '' && POWERSHELL_BARE.test(arg)) {
     return arg;
   }
-  return `'${arg.replaceAll("'", "''")}'`;
+  return `'${arg.replace(POWERSHELL_QUOTES, (quote) => quote + quote)}'`;
 }
 
 /** cmd has no escape for `"` inside a quoted token — and no Windows path can contain one. */
@@ -164,8 +182,30 @@ export function quoteArg(kind: ShellKind, arg: string): string {
       return quotePowerShell(arg);
     case 'cmd':
       return quoteCmd(arg);
+    case 'fish':
+      return quoteFish(arg);
     default:
       return quotePosix(arg);
+  }
+}
+
+/**
+ * Quote a word that should LOOK quoted even when it needs nothing — a regex
+ * or a name the user typed. Quoting a pattern is the habit worth teaching:
+ * the next one will hold a `|` or a `$`. Null when cmd cannot represent it
+ * (a `"` has no escape inside cmd's double quotes).
+ */
+function quoteAlways(kind: ShellKind, arg: string): string | null {
+  switch (kind) {
+    case 'pwsh':
+    case 'powershell':
+      return `'${arg.replace(POWERSHELL_QUOTES, (quote) => quote + quote)}'`;
+    case 'cmd':
+      return arg.includes('"') ? null : `"${arg}"`;
+    case 'fish':
+      return `'${arg.replaceAll('\\', '\\\\').replaceAll("'", `'\\''`)}'`;
+    default:
+      return `'${arg.replaceAll("'", `'\\''`)}'`;
   }
 }
 
@@ -194,9 +234,16 @@ export function cdCommand(kind: ShellKind, path: string): string {
     }
     case 'cmd':
       return `cd /d ${quoteCmd(target)}`;
-    default:
-      return target.startsWith('-') ? `cd -- ${quotePosix(target)}` : `cd ${quotePosix(target)}`;
+    default: {
+      const quoted = quoteArg(kind, target);
+      return target.startsWith('-') ? `cd -- ${quoted}` : `cd ${quoted}`;
+    }
   }
+}
+
+/** Up one folder. The one command every shell spells the same. */
+export function upCommand(): string {
+  return 'cd ..';
 }
 
 /** The directory listing a user of that shell would type. */
@@ -209,6 +256,116 @@ export function listCommand(kind: ShellKind): string {
       return 'dir';
     default:
       return 'ls -l';
+  }
+}
+
+/**
+ * The listing with hidden files too (dotfiles, `.git`, `.env`). PowerShell
+ * gets the cmdlet's own name: on macOS and Linux `ls` there is the native
+ * one, which has no `-Force`.
+ */
+export function listAllCommand(kind: ShellKind): string {
+  switch (kind) {
+    case 'pwsh':
+    case 'powershell':
+      return 'Get-ChildItem -Force';
+    case 'cmd':
+      return 'dir /a';
+    default:
+      return 'ls -la';
+  }
+}
+
+/** The desktop's file manager, as the menu names it. */
+export function fileManagerName(os: DesktopOs): string {
+  switch (os) {
+    case 'windows':
+      return 'File Explorer';
+    case 'mac':
+      return 'Finder';
+    case 'linux':
+      return 'file manager';
+  }
+}
+
+/**
+ * Open the current folder in the desktop's file manager. Which program does
+ * that is the OS's business, not the shell's — except that Git Bash and WSL
+ * reach Windows programs only by their `.exe` name.
+ */
+export function openFolderCommand(kind: ShellKind, os: DesktopOs): string {
+  switch (os) {
+    case 'windows':
+      return windowsStyle(kind) ? 'explorer .' : 'explorer.exe .';
+    case 'mac':
+      return 'open .';
+    case 'linux':
+      return 'xdg-open .';
+  }
+}
+
+/** What the search helper looks at: file CONTENTS (grep) or file NAMES (find). */
+export type SearchTarget = 'contents' | 'names';
+
+export interface SearchOptions {
+  target: SearchTarget;
+  /** Case-sensitive match; off by default, as people search. */
+  matchCase: boolean;
+}
+
+/**
+ * Search the current folder, recursively, for a regular expression — in the
+ * files' text or in their paths. Null when there is nothing to search for or
+ * the shell cannot spell the pattern (a `"` in cmd).
+ *
+ *   POSIX       grep -rniE --exclude-dir=.git 'TODO|FIXME' .
+ *               find . -type f -not -path '*\/.git/*' | grep -iE '\.test\.ts$'
+ *   PowerShell  Get-ChildItem -Recurse -File | Select-String -Pattern 'TODO|FIXME'
+ *               Get-ChildItem -Recurse -File -Name | Select-String -Pattern '\.test\.ts$'
+ *   cmd         findstr /s /n /i /r /c:"TODO" *
+ *               dir /s /b /a-d | findstr /i /r /c:"\.test\.ts$"
+ *
+ * The dialects differ — grep -E is POSIX extended (no `\d`: use `[0-9]`),
+ * PowerShell is .NET, findstr knows only `. * ^ $ [ ]` — but the everyday
+ * pattern (`TODO|FIXME`, `\.md$`, `^import`) means the same in grep and
+ * PowerShell. Both skip `.git`: PowerShell does not recurse into hidden
+ * folders, grep and find are told to. A name search matches the path from
+ * the current folder, so `src/.*\.ts$` works as well as `\.ts$`.
+ */
+export function searchCommand(
+  kind: ShellKind,
+  pattern: string,
+  { target, matchCase }: SearchOptions,
+): string | null {
+  if (pattern === '') {
+    return null;
+  }
+  const quoted = quoteAlways(kind, pattern);
+  if (quoted === null) {
+    return null;
+  }
+  switch (kind) {
+    case 'pwsh':
+    case 'powershell': {
+      const files =
+        target === 'names' ? 'Get-ChildItem -Recurse -File -Name' : 'Get-ChildItem -Recurse -File';
+      const sensitive = matchCase ? ' -CaseSensitive' : '';
+      return `${files} | Select-String -Pattern ${quoted}${sensitive}`;
+    }
+    case 'cmd': {
+      const insensitive = matchCase ? '' : ' /i';
+      return target === 'names'
+        ? `dir /s /b /a-d | findstr${insensitive} /r /c:${quoted}`
+        : `findstr /s /n${insensitive} /r /c:${quoted} *`;
+    }
+    default: {
+      // A pattern starting with `-` would read as an option without `-e`.
+      const expr = pattern.startsWith('-') ? `-e ${quoted}` : quoted;
+      const i = matchCase ? '' : 'i';
+      return target === 'names'
+        ? `find . -type f -not -path ${quoteAlways(kind, '*/.git/*')} | grep -${i}E ${expr}`
+        : `grep -rn${i}E --exclude-dir=.git ${expr} .`;
+    }
   }
 }
 
