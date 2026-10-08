@@ -1,0 +1,436 @@
+/*
+ * DiffView (ui/components/DiffView.tsx) — VS Code's diff look: a slim header,
+ * dense monospace rows of exactly one line each, quiet line-number gutters,
+ * subtle removed / added row tints with stronger intra-line highlights, fold
+ * bars for unchanged runs and an overview ruler on the right edge.
+ *
+ * Every colour is mixed from the semantic tokens (added = --accent, removed
+ * = --danger, the same convention as git.css), so light, dark and every theme
+ * plugin get matching tints without declaring any. Syntax colours read the
+ * `--md-*` variables exactly like editors/code-highlight.ts and the Review
+ * pane's `.cr-tok-*`.
+ */
+
+.diff-view {
+  --diff-ins: var(--accent);
+  --diff-del: var(--danger);
+  --diff-ins-line: color-mix(in oklab, var(--diff-ins) 11%, var(--editor-bg));
+  --diff-del-line: color-mix(in oklab, var(--diff-del) 11%, var(--editor-bg));
+  --diff-ins-gutter: color-mix(in oklab, var(--diff-ins) 18%, var(--editor-bg));
+  --diff-del-gutter: color-mix(in oklab, var(--diff-del) 18%, var(--editor-bg));
+  --diff-ins-hi: color-mix(in oklab, var(--diff-ins) 30%, var(--editor-bg));
+  --diff-del-hi: color-mix(in oklab, var(--diff-del) 30%, var(--editor-bg));
+  --diff-ins-ink: color-mix(in oklab, var(--diff-ins) 80%, var(--fg));
+  --diff-del-ink: color-mix(in oklab, var(--diff-del) 85%, var(--fg));
+  --diff-fold-bg: color-mix(in oklab, var(--fg-muted) 9%, var(--editor-bg));
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--editor-bg);
+  color: var(--fg);
+  outline: none;
+}
+
+:root[data-theme='dark'] .diff-view {
+  --diff-ins-line: color-mix(in oklab, var(--diff-ins) 13%, var(--editor-bg));
+  --diff-del-line: color-mix(in oklab, var(--diff-del) 13%, var(--editor-bg));
+  --diff-ins-hi: color-mix(in oklab, var(--diff-ins) 34%, var(--editor-bg));
+  --diff-del-hi: color-mix(in oklab, var(--diff-del) 34%, var(--editor-bg));
+}
+
+/* ---- header ---------------------------------------------------------------- */
+
+.diff-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 6px 0 12px;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.diff-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.diff-path {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.diff-path-base {
+  flex: 0 0 auto;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.diff-path-dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+
+/* A long directory gives way first; the side labels keep their room. */
+.diff-sides {
+  flex: 0 0 auto;
+  max-width: 45%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diff-sides-arrow {
+  opacity: 0.6;
+}
+
+.diff-stats {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-stat-ins {
+  color: var(--diff-ins-ink);
+}
+
+.diff-stat-del {
+  color: var(--diff-del-ink);
+}
+
+.diff-counter {
+  flex: 0 0 auto;
+  padding-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.diff-btn + .diff-btn {
+  margin-left: -8px;
+}
+
+.diff-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.diff-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.diff-glyph {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.diff-notice {
+  flex: 0 0 auto;
+  padding: 3px 12px;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+/* ---- body: panes, rows ------------------------------------------------------ */
+
+.diff-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.diff-pane {
+  /* offsetTop of the rows is measured against the pane (navigation). */
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: calc(var(--editor-font-size) - 2px);
+}
+
+.diff-divider {
+  flex: 0 0 1px;
+  background: var(--border);
+}
+
+/* Side by side: the right pane's bar scrolls both; the left one hides its
+   vertical bar (its horizontal one stays — each column scrolls sideways on
+   its own, as in VS Code). Mouse desktops only, like base.css's bars. */
+@media (hover: hover) and (pointer: fine) {
+  .diff-pane-left::-webkit-scrollbar {
+    width: 0;
+  }
+}
+
+/* Widest row decides the width, so every row's tint runs the full width. */
+.diff-rows {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Exactly one line tall — lines, fillers and fold bars alike — so the two
+   columns stay aligned and the ruler's arithmetic holds. */
+.diff-line,
+.diff-fold {
+  display: flex;
+  height: 1.5em;
+  line-height: 1.5em;
+  white-space: pre;
+}
+
+.diff-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: flex;
+  background: var(--editor-bg);
+  color: color-mix(in oklab, var(--fg-muted) 75%, transparent);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.diff-num {
+  /* border-box (base.css): the width includes the padding. */
+  width: calc(var(--diff-digits, 3) * 1ch + 1.2ch);
+  padding-left: 1.2ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-sign {
+  width: 3ch;
+  text-align: center;
+}
+
+.diff-text {
+  flex: 1 0 auto;
+  padding-right: 3ch;
+}
+
+.diff-line-ins {
+  background: var(--diff-ins-line);
+}
+
+.diff-line-del {
+  background: var(--diff-del-line);
+}
+
+.diff-line-ins .diff-gutter {
+  background: var(--diff-ins-gutter);
+  color: var(--diff-ins-ink);
+}
+
+.diff-line-del .diff-gutter {
+  background: var(--diff-del-gutter);
+  color: var(--diff-del-ink);
+}
+
+.diff-line-ins .diff-hi {
+  background: var(--diff-ins-hi);
+  border-radius: 2px;
+}
+
+.diff-line-del .diff-hi {
+  background: var(--diff-del-hi);
+  border-radius: 2px;
+}
+
+/* The side without a partner line. */
+.diff-line-filler {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    color-mix(in oklab, var(--fg-muted) 10%, transparent) 4px,
+    color-mix(in oklab, var(--fg-muted) 10%, transparent) 5px
+  );
+}
+
+.diff-line-filler .diff-gutter {
+  background: transparent;
+}
+
+/* ---- fold bars ---------------------------------------------------------------- */
+
+.diff-fold {
+  background: var(--diff-fold-bg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--border) 70%, transparent),
+    inset 0 -1px 0 color-mix(in oklab, var(--border) 70%, transparent);
+  color: var(--fg-muted);
+}
+
+.diff-fold .diff-gutter {
+  /* Same width as a line's gutter: digits + sign (both nums inline). */
+  justify-content: flex-end;
+  min-width: calc(var(--diff-digits, 3) * 1ch + 4.2ch);
+  background: var(--diff-fold-bg);
+}
+
+.diff-view-inline .diff-fold .diff-gutter {
+  min-width: calc(var(--diff-digits, 3) * 2ch + 5.4ch);
+}
+
+.diff-fold-step,
+.diff-fold-label {
+  height: 100%;
+  padding: 0 0.6ch;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.diff-fold-step {
+  display: inline-flex;
+  align-items: center;
+}
+
+.diff-fold-step .diff-glyph {
+  width: 1em;
+  height: 1em;
+}
+
+.diff-fold-label {
+  padding: 0 1ch;
+  font-family: var(--font-ui);
+  font-size: 0.92em;
+}
+
+.diff-fold-step:hover,
+.diff-fold-label:hover {
+  color: var(--accent);
+}
+
+/* ---- overview ruler ----------------------------------------------------------- */
+
+.diff-ruler {
+  position: relative;
+  flex: 0 0 12px;
+  border-left: 1px solid var(--border);
+  background: var(--editor-bg);
+  cursor: pointer;
+}
+
+.diff-mark {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  min-height: 3px;
+  border-radius: 1px;
+}
+
+.diff-mark-ins {
+  background: color-mix(in oklab, var(--diff-ins) 75%, transparent);
+}
+
+.diff-mark-del {
+  background: color-mix(in oklab, var(--diff-del) 75%, transparent);
+}
+
+.diff-mark-mod {
+  background: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--diff-del) 75%, transparent) 50%,
+    color-mix(in oklab, var(--diff-ins) 75%, transparent) 50%
+  );
+}
+
+.diff-mark.is-current {
+  left: 0;
+  right: 0;
+  box-shadow: 0 0 0 1px var(--fg-muted);
+}
+
+.diff-ruler-viewport {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in oklab, var(--fg) 10%, transparent);
+  pointer-events: none;
+}
+
+/* ---- syntax (core/diff-syntax.ts classes) ------------------------------------- */
+
+.diff-tok-keyword {
+  color: var(--accent);
+}
+.diff-tok-string,
+.diff-tok-literal {
+  color: var(--md-code, var(--fg-muted));
+}
+.diff-tok-comment {
+  font-style: italic;
+  color: var(--md-quote, var(--fg-muted));
+}
+.diff-tok-type {
+  color: var(--md-link, var(--accent));
+}
+.diff-tok-def {
+  color: var(--md-heading, var(--fg));
+}
+.diff-tok-meta {
+  color: var(--fg-muted);
+}
+.diff-tok-heading {
+  font-weight: 600;
+  color: var(--md-heading, var(--fg));
+}
+.diff-tok-strong {
+  font-weight: 600;
+  color: var(--md-bold, var(--fg));
+}
+.diff-tok-em {
+  font-style: italic;
+  color: var(--md-italic, var(--fg));
+}
+.diff-tok-strike {
+  text-decoration: line-through;
+  color: var(--md-strike, var(--fg));
+}
+.diff-tok-link {
+  color: var(--md-link, var(--accent));
+}

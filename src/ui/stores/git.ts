@@ -964,24 +964,31 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       patch(mainRoot, () => ({ diff: null, diffLoading: true }));
       let path: string;
       let sides: Promise<[string | null, string | null]>;
+      // What each side is, for the DiffView header ("HEAD ↔ Working tree").
+      let labels: [string, string];
       if (item.kind === 'file') {
         path = item.path;
         const origPath = entryFor(r.groups, item.group, item.path)?.origPath ?? item.path;
         switch (item.group) {
           case 'staged':
             sides = Promise.all([showOrNull(root, 'HEAD', origPath), showOrNull(root, ':0', path)]);
+            labels = ['HEAD', 'Staged'];
             break;
           case 'unstaged':
             sides = Promise.all([showOrNull(root, ':0', path), readWorkingFile(root, path)]);
+            labels = ['Staged', 'Working tree'];
             break;
           case 'untracked':
             sides = Promise.all([Promise.resolve(null), readWorkingFile(root, path)]);
+            labels = ['Untracked', 'Working tree'];
             break;
           case 'conflicted':
             sides = Promise.all([showOrNull(root, 'HEAD', path), readWorkingFile(root, path)]);
+            labels = ['HEAD', 'Working tree'];
             break;
           case 'changed':
             sides = Promise.all([showOrNull(root, 'HEAD', origPath), readWorkingFile(root, path)]);
+            labels = ['HEAD', 'Working tree'];
             break;
         }
       } else if (item.kind === 'commit' && item.path !== undefined) {
@@ -991,6 +998,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
           showOrNull(root, `${item.sha}^`, origPath),
           showOrNull(root, item.sha, path),
         ]);
+        labels = [`${item.sha.slice(0, 7)}^`, item.sha.slice(0, 7)];
       } else {
         patch(mainRoot, () => ({ diffLoading: false }));
         return;
@@ -1007,8 +1015,8 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
           path,
           leftText: left === null || binary ? left : normalizeEol(left),
           rightText: right === null || binary ? right : normalizeEol(right),
-          leftLabel: '',
-          rightLabel: '',
+          leftLabel: labels[0],
+          rightLabel: labels[1],
           binary,
           eolOnly: eolOnlyDifference(left, right),
         },

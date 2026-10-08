@@ -10,6 +10,12 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- **A sleeker diff viewer**, VS Code-style, in the git tab and the conflict
+  "View diff": syntax colouring (TypeScript, JavaScript, Rust, Markdown), long
+  unchanged stretches folded behind a click-to-expand bar, an inline ⇄ side by
+  side toggle that is remembered, ↑/↓ (F7 / Shift+F7) to step through changes,
+  and an overview ruler on the right edge that jumps where you click.
+
 ## [0.11.0] — 2026-10-07
 
 - Git tab: **Start tracking with Git** turns a plain workspace folder into a

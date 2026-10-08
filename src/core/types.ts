@@ -552,6 +552,12 @@ export interface Settings {
    */
   gitActiveWorktreesOnly: boolean;
   /**
+   * Diffs (git tab, conflict "View diff") draw as one inline column of
+   * removed / added lines instead of two side-by-side columns. The diff
+   * header's toggle flips it; no dialog field. Default false (side by side).
+   */
+  diffInline: boolean;
+  /**
    * Whiteboard-scan panel: last-used quality preset and trace smoothing.
    * Not dialog fields — the scan panel's own selects write them, so the next
    * scan opens the way the previous one was tuned.
