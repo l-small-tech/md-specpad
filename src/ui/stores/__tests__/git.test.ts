@@ -1279,7 +1279,7 @@ describe('worktrees', () => {
     }
   });
 
-  test('removeWorktree: a dirty worktree is refused up front — nothing is closed or forgotten', async () => {
+  test('removeWorktree: a dirty worktree opens the dialog — nothing is closed or forgotten', async () => {
     const terminals: GitTerminalTab[] = [{ id: 't1', title: 'pwsh', cwd: WT }];
     const h = harness({ terminals });
     await h.open();
@@ -1298,12 +1298,53 @@ describe('worktrees', () => {
     expect(h.deps.confirm).not.toHaveBeenCalled();
     expect(h.order).toEqual([]);
     expect(h.ipc.gitWorktreeRemove).not.toHaveBeenCalled();
-    expect(h.notices().at(-1)).toBe(
-      'worktrees/a has uncommitted changes (1 changed · 1 untracked) — commit or discard them first. Nothing was removed.',
-    );
+    expect(h.r().worktreeDialog).toEqual({
+      kind: 'dirty',
+      path: WT,
+      rel: 'worktrees/a',
+      branch: 'feat/a',
+      changes: {
+        files: [
+          { path: 'a.ts', from: null, change: 'modified' },
+          { path: 'n.ts', from: null, change: 'new' },
+        ],
+        more: 0,
+        total: 2,
+      },
+      terminals: ['pwsh'],
+    });
+    expect(h.r().removing).toEqual([]);
+
+    // Cancel (or Escape) closes it and does nothing else.
+    h.s().closeWorktreeDialog(MAIN);
+    expect(h.r().worktreeDialog).toBeNull();
+    expect(h.order).toEqual([]);
   });
 
-  test('removeWorktree: a locked worktree is refused up front', async () => {
+  test('removeWorktree: Delete anyway removes with --force and asks nothing more', async () => {
+    const terminals: GitTerminalTab[] = [{ id: 't1', title: 'pwsh', cwd: WT }];
+    const h = harness({ terminals });
+    await h.open();
+    h.ipc.gitStatus.mockImplementation((root: string) =>
+      Promise.resolve(statusFor(root, root === WT ? { entries: [entry('a.ts', '.', 'M')] } : {})),
+    );
+    await h.s().removeWorktree(MAIN, WT);
+    expect(h.r().worktreeDialog?.kind).toBe('dirty');
+    await h.s().confirmWorktreeDialog(MAIN);
+    expect(h.r().worktreeDialog).toBeNull();
+    expect(h.deps.confirm).not.toHaveBeenCalled();
+    expect(h.order).toEqual([
+      'closeTabs',
+      'removeWorkspace',
+      'refreshWatchedDirs',
+      'gitWorktreeRemove',
+    ]);
+    expect(h.deps.closeTabs).toHaveBeenCalledWith(['t1']);
+    expect(h.ipc.gitWorktreeRemove).toHaveBeenCalledWith(MAIN, WT, true);
+    expect(h.notices().at(-1)).toBe('Removed worktrees/a');
+  });
+
+  test('removeWorktree: a locked worktree opens the locked dialog; OK does nothing', async () => {
     const h = harness();
     h.ipc.gitWorktrees.mockResolvedValue([
       summary(MAIN, 'development', true),
@@ -1313,7 +1354,92 @@ describe('worktrees', () => {
     await h.s().removeWorktree(MAIN, WT);
     expect(h.deps.confirm).not.toHaveBeenCalled();
     expect(h.order).toEqual([]);
-    expect(h.notices().at(-1)).toContain('worktrees/a is locked');
+    expect(h.r().worktreeDialog).toEqual({ kind: 'locked', path: WT, rel: 'worktrees/a' });
+    await h.s().confirmWorktreeDialog(MAIN);
+    expect(h.r().worktreeDialog).toBeNull();
+    expect(h.order).toEqual([]);
+    expect(h.ipc.gitWorktreeRemove).not.toHaveBeenCalled();
+  });
+
+  test('removeWorktree: the card is marked removing while it goes, then dropped at once', async () => {
+    const h = harness();
+    await h.open();
+    const gate = deferred<void>();
+    let removingDuring: string[] = [];
+    h.ipc.gitWorktreeRemove.mockImplementation(() => {
+      removingDuring = h.r().removing;
+      return gate.promise;
+    });
+    // The final listing is slow; the card must not wait for it.
+    const listing = deferred<GitWorktreeSummary[]>();
+    const done = h.s().removeWorktree(MAIN, WT);
+    await flush();
+    expect(removingDuring).toEqual([WT]);
+    h.ipc.gitWorktrees.mockImplementationOnce(() => listing.promise);
+    h.ipc.gitRepoInfo.mockResolvedValue({ ...info, worktrees: [info.worktrees[0]!] });
+    gate.resolve();
+    await flush();
+    expect(h.r().checkouts.map((c) => c.path)).toEqual([MAIN]);
+    expect(h.r().removing).toEqual([]);
+    listing.resolve([summary(MAIN, 'development', true)]);
+    await done;
+    expect(h.r().checkouts.map((c) => c.path)).toEqual([MAIN]);
+  });
+
+  test('removeWorktree: a listing that catches the folder half deleted never shows it missing', async () => {
+    const h = harness();
+    await h.open();
+    // A focus poke's listing starts before the removal and lands during it,
+    // when git has already deleted the worktree's .git file.
+    const early = deferred<GitWorktreeSummary[]>();
+    h.ipc.gitWorktrees.mockImplementationOnce(() => early.promise);
+    h.tick(REFRESH_THROTTLE_MS + 1);
+    h.s().onFocus();
+    await flush();
+    const gate = deferred<void>();
+    h.ipc.gitWorktreeRemove.mockImplementation(() => gate.promise);
+    const done = h.s().removeWorktree(MAIN, WT);
+    await flush();
+    early.resolve([
+      summary(MAIN, 'development', true),
+      { ...summary(WT, 'feat/a', false), missing: true },
+    ]);
+    await flush();
+    expect(h.r().checkouts.find((c) => c.path === WT)?.summary?.missing).toBe(false);
+    // A listing started DURING the removal keeps the row's old facts too.
+    h.ipc.gitWorktrees.mockResolvedValueOnce([
+      summary(MAIN, 'development', true),
+      { ...summary(WT, 'feat/a', false), missing: true },
+    ]);
+    await h.s().refresh(MAIN, { force: true });
+    expect(h.r().checkouts.find((c) => c.path === WT)?.summary?.missing).toBe(false);
+    h.ipc.gitWorktrees.mockResolvedValue([summary(MAIN, 'development', true)]);
+    h.ipc.gitRepoInfo.mockResolvedValue({ ...info, worktrees: [info.worktrees[0]!] });
+    gate.resolve();
+    await done;
+    expect(h.r().checkouts.map((c) => c.path)).toEqual([MAIN]);
+  });
+
+  test('watchRoots leaves out a checkout being removed', async () => {
+    const h = harness();
+    await h.open();
+    expect(h.s().watchRoots()[0]!.checkoutPaths).toEqual([MAIN, WT]);
+    let during: string[] = [];
+    h.ipc.gitWorktreeRemove.mockImplementation(() => {
+      during = h.s().watchRoots()[0]!.checkoutPaths;
+      return Promise.resolve();
+    });
+    await h.s().removeWorktree(MAIN, WT);
+    expect(during).toEqual([MAIN]);
+  });
+
+  test('removeWorktree: a failed removal clears the removing mark and keeps the card', async () => {
+    const h = harness();
+    await h.open();
+    h.ipc.gitWorktreeRemove.mockRejectedValue(new IpcError('GIT_FAILED', 'fatal: nope'));
+    await h.s().removeWorktree(MAIN, WT);
+    expect(h.r().removing).toEqual([]);
+    expect(h.r().checkouts.map((c) => c.path)).toEqual([MAIN, WT]);
   });
 
   test('removeWorktree: a missing folder skips the dirty check and is pruned', async () => {
@@ -1402,6 +1528,182 @@ describe('worktrees', () => {
   });
 });
 
+describe('delete all clean worktrees', () => {
+  const wt = (slug: string) => `${MAIN}/worktrees/${slug}`;
+  const SLUGS = ['a', 'dirty', 'agent', 'gone', 'stale'] as const;
+
+  function bulkHarness(terminals: GitTerminalTab[] = []) {
+    const h = harness({ terminals });
+    h.ipc.gitRepoInfo.mockResolvedValue({
+      ...info,
+      worktrees: [
+        { path: MAIN, branch: 'development', head: 'aaa1111' },
+        ...SLUGS.map((s) => ({ path: wt(s), branch: `feat/${s}`, head: 'bbb2222' })),
+      ],
+    });
+    h.ipc.gitWorktrees.mockResolvedValue([
+      summary(MAIN, 'development', true),
+      summary(wt('a'), 'feat/a', false),
+      { ...summary(wt('dirty'), 'feat/dirty', false), unstaged: 3 },
+      summary(wt('agent'), 'feat/agent', false),
+      { ...summary(wt('gone'), 'feat/gone', false), missing: true },
+      summary(wt('stale'), 'feat/stale', false),
+    ]);
+    // `stale` looked clean in the listing but has a new file by now; `gone`
+    // has no folder to ask.
+    h.ipc.gitStatus.mockImplementation((root: string) => {
+      if (root === wt('gone')) {
+        return Promise.reject(new IpcError('GIT_FAILED', 'no such directory'));
+      }
+      return Promise.resolve(
+        statusFor(
+          root,
+          root === wt('stale') ? { entries: [entry('new.md', '?', '?', 'untracked')] } : {},
+        ),
+      );
+    });
+    return h;
+  }
+
+  test('the dialog lists exactly what goes and what stays, and why', async () => {
+    const h = bulkHarness([{ id: 't1', title: 'claude', cwd: `${wt('agent')}/src` }]);
+    await h.open();
+    h.s().removeCleanWorktrees(MAIN);
+    expect(h.r().worktreeDialog).toEqual({
+      kind: 'bulk',
+      remove: [
+        { path: wt('a'), rel: 'worktrees/a', branch: 'feat/a', missing: false },
+        { path: wt('gone'), rel: 'worktrees/gone', branch: 'feat/gone', missing: true },
+        { path: wt('stale'), rel: 'worktrees/stale', branch: 'feat/stale', missing: false },
+      ],
+      skipped: [
+        { path: wt('agent'), rel: 'worktrees/agent', reason: 'terminal', terminals: ['claude'] },
+      ],
+    });
+    expect(h.ipc.gitWorktreeRemove).not.toHaveBeenCalled();
+    h.s().closeWorktreeDialog(MAIN);
+    expect(h.r().worktreeDialog).toBeNull();
+    expect(h.ipc.gitWorktreeRemove).not.toHaveBeenCalled();
+  });
+
+  test('confirmed: one after another, re-checked, never forced, branches untouched', async () => {
+    const h = bulkHarness([{ id: 't1', title: 'claude', cwd: wt('agent') }]);
+    await h.open(wt('a'));
+    h.s().removeCleanWorktrees(MAIN);
+    const progress: (string | null)[] = [];
+    const marked: string[][] = [];
+    h.ipc.gitWorktreeRemove.mockImplementation(() => {
+      const r = h.r();
+      progress.push(r.removal ? `${r.removal.done}/${r.removal.total} ${r.removal.current}` : null);
+      marked.push(r.removing);
+      return Promise.resolve();
+    });
+    await h.s().confirmWorktreeDialog(MAIN);
+
+    expect(h.ipc.gitWorktreeRemove.mock.calls).toEqual([
+      [MAIN, wt('a'), false],
+      [MAIN, wt('gone'), false],
+    ]);
+    expect(progress).toEqual([`0/3 ${wt('a')}`, `1/3 ${wt('gone')}`]);
+    // Every queued card is marked from the start; each leaves as it is done.
+    expect(marked[0]).toEqual([wt('a'), wt('gone'), wt('stale')]);
+    expect(marked[1]).toEqual([wt('gone'), wt('stale')]);
+    expect(h.ipc.gitStatus).toHaveBeenCalledWith(wt('stale'));
+    expect(h.deps.closeTabs).not.toHaveBeenCalled();
+    expect(h.deps.confirm).not.toHaveBeenCalled();
+    expect(h.ipc.gitDeleteBranch).not.toHaveBeenCalled();
+    expect(h.deps.removeWorkspace).toHaveBeenCalledWith(wt('a'));
+    expect(h.deps.removeWorkspace).not.toHaveBeenCalledWith(wt('stale'));
+    expect(h.r().removal).toBeNull();
+    expect(h.r().removing).toEqual([]);
+    // The selected checkout went: the panel falls back to the main one.
+    expect(h.r().selectedCheckout).toBe(MAIN);
+    expect(h.notices().at(-1)).toBe(
+      'Deleted 2 clean worktrees — their branches are kept. Left 1: worktrees/stale (it has new changes that are not committed yet).',
+    );
+  });
+
+  test('a terminal opened after the dialog, or a failed removal, skips that one and goes on', async () => {
+    const terminals: GitTerminalTab[] = [];
+    const h = bulkHarness(terminals);
+    await h.open();
+    h.s().removeCleanWorktrees(MAIN);
+    terminals.push({ id: 't9', title: 'pwsh', cwd: wt('a') });
+    h.ipc.gitWorktreeRemove.mockImplementation((_root: string, path: string) => {
+      h.order.push(`remove ${path}`);
+      return path === wt('gone')
+        ? Promise.reject(new IpcError('GIT_FAILED', 'fatal: cannot prune'))
+        : Promise.resolve();
+    });
+    await h.s().confirmWorktreeDialog(MAIN);
+    expect(h.order.filter((o) => o.startsWith('remove '))).toEqual([
+      `remove ${wt('agent')}`,
+      `remove ${wt('gone')}`,
+    ]);
+    // The failed one's workspace entry is put back.
+    expect(h.order).toContain('restoreWorkspace');
+    expect(h.notices().at(-1)).toBe(
+      'Deleted 1 clean worktree — its branch is kept. Left 3: worktrees/a (a terminal is open in it (pwsh) — something may still be working there); worktrees/gone (it could not be removed: Git: cannot prune); worktrees/stale (it has new changes that are not committed yet).',
+    );
+    expect(h.r().checkouts.map((c) => c.path)).toContain(wt('gone'));
+  });
+
+  test('a worktree whose folder is there but cannot be checked is left alone', async () => {
+    const h = bulkHarness();
+    await h.open();
+    h.ipc.gitStatus.mockImplementation((root: string) =>
+      root === wt('a')
+        ? Promise.reject(new IpcError('GIT_FAILED', 'index.lock'))
+        : Promise.resolve(statusFor(root)),
+    );
+    h.s().removeCleanWorktrees(MAIN);
+    await h.s().confirmWorktreeDialog(MAIN);
+    expect(h.ipc.gitWorktreeRemove).not.toHaveBeenCalledWith(MAIN, wt('a'), false);
+    expect(h.ipc.gitWorktreeRemove).toHaveBeenCalledWith(MAIN, wt('gone'), false);
+    expect(h.notices().at(-1)).toContain('worktrees/a (git could not check it for changes)');
+  });
+
+  test('nothing clean: a notice, no dialog; only skipped ones: says why', async () => {
+    const h = harness();
+    h.ipc.gitWorktrees.mockResolvedValue([
+      summary(MAIN, 'development', true),
+      { ...summary(WT, 'feat/a', false), staged: 1 },
+    ]);
+    await h.open();
+    h.s().removeCleanWorktrees(MAIN);
+    expect(h.r().worktreeDialog).toBeNull();
+    expect(h.notices().at(-1)).toBe('There are no clean worktrees to delete.');
+
+    const t = harness({ terminals: [{ id: 't', title: 'claude', cwd: WT }] });
+    await t.open();
+    t.s().removeCleanWorktrees(MAIN);
+    expect(t.r().worktreeDialog).toBeNull();
+    expect(t.notices().at(-1)).toBe(
+      'Nothing to delete — worktrees/a: a terminal is open in it (claude) — something may still be working there.',
+    );
+  });
+
+  test('one run at a time; a worktree another removal is busy with is left out', async () => {
+    const h = bulkHarness();
+    await h.open();
+    const gate = deferred<void>();
+    h.ipc.gitWorktreeRemove.mockImplementationOnce(() => gate.promise);
+    h.s().removeCleanWorktrees(MAIN);
+    const run = h.s().confirmWorktreeDialog(MAIN);
+    await flush();
+    expect(h.r().removal).toMatchObject({ total: 4, done: 0, current: wt('a') });
+    // A second click while it runs does nothing.
+    h.s().removeCleanWorktrees(MAIN);
+    expect(h.r().worktreeDialog).toBeNull();
+    // A single Remove of a queued card is ignored too.
+    await h.s().removeWorktree(MAIN, wt('stale'));
+    expect(h.deps.confirm).not.toHaveBeenCalled();
+    gate.resolve();
+    await run;
+    expect(h.r().removal).toBeNull();
+  });
+});
+
 describe('finish flow', () => {
   const stepStatuses = (h: ReturnType<typeof harness>) =>
     h.r().finish!.steps.map((s) => `${s.id}:${s.status}`);
@@ -1429,9 +1731,12 @@ describe('finish flow', () => {
       expect.stringContaining('1 terminal tab inside it will be closed: agent'),
       'Finish worktree',
     );
+    // The removal step re-arms the watcher once more: marked as removing, the
+    // worktree has left watchRoots.
     expect(h.order).toEqual([
       'closeTabs',
       'removeWorkspace',
+      'refreshWatchedDirs',
       'refreshWatchedDirs',
       'gitWorktreeRemove',
     ]);

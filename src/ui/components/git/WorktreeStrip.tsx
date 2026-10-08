@@ -14,7 +14,14 @@
  * (`gitActiveWorktreesOnly`, persisted): on, the strip lists just the
  * checkouts with something going on — `isActiveCheckout` in core — plus the
  * selected one, and a faint "+N clean" tally stands where the hidden cards
- * were; clicking it brings them back.
+ * were; clicking it brings them back. Under it, the broom is "Delete all
+ * clean worktrees" (shown only while there is one; the store opens the
+ * dialog listing exactly what goes) — and its spinner + "2/5" while a run
+ * goes. A card being removed (`repo.removing`) is dimmed and inert with a
+ * "Removing…" chip in place of any "missing" one, until it is gone.
+ *
+ * The row scrolls sideways under a plain vertical wheel (ui/horizontal-wheel)
+ * and wears the app's shared fading scrollbar.
  *
  * The strip is also the git tab's only header, so it carries the
  * distraction-free button the ribbon gives a document (the git tab has no
@@ -23,15 +30,22 @@
  * sit exactly on the cards' top line and swallow their clicks.
  */
 
-import { isActiveCheckout, terminalsInside as terminalsIn } from '../../../core/git/checkouts';
+import { useEffect, useRef } from 'react';
+import {
+  checkoutKey,
+  isActiveCheckout,
+  terminalsInside as terminalsIn,
+} from '../../../core/git/checkouts';
 import type { GitCheckout } from '../../../core/git/types';
+import { planCleanRemoval, removalProgressText } from '../../../core/git/worktree-removal';
 import { setDistractionFree } from '../../fullscreen';
+import { installHorizontalWheel } from '../../horizontal-wheel';
 import { isAndroid } from '../../platform';
-import { gitStore } from '../../stores/git';
+import { gitStore, type RemovalProgress } from '../../stores/git';
 import { settingsStore, useSettingsStore } from '../../stores/settings';
 import { tabDisplayTitle, tabsStore, useTabsStore, type TabEntry } from '../../stores/tabs';
 import { useUiStore } from '../../stores/ui';
-import { Icon } from './icons';
+import { Icon, Spinner } from './icons';
 import { checkoutDir, checkoutLabel, checkoutName, IconButton, useRepoSlice } from './shared';
 
 /** Titles of the terminal tabs whose shell is inside `path` (core's containment rule). */
@@ -40,6 +54,29 @@ function terminalsInside(tabs: readonly TabEntry[], path: string): string[] {
     .filter((t) => t.kind === 'terminal')
     .map((t) => ({ id: t.id, title: tabDisplayTitle(t), cwd: t.terminalCwd }));
   return terminalsIn(shells, path).map((s) => s.title);
+}
+
+const NONE: readonly string[] = [];
+
+/**
+ * A card's removal state: going now (with the progress text — "Removing 2 of
+ * 5…" during the bulk delete), queued behind the bulk delete's current one,
+ * or not being removed.
+ */
+function cardRemoval(
+  path: string,
+  removingKeys: ReadonlySet<string>,
+  removal: RemovalProgress | null,
+): { now: true; text: string } | { now: false } | null {
+  if (!removingKeys.has(checkoutKey(path))) {
+    return null;
+  }
+  if (removal === null) {
+    return { now: true, text: 'Removing…' };
+  }
+  return removal.current !== null && checkoutKey(removal.current) === checkoutKey(path)
+    ? { now: true, text: removalProgressText(removal.done, removal.total) }
+    : { now: false };
 }
 
 /** The dirty-files bar: four tones, widths proportional to the counts. */
@@ -125,6 +162,7 @@ function WorktreeCard({
   selected,
   viewingDiff,
   terminals,
+  removing,
 }: {
   root: string;
   tabId: string;
@@ -133,15 +171,32 @@ function WorktreeCard({
   selected: boolean;
   viewingDiff: boolean;
   terminals: string[];
+  /**
+   * Its removal is in flight: `now` (this one is going — the progress text),
+   * `queued` (the bulk delete gets to it next), or null.
+   */
+  removing: { now: true; text: string } | { now: false } | null;
 }) {
   const actions = gitStore.getState();
   const s = checkout.summary;
   const isMain = checkout.isMain;
   const dir = checkoutDir(checkout.path, root);
   const onBase = base !== null && checkout.branch === base;
-  const missing = s?.missing === true;
+  // A card being removed never says "missing": its folder IS going away, on
+  // purpose, and the card leaves once it has.
+  const busy = removing !== null;
+  const missing = s?.missing === true && !busy;
+  // The card the bulk delete is on now slides into view, so its progress
+  // is where the eye is.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const goingNow = removing?.now === true;
+  useEffect(() => {
+    if (goingNow) {
+      cardRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    }
+  }, [goingNow]);
   const pick = () => {
-    if (missing) {
+    if (missing || busy) {
       return;
     }
     tabsStore.getState().setGitCheckout(tabId, checkout.path);
@@ -151,6 +206,7 @@ function WorktreeCard({
     'git-card',
     selected ? 'is-selected' : '',
     missing ? 'is-missing' : '',
+    busy ? 'is-removing' : '',
     isMain ? 'is-main' : '',
     s && s.conflicted > 0 ? 'has-conflicts' : '',
   ]
@@ -158,11 +214,18 @@ function WorktreeCard({
     .join(' ');
   return (
     <div
+      ref={cardRef}
       className={classes}
       role="button"
-      tabIndex={0}
+      tabIndex={busy ? -1 : 0}
       aria-pressed={selected}
-      title={`${checkout.path}${selected ? '' : '\nClick to show this checkout'}`}
+      aria-disabled={busy || undefined}
+      aria-busy={busy || undefined}
+      title={
+        busy
+          ? `${checkout.path}\n${removing.now ? 'Removing this worktree…' : 'Waiting to be removed'}`
+          : `${checkout.path}${selected ? '' : '\nClick to show this checkout'}`
+      }
       onClick={pick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -181,7 +244,14 @@ function WorktreeCard({
             aria-label={`${terminals.length} terminal(s) open here`}
           />
         )}
-        {s && s.state !== 'clean' && (
+        {removing?.now === true && (
+          <span className="git-chip git-chip-removing">
+            <Spinner title="Removing" />
+            {removing.text}
+          </span>
+        )}
+        {removing?.now === false && <span className="git-chip">waiting…</span>}
+        {!busy && s && s.state !== 'clean' && (
           <span className="git-chip git-chip-state" title="An operation is in progress here">
             {s.state}
           </span>
@@ -194,7 +264,7 @@ function WorktreeCard({
             missing
           </span>
         )}
-        {s?.locked && (
+        {!busy && s?.locked && (
           <span className="git-chip" title="Locked — git will not prune it">
             locked
           </span>
@@ -225,7 +295,12 @@ function WorktreeCard({
           <AheadBehind ahead={s.ahead} behind={s.behind} base={base} />
         )}
       </div>
-      <div className="git-card-actions" onClick={(e) => e.stopPropagation()}>
+      {/* Hidden (not unmounted, so the card keeps its height) while it goes. */}
+      <div
+        className="git-card-actions"
+        onClick={(e) => e.stopPropagation()}
+        inert={busy || undefined}
+      >
         <IconButton
           icon="folder"
           title="Open as workspace"
@@ -303,10 +378,33 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
   const activeOnly = useSettingsStore((s) => s.settings.gitActiveWorktreesOnly);
   const setActiveOnly = (on: boolean) =>
     settingsStore.getState().update({ gitActiveWorktreesOnly: on });
+  const removing = useRepoSlice(root, (r) => r.removing) ?? NONE;
+  const removal = useRepoSlice(root, (r) => r.removal) ?? null;
+  const finishing =
+    useRepoSlice(root, (r) => (r.finish && !r.finish.finished ? r.finish.worktree : null)) ?? null;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    return el
+      ? installHorizontalWheel(el, () => settingsStore.getState().settings.smoothScrolling)
+      : undefined;
+  }, []);
   const terminalsAt = new Map(checkouts.map((c) => [c.path, terminalsInside(tabs, c.path)]));
+  const removingKeys = new Set(removing.map(checkoutKey));
+  const removingState = (c: GitCheckout) => cardRemoval(c.path, removingKeys, removal);
+  // What "Delete all clean worktrees" would take right now (core decides).
+  const cleanPlan = planCleanRemoval(
+    checkouts,
+    tabs
+      .filter((t) => t.kind === 'terminal')
+      .map((t) => ({ id: t.id, title: tabDisplayTitle(t), cwd: t.terminalCwd })),
+    finishing === null ? removing : [...removing, finishing],
+  );
+  const cleanCount = cleanPlan.remove.length;
   const isShown = (c: GitCheckout) =>
     !activeOnly ||
     c.path.replaceAll('\\', '/').toLowerCase() === selKey ||
+    removingKeys.has(checkoutKey(c.path)) ||
     isActiveCheckout(c, (terminalsAt.get(c.path)?.length ?? 0) > 0);
   const shown = checkouts.filter(isShown);
   const hidden = checkouts.length - shown.length;
@@ -316,7 +414,7 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
 
   return (
     <header className="git-strip" aria-label="Checkouts">
-      <div className="git-strip-scroll" data-tauri-drag-region={dragRegion}>
+      <div className="git-strip-scroll" ref={scrollRef} data-tauri-drag-region={dragRegion}>
         {checkouts.length === 0 ? (
           <div className="git-card is-placeholder">
             {loading ? 'Listing worktrees…' : checkoutLabel(root, root)}
@@ -332,6 +430,7 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
               selected={c.path.replaceAll('\\', '/').toLowerCase() === selKey}
               viewingDiff={selected?.kind === 'worktree-diff' && selected.path === c.path}
               terminals={terminalsAt.get(c.path) ?? []}
+              removing={removingState(c)}
             />
           ))
         )}
@@ -373,6 +472,36 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
           <Icon name="filter" />
           {activeOnly && hidden > 0 && <span className="git-strip-filter-n">{hidden}</span>}
         </button>
+        {/* "Delete all clean worktrees" — only while there is one to delete,
+            or while a run is going (then it is the progress). */}
+        {removal !== null ? (
+          <button
+            type="button"
+            className="git-strip-tool git-strip-clean is-running"
+            aria-label={removalProgressText(removal.done, removal.total)}
+            title={removalProgressText(removal.done, removal.total)}
+            disabled
+          >
+            <Spinner title={removalProgressText(removal.done, removal.total)} />
+            <span className="git-strip-filter-n">
+              {Math.min(removal.done + 1, removal.total)}/{removal.total}
+            </span>
+          </button>
+        ) : (
+          cleanCount > 0 && (
+            <button
+              type="button"
+              className="git-strip-tool git-strip-clean"
+              aria-label="Delete all clean worktrees"
+              title={`Delete all clean worktrees (${cleanCount}) — the ones with nothing uncommitted. Their branches and commits are kept; you will see the list first.`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => actions.removeCleanWorktrees(root)}
+            >
+              <Icon name="broom" />
+              <span className="git-strip-filter-n">{cleanCount}</span>
+            </button>
+          )
+        )}
         {/* Hidden with the rest of the chrome's buttons once chrome-less: the
             floating cluster (App) and Esc are the way back, as on a document. */}
         {!distractionFree && (

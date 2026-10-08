@@ -119,6 +119,7 @@ describe('normalizeSettings', () => {
       showHiddenFiles: true,
       reviewBaseBranch: '',
       gitActiveWorktreesOnly: false,
+      diffInline: false,
       scanPreset: 'balanced',
       scanSmoothing: 'precise',
       schemaVersion: SETTINGS_SCHEMA,
@@ -294,6 +295,13 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({ reviewBaseBranch: '  trunk  ' }).reviewBaseBranch).toBe('trunk');
     expect(normalizeSettings({ reviewBaseBranch: '   ' }).reviewBaseBranch).toBe('');
     expect(normalizeSettings({ reviewBaseBranch: 42 }).reviewBaseBranch).toBe('');
+  });
+
+  test('diffs default to side by side; the inline choice persists', () => {
+    expect(DEFAULT_SETTINGS.diffInline).toBe(false);
+    expect(normalizeSettings({}).diffInline).toBe(false);
+    expect(normalizeSettings({ diffInline: true }).diffInline).toBe(true);
+    expect(normalizeSettings({ diffInline: 'yes' }).diffInline).toBe(false);
   });
 
   test('voice notes default to a shared "Voice Notes" workspace folder', () => {
