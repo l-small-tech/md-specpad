@@ -11,6 +11,7 @@ tested — build `pipeline.ts` beside it.
 | `mermaid.ts` | lazy mermaid rendering (reference impl, M1-era) |
 | `export.ts` + `export.css` | standalone HTML export (`buildStandaloneHtml`): the same sanitized pipeline rendered into one self-contained file (inline stylesheet, images as data: URLs, mermaid pre-rendered to SVG). `export.css` only **consumes** theme variables (`var(--x, fallback)`, fallbacks = the built-in greens) and never defines one — the exporter (`ui/session/export.ts`) appends a generated `:root { --x: v; … }` block for the chosen theme+mode, which therefore always wins. Keep new rules on that pattern. |
 | `code-review.ts` | the Review pane for a code file — see "Code review pane" below |
+| `pdf-viewer.ts` | a PDF tab's Review surface: pdf.js's own `PDFViewer` (lazy pages, text layer, link annotations, find highlighting) behind a small handle — zoom (fitted zooms re-fit on resize), paging, bookmarks, find. External links stay plain anchors, so the app-wide link guard prompts for them. `ui/components/PdfView.tsx` is the chrome around it |
 | `note-marks.ts` | the review-note marker + callout DOM both panes insert — see "Review-note markers" below |
 | `marp.ts` + `deck.ts` | Marp slide decks — see "Marp decks" below |
 | `deck-export.ts` | the standalone HTML for a deck (`buildDeckHtml`): theme CSS, every slide, a few lines of keyboard navigation |

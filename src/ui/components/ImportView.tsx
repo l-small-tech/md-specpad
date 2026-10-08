@@ -1,5 +1,6 @@
 /**
- * ImportView — the card behind an `import` tab (PDF/DOCX). Fills the editor
+ * ImportView — the card behind an `import` tab (DOCX; a PDF's import tab shows
+ * the PDF itself instead — PdfView, with the import in its toolbar). Fills the editor
  * stack like an EditorHost/ImageView does, but renders a small centered card
  * offering a one-click conversion to Markdown instead of mounting any editor.
  *

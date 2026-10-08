@@ -1,6 +1,9 @@
 /// <reference types="vitest/config" />
+import { readdirSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 // Single source of truth for the version shown in Settings (releasing keeps
 // package.json, tauri.conf.json and Cargo.toml in agreement — README §Releasing).
 import { version } from './package.json';
@@ -14,10 +17,63 @@ import { version } from './package.json';
 // tauri.android.conf.json (mobile, 1430). Different ports = no collision when
 // tauri:dev and android:dev run side by side.
 const host = process.env.TAURI_DEV_HOST;
+
+/**
+ * pdf.js fetches some data files at run time rather than importing them: the
+ * standard fonts, the CMaps, the ICC profile and the image-decoder wasm
+ * (`core/import/pdfjs.ts` names the URLs). This serves them under `/pdfjs/`
+ * straight from node_modules in dev and copies them into dist on build. Only
+ * what the viewer and importer use: no licence files and no QuickJS (that is
+ * pdf.js's form-scripting sandbox, and scripts never run here).
+ */
+function pdfjsResources(): Plugin {
+  const root = dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'));
+  const wanted: Record<string, (name: string) => boolean> = {
+    cmaps: (name) => name.endsWith('.bcmap'),
+    standard_fonts: (name) => /\.(pfb|ttf)$/.test(name),
+    // The decoders' JS fallbacks too: pdf.js `import()`s them when wasm cannot
+    // compile, which a CSP without 'wasm-unsafe-eval' can cause. (The release
+    // CSP doesn't reach the worker on Windows — it is a header on the page
+    // only — but the WebKit and Android webviews are not verified.)
+    wasm: (name) =>
+      !name.startsWith('quickjs') &&
+      (name.endsWith('.wasm') || name.endsWith('_nowasm_fallback.js')),
+    iccs: (name) => name.endsWith('.icc'),
+  };
+  const files = (): { url: string; path: string }[] =>
+    Object.entries(wanted).flatMap(([dir, keep]) =>
+      readdirSync(join(root, dir))
+        .filter(keep)
+        .map((name) => ({ url: `pdfjs/${dir}/${name}`, path: join(root, dir, name) })),
+    );
+  return {
+    name: 'pdfjs-resources',
+    configureServer(server) {
+      const byUrl = new Map(files().map((f) => [`/${f.url}`, f.path]));
+      server.middlewares.use((req, res, next) => {
+        const path = byUrl.get((req.url ?? '').split('?')[0] ?? '');
+        if (!path) {
+          next();
+          return;
+        }
+        res.setHeader(
+          'Content-Type',
+          path.endsWith('.wasm') ? 'application/wasm' : 'application/octet-stream',
+        );
+        res.end(readFileSync(path));
+      });
+    },
+    generateBundle() {
+      for (const f of files()) {
+        this.emitFile({ type: 'asset', fileName: f.url, source: readFileSync(f.path) });
+      }
+    },
+  };
+}
 const port = host ? 1430 : 1420;
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), pdfjsResources()],
 
   define: {
     __APP_VERSION__: JSON.stringify(version),

@@ -45,7 +45,9 @@ export type EditorMode = 'raw' | 'split' | 'wysiwyg' | 'read' | 'draw' | 'term' 
  * 'import' — a foreign document (PDF/DOCX) shown as an inline import card over
  *           `filePath`: offers a one-click "Import as Markdown" (no dialog), or
  *           a link to the already-imported note. Like 'image', it holds no text
- *           and is only recorded in the manifest.
+ *           and is only recorded in the manifest. A PDF's import tab is routed
+ *           by extension (core/pdf.ts `isPdfPath`) to the PDF viewer — its
+ *           Review mode — which keeps the import as a toolbar button.
  * 'terminal' — a shell (or several, in a split layout) instead of a document.
  *           Holds no text: like 'image'/'import' it is never note-flushed and
  *           never session-buffered, and the manifest records only the pane

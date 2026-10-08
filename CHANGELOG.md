@@ -10,6 +10,11 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- **Read PDFs in the app.** Opening a PDF now shows its pages (Review mode)
+  instead of an import card: select and copy text, zoom (Ctrl +/−, Ctrl+wheel,
+  fit width / fit page), jump to a page, find with Ctrl+F, follow links, and
+  browse its bookmarks in the Outline panel. **Import as Markdown** is still
+  one click away in the toolbar. Read-only for now.
 - Heading marks: new **Focus** (🎯, purple — one heading per file at a time)
   and **Backburner** (💤, yellow) marks, all under a **Mark heading** submenu;
   running is now blue. A marked section's bar runs unbroken through its

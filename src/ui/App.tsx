@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { isAudioPath } from '../core/audio';
+import { isPdfPath } from '../core/pdf';
 import { TabBar } from './components/TabBar';
 import { Ribbon } from './components/Ribbon';
 import { FileExplorer } from './components/FileExplorer';
@@ -17,6 +18,7 @@ import { EditorHost } from './components/EditorHost';
 import { AudioView } from './components/AudioView';
 import { ImageView } from './components/ImageView';
 import { ImportView } from './components/ImportView';
+import { PdfView } from './components/PdfView';
 import { TerminalTab } from './components/TerminalTab';
 import { GitTab } from './components/git/GitTab';
 import { StatusBar } from './components/StatusBar';
@@ -108,6 +110,8 @@ export function App() {
               <AudioView key={tab.id} tabId={tab.id} active={tab.id === activeTabId} />
             ) : tab.kind === 'image' ? (
               <ImageView key={tab.id} tabId={tab.id} active={tab.id === activeTabId} />
+            ) : tab.kind === 'import' && tab.filePath && isPdfPath(tab.filePath) ? (
+              <PdfView key={tab.id} tabId={tab.id} active={tab.id === activeTabId} />
             ) : tab.kind === 'import' ? (
               <ImportView key={tab.id} tabId={tab.id} active={tab.id === activeTabId} />
             ) : tab.kind === 'terminal' ? (
