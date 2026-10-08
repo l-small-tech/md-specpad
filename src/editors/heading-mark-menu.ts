@@ -1,7 +1,8 @@
 /**
  * The heading right-click menu both text editors share (Raw/Split's CM6 and
- * Edit mode's Milkdown): Mark running / Mark complete / Clear mark, with the
- * current choice ticked; picking the ticked one again clears it. Decides
+ * Edit mode's Milkdown): Running / Focus / Backburner / Complete / Clear
+ * mark, with the current choice ticked; picking the ticked one again clears
+ * it. Decides
  * nothing else — the caller reads the heading's mark (`core/heading-mark.ts`)
  * and applies the result.
  *
@@ -10,7 +11,8 @@
  * them), so cancelling it to show our own would hide them on a misspelled
  * heading word:
  *
- * - Windows: the native menu opens as usual and the items join it.
+ * - Windows: the native menu opens as usual and a Mark heading submenu
+ *   joins it (one row, so the spelling items are not pushed off screen).
  *   `src-tauri/src/native_menu.rs` reads them from `window.__mdSpecpadNativeMenu`
  *   while the menu is being built and calls `select(id)` on a pick.
  * - elsewhere: the app's own DOM menu replaces the native one (no native
@@ -28,6 +30,8 @@ export interface NativeMenuItem {
   checked?: boolean;
   enabled?: boolean;
   separator?: boolean;
+  /** Makes this item a submenu of these items (no id: it is never picked). */
+  children?: NativeMenuItem[];
 }
 
 /** What a right-click hands the native menu; null between right-clicks. */
@@ -68,13 +72,18 @@ export function markAfterPick(
 /** The heading items as native-menu entries (pure; exported for tests). */
 export function headingMarkNativeItems(current: HeadingMark | null): NativeMenuItem[] {
   return [
-    ...HEADING_MARKS.map((mark) => ({
-      id: mark,
-      label: `Mark ${HEADING_MARK_LABELS[mark].toLowerCase()}`,
-      checked: current === mark,
-    })),
-    { separator: true },
-    { id: CLEAR_ID, label: 'Clear mark', enabled: current !== null },
+    {
+      label: 'Mark heading',
+      children: [
+        ...HEADING_MARKS.map((mark) => ({
+          id: mark,
+          label: HEADING_MARK_LABELS[mark],
+          checked: current === mark,
+        })),
+        { separator: true },
+        { id: CLEAR_ID, label: 'Clear mark', enabled: current !== null },
+      ],
+    },
   ];
 }
 

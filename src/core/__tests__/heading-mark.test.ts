@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import {
+  bandContinues,
   markOfText,
   parseHeadingLine,
+  sectionMarkOwners,
   sectionMarks,
   setHeadingLineMark,
   stripMark,
   withMarkText,
+  type HeadingMark,
 } from '../heading-mark';
 
 describe('parseHeadingLine', () => {
@@ -72,10 +75,18 @@ describe('heading text helpers (Edit mode works on node text)', () => {
     expect(withMarkText('Plan ⏳', 'complete')).toBe('Plan ✅');
     expect(withMarkText('', 'running')).toBe('⏳');
   });
+
+  test('focus and backburner glyphs round-trip', () => {
+    expect(markOfText('Plan 🎯')).toBe('focus');
+    expect(markOfText('Plan 💤')).toBe('backburner');
+    expect(withMarkText('Plan 💤', 'focus')).toBe('Plan 🎯');
+    expect(setHeadingLineMark('## Later', 'backburner')).toBe('## Later 💤');
+    expect(stripMark('Plan 🎯')).toBe('Plan');
+  });
 });
 
 describe('sectionMarks', () => {
-  const h = (level: number, mark: 'running' | 'complete' | null = null) => ({ level, mark });
+  const h = (level: number, mark: HeadingMark | null = null) => ({ level, mark });
 
   test('sub-headings inherit the enclosing mark', () => {
     expect(sectionMarks([h(2, 'running'), h(3), h(4), h(2)])).toEqual([
@@ -97,5 +108,32 @@ describe('sectionMarks', () => {
 
   test('a higher-level heading closes the section', () => {
     expect(sectionMarks([h(3, 'complete'), h(2), h(3)])).toEqual(['complete', null, null]);
+  });
+});
+
+describe('sectionMarkOwners / bandContinues', () => {
+  const h = (level: number, mark: HeadingMark | null = null) => ({ level, mark });
+
+  test('each heading points at the heading whose mark it shows', () => {
+    expect(sectionMarkOwners([h(1), h(2, 'focus'), h(3), h(3, 'complete'), h(2)])).toEqual([
+      -1, 1, 1, 3, -1,
+    ]);
+  });
+
+  test('the band runs on into sub-headings of the marked section', () => {
+    const hs = [h(2, 'running'), h(3), h(3), h(2)];
+    const owners = sectionMarkOwners(hs);
+    expect(bandContinues(hs, owners, 0)).toBe(true); // ## → ###
+    expect(bandContinues(hs, owners, 1)).toBe(true); // ### → sibling ### still under ##
+    expect(bandContinues(hs, owners, 2)).toBe(false); // ### → ## ends it
+    expect(bandContinues(hs, owners, 3)).toBe(false); // nothing after
+  });
+
+  test('a sibling or a differently marked sub-heading breaks the band', () => {
+    const hs = [h(2, 'complete'), h(2, 'complete'), h(3, 'running'), h(3, 'complete')];
+    const owners = sectionMarkOwners(hs);
+    expect(bandContinues(hs, owners, 0)).toBe(false);
+    expect(bandContinues(hs, owners, 1)).toBe(false);
+    expect(bandContinues(hs, owners, 2)).toBe(false);
   });
 });

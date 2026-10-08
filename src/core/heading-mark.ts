@@ -1,10 +1,12 @@
 /**
  * Heading marks — a hand-set status on an ATX heading (pure; tested).
  *
- * Right-clicking a heading in Raw, Split or Edit mode offers Mark running /
- * Mark complete / Clear mark. The mark is stored IN the heading text as a
- * trailing glyph (`## Build the parser ⏳`, `## Build the parser ✅`), so it
- * is saved with the file, survives an Edit-mode round-trip, shows in the
+ * Right-clicking a heading in Raw, Split or Edit mode offers a Mark heading
+ * submenu: Running / Focus / Backburner / Complete / Clear mark. Focus is
+ * held by at most one heading per file: setting it clears it everywhere else
+ * (`UNIQUE_MARK`). The mark is stored IN the heading text as a trailing
+ * glyph (`## Build the parser ⏳`, `… 🎯`, `… 💤`, `… ✅`), so it is saved
+ * with the file, survives an Edit-mode round-trip, shows in the
  * preview and is visible to anyone (or any agent) reading the markdown. The
  * editors only add a tint on top (`.heading-mark-*` in app.css).
  *
@@ -14,23 +16,30 @@
  * inside a fenced code block is never offered the menu.
  */
 
-export const HEADING_MARKS = ['running', 'complete'] as const;
+export const HEADING_MARKS = ['running', 'focus', 'backburner', 'complete'] as const;
 export type HeadingMark = (typeof HEADING_MARKS)[number];
 
 export const HEADING_MARK_GLYPHS: Record<HeadingMark, string> = {
   running: '⏳',
+  focus: '🎯',
+  backburner: '💤',
   complete: '✅',
 };
 
 export const HEADING_MARK_LABELS: Record<HeadingMark, string> = {
   running: 'Running',
+  focus: 'Focus',
+  backburner: 'Backburner',
   complete: 'Complete',
 };
+
+/** Only one heading in a file may hold this mark; setting it clears the others. */
+export const UNIQUE_MARK: HeadingMark = 'focus';
 
 /** indent, hashes, gap, content (lazy), closing run + trailing blanks. */
 const ATX = /^( {0,3})(#{1,6})(?:([ \t]+)(.*?))?((?:[ \t]+#+)?[ \t]*)$/;
 /** A mark at the end of heading content; tolerates the emoji presentation selector. */
-const TRAILING_MARK = /(^|[ \t]+)(⏳|✅)️?$/u;
+const TRAILING_MARK = /(^|[ \t]+)(⏳|🎯|💤|✅)️?$/u;
 
 /** The mark at the end of a heading's TEXT (no `#`s), or null. */
 export function markOfText(text: string): HeadingMark | null {
@@ -38,7 +47,7 @@ export function markOfText(text: string): HeadingMark | null {
   if (!m) {
     return null;
   }
-  return m[2] === HEADING_MARK_GLYPHS.complete ? 'complete' : 'running';
+  return HEADING_MARKS.find((mark) => HEADING_MARK_GLYPHS[mark] === m[2]) ?? null;
 }
 
 /** Heading text with its trailing mark (and the blank before it) removed. */
@@ -85,20 +94,46 @@ export interface SectionHeading {
 }
 
 /**
- * The mark each heading's section shows, in document order: its own mark,
- * else the innermost enclosing marked heading's. A section runs from its
- * heading to the next heading of the same or a higher level, so everything
- * under `## Build ⏳` — text and `###` sub-headings alike — reads as running,
- * until a sub-heading carries a mark of its own.
+ * For each heading in document order, the index of the heading whose mark
+ * its section shows: itself when it carries a mark, else the innermost
+ * enclosing marked heading; -1 when none. A section runs from its heading to
+ * the next heading of the same or a higher level, so everything under
+ * `## Build ⏳` — text and `###` sub-headings alike — reads as running, until
+ * a sub-heading carries a mark of its own.
  */
-export function sectionMarks(headings: readonly SectionHeading[]): (HeadingMark | null)[] {
-  const open: SectionHeading[] = [];
-  return headings.map(({ level, mark }) => {
+export function sectionMarkOwners(headings: readonly SectionHeading[]): number[] {
+  const open: { level: number; owner: number }[] = [];
+  return headings.map(({ level, mark }, i) => {
     while (open.length > 0 && open[open.length - 1]!.level >= level) {
       open.pop();
     }
-    const shown = mark ?? open[open.length - 1]?.mark ?? null;
-    open.push({ level, mark: shown });
-    return shown;
+    const owner = mark ? i : (open[open.length - 1]?.owner ?? -1);
+    open.push({ level, owner });
+    return owner;
   });
+}
+
+/** The mark each heading's section shows, in document order (see `sectionMarkOwners`). */
+export function sectionMarks(headings: readonly SectionHeading[]): (HeadingMark | null)[] {
+  return sectionMarkOwners(headings).map((owner) => headings[owner]?.mark ?? null);
+}
+
+/**
+ * Does heading `i`'s band run on into heading `i + 1` without a break? True
+ * when the next heading still sits inside the section of the heading that
+ * owns `i`'s mark and shows that same mark (an unmarked or same-marked
+ * sub-heading), so the blank lines or block gap in front of it stay tinted.
+ * A sibling, a higher heading or a differently marked one starts afresh.
+ */
+export function bandContinues(
+  headings: readonly SectionHeading[],
+  owners: readonly number[],
+  i: number,
+): boolean {
+  const owner = headings[owners[i] ?? -1];
+  const next = headings[i + 1];
+  if (!owner?.mark || !next) {
+    return false;
+  }
+  return next.level > owner.level && headings[owners[i + 1] ?? -1]?.mark === owner.mark;
 }

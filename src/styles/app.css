@@ -3621,47 +3621,85 @@ body.explorer-dragging * {
 }
 
 /* ---- Heading marks (editors/heading-marks-*.ts) -------------------------
-   A heading ending in ⏳ / ✅ (core/heading-mark.ts) gets a status bar down
-   its left edge and a faint wash, in the hues the tab strip's agent badges
-   use: amber while running (the bar breathes), green once complete. The same
-   classes land on a CM6 line (Raw/Split) and on the h1–h6 in Edit mode. */
-.heading-mark {
+   A heading ending in ⏳ / 🎯 / 💤 / ✅ (core/heading-mark.ts) gets a status
+   bar down its left edge and a faint wash: blue while running (the bar
+   breathes), purple in focus, yellow on the back burner, green once
+   complete. The same classes land on a CM6 line (Raw/Split) and on the
+   h1–h6 in Edit mode. */
+.heading-mark,
+.heading-mark-section {
   --heading-mark-hue: var(--fg-muted);
   box-shadow: inset 3px 0 0 var(--heading-mark-hue);
+}
+
+.heading-mark {
   background-color: color-mix(in srgb, var(--heading-mark-hue) 10%, transparent);
   border-radius: 2px;
-}
-
-.heading-mark-running {
-  --heading-mark-hue: #e8a13a;
-  animation: heading-mark-breathe 1.8s ease-in-out infinite;
-}
-
-.heading-mark-complete {
-  --heading-mark-hue: #34c759;
 }
 
 /* The rest of a marked section — body lines and unmarked sub-headings —
    keeps the heading's bar with a fainter wash and no breathing (lines come
    and go as CM6 scrolls; a per-line animation would drift out of phase). */
 .heading-mark-section {
-  --heading-mark-hue: var(--fg-muted);
-  box-shadow: inset 3px 0 0 var(--heading-mark-hue);
   background-color: color-mix(in srgb, var(--heading-mark-hue) 5%, transparent);
 }
 
-.heading-mark-section-running {
-  --heading-mark-hue: #e8a13a;
+:is(.heading-mark-running, .heading-mark-section-running) {
+  --heading-mark-hue: #3b82f6;
 }
 
-.heading-mark-section-complete {
+:is(.heading-mark-focus, .heading-mark-section-focus) {
+  --heading-mark-hue: #a855f7;
+}
+
+:is(.heading-mark-backburner, .heading-mark-section-backburner) {
+  --heading-mark-hue: #eab308;
+}
+
+:is(.heading-mark-complete, .heading-mark-section-complete) {
   --heading-mark-hue: #34c759;
+}
+
+.heading-mark-running {
+  animation: heading-mark-breathe 1.8s ease-in-out infinite;
 }
 
 /* Edit mode's blocks have no inner padding; keep the text off the bar. */
 .milkdown .ProseMirror .heading-mark,
 .milkdown .ProseMirror .heading-mark-section {
   padding-left: 10px;
+}
+
+/* Edit mode spaces blocks with margins, which would break the bar between
+   every block of a band (most of all before a sub-heading). A block joined
+   to the band above (heading-marks-milkdown.ts) takes the gap as padding
+   instead, at its own default top margin, so the bar runs on unbroken. */
+.milkdown .ProseMirror > :has(+ .heading-mark-joined) {
+  margin-bottom: 0;
+}
+
+.milkdown .ProseMirror > .heading-mark-joined {
+  margin-top: 0;
+  padding-top: 1em;
+}
+
+.milkdown .ProseMirror > h1.heading-mark-joined {
+  padding-top: 0.67em;
+}
+.milkdown .ProseMirror > h2.heading-mark-joined {
+  padding-top: 0.83em;
+}
+.milkdown .ProseMirror > h4.heading-mark-joined {
+  padding-top: 1.33em;
+}
+.milkdown .ProseMirror > h5.heading-mark-joined {
+  padding-top: 1.67em;
+}
+.milkdown .ProseMirror > h6.heading-mark-joined {
+  padding-top: 2.33em;
+}
+.milkdown .ProseMirror > blockquote.heading-mark-joined {
+  padding-top: 0.8em;
 }
 
 @keyframes heading-mark-breathe {

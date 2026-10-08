@@ -10,6 +10,10 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- Heading marks: new **Focus** (🎯, purple — one heading per file at a time)
+  and **Backburner** (💤, yellow) marks, all under a **Mark heading** submenu;
+  running is now blue. A marked section's bar runs unbroken through its
+  sub-headings.
 - **A sleeker diff viewer**, VS Code-style, in the git tab and the conflict
   "View diff": syntax colouring (TypeScript, JavaScript, Rust, Markdown), long
   unchanged stretches folded behind a click-to-expand bar, an inline ⇄ side by
