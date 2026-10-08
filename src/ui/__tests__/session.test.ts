@@ -11,7 +11,7 @@
  * import time, so we reset the module registry before each test and re-import
  * session + stores together (shared registry → shared singleton).
  */
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const NOTES = '/notes';
 const SESSION = '/session';
@@ -177,6 +177,18 @@ type TabsModule = typeof import('../stores/tabs');
 
 let session: SessionModule;
 let tabs: TabsModule;
+
+// The first import of the session graph is cold: ~85 app modules the Vite
+// server must transform plus the remark/unified pipeline behind export.ts.
+// That is ~2s alone, but Vitest schedules this file (the largest, slowest, and
+// any previously failed) in the first wave, where every worker is cold-loading
+// through the same server and the same import took 9–11s — over the 10s hook
+// timeout. Warming it here moves that one-time cost out of the per-test hook,
+// whose re-imports after resetModules() then cost milliseconds and stay under
+// the default timeout, so a genuinely slow or hung setup still fails there.
+beforeAll(async () => {
+  await import('../session');
+}, 60_000);
 
 beforeEach(async () => {
   // Fake timers so the debounced flusher's trailing/maxWait timers never fire
