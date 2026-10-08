@@ -28,6 +28,7 @@ import type { Definition, List, PhrasingContent, Root, RootContent, Table as MdT
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
+import { bytesToBase64 } from '../images';
 import type { ThemePlugin } from '../theme-plugins';
 
 /** Raster formats pdfmake embeds (pdfkit decodes PNG and JPEG only). */
@@ -611,6 +612,19 @@ const FONTS = {
   },
 };
 
+/** pdfkit's document as pdfmake's `getStream()` hands it over: a Readable. */
+interface PdfKitStream {
+  on(event: 'data', listener: (chunk: Uint8Array) => void): void;
+  on(event: 'end', listener: () => void): void;
+  on(event: 'error', listener: (error: unknown) => void): void;
+  end(): void;
+}
+
+/** pdfmake throws bare strings ('Malformed table row, …'); normalize to Error. */
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 /**
  * Convert `markdown` to a complete PDF, returned base64-encoded (ready for
  * `ipc.writeFileBase64`). pdfmake and its ~1 MB font bundle load lazily on
@@ -620,7 +634,20 @@ export async function markdownToPdfBase64(
   markdown: string,
   opts: PdfExportOptions = {},
 ): Promise<string> {
-  const def = await markdownToPdfDocDef(markdown, opts);
+  return pdfDocDefToBase64(await markdownToPdfDocDef(markdown, opts));
+}
+
+/**
+ * Generate the PDF for a document definition, base64-encoded. REJECTS on any
+ * pdfmake/pdfkit failure: pdfmake's `getBase64`/`getBuffer` run layout inside
+ * their own promise chain with no error callback, so a layout throw there
+ * leaves the caller's promise pending forever (the export just hangs). The
+ * no-callback `getStream()` builds the pdfkit document synchronously instead —
+ * layout throws land in this executor — and the stream's 'error' covers the
+ * rest. It skips pdfmake's URL resolver, which only fetches http(s) fonts and
+ * images; ours are vfs names and inline data: URLs.
+ */
+export async function pdfDocDefToBase64(def: PdfDocDef): Promise<string> {
   // The UMD builds export via module.exports; interop differs between Vite
   // and node, hence the `default ?? module` guards. vfs_fonts has shipped
   // both `{ pdfMake: { vfs } }`, `{ vfs }` and a bare font map across 0.2.x.
@@ -634,7 +661,7 @@ export async function markdownToPdfBase64(
       tableLayouts?: unknown,
       fonts?: unknown,
       vfs?: unknown,
-    ) => { getBase64: (cb: (data: string) => void) => void };
+    ) => { getStream: () => PdfKitStream };
   };
   const vfsModule = (await import('pdfmake/build/vfs_fonts')) as unknown as Record<string, unknown>;
   const vfsRoot = (vfsModule.default ?? vfsModule) as Record<string, unknown>;
@@ -657,7 +684,24 @@ export async function markdownToPdfBase64(
     'data/Courier-Oblique.afm': afms[2].default,
     'data/Courier-BoldOblique.afm': afms[3].default,
   };
-  return new Promise((resolve) => {
-    pdfMake.createPdf(def, undefined, FONTS, vfs).getBase64(resolve);
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = pdfMake.createPdf(def, undefined, FONTS, vfs).getStream();
+      const chunks: Uint8Array[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => {
+        const bytes = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+        let offset = 0;
+        for (const chunk of chunks) {
+          bytes.set(chunk, offset);
+          offset += chunk.length;
+        }
+        resolve(bytesToBase64(bytes.buffer));
+      });
+      doc.on('error', (error) => reject(asError(error)));
+      doc.end();
+    } catch (error) {
+      reject(asError(error));
+    }
   });
 }

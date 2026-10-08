@@ -5,14 +5,16 @@
  * read it back with pdfjs (the same library the app's PDF importer uses) to
  * prove the output is a valid document with the expected text.
  */
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import {
   DEFAULT_PDF_THEME,
   markdownToPdfBase64,
   markdownToPdfDocDef,
   monoFont,
   pdfImageType,
+  pdfDocDefToBase64,
   pdfThemeFromPlugin,
+  type PdfDocDef,
   type PdfRun,
 } from '../pdf';
 import type { ThemePlugin } from '../../theme-plugins';
@@ -306,6 +308,23 @@ describe('markdownToPdfDocDef', () => {
     expect(rect.color).toBe('#101010');
     expect(rect.w).toBe(595);
   });
+});
+
+describe('pdfDocDefToBase64 failures', () => {
+  // Regression: pdfmake's getBase64 swallows layout throws inside its own
+  // promise chain, so a bad definition used to hang the export forever. No
+  // pdfjs here — the failure happens in layout, before anything is rendered.
+  test('rejects (quickly) when pdfmake throws during layout', async () => {
+    const malformed = {
+      content: [{ table: { body: [['a', 'b'], ['c']] } }],
+    } as unknown as PdfDocDef;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(pdfDocDefToBase64(malformed)).rejects.toThrow(/Malformed table row/);
+    } finally {
+      consoleError.mockRestore();
+    }
+  }, 5000);
 });
 
 describe('markdownToPdfBase64 (round-trip)', () => {
