@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-10-07
+
 - Git tab: **Start tracking with Git** turns a plain workspace folder into a
   repository from the tab itself, and a first commit on a fresh computer asks
   for your name and email in the commit box (saved to your global git config).
