@@ -55,7 +55,9 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
   pad short rows like the preview.
 - **Fixed: AltGr characters in the terminal.** On German, French and other
   AltGr layouts, `@ { [ ] } \ | ~ €` reach the shell as text instead of escape
-  codes, and AltGr brackets no longer fold every section in the editor.
+  codes. In the Raw / Split editor every AltGr character is typed —
+  AltGr+ß no longer re-indents the line instead of typing `\`, and AltGr
+  brackets no longer fold every section.
 - **Fixed (macOS): Ctrl+Tab / Ctrl+Shift+Tab switch tabs**, and torn-off
   windows get the same title bar and resizable edges as the main window.
 - **Fixed (Windows/Linux): the window edges resize again.**

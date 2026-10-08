@@ -121,6 +121,16 @@ code, comments → quote), so themes need nothing new. Like `'xml'` and
   opens the git tab (`ui/keymap.ts`) and has to reach the window listener
   from a focused editor. F3 / Shift+F3 and the search panel's Enter still
   step through matches. Don't add `Mod-g` back without moving the chord.
+- **AltGr beats every keymap.** Windows reports AltGr as Ctrl+Alt, so German
+  AltGr+ß arrives as Ctrl+Alt+"\" — CM6's default `Mod-Alt-\`
+  (indentSelection) — and AltGr+8 / 9 as the fold-all chords. A
+  `Prec.highest` keydown handler (`altGraphTextGuard`) asks
+  `core/altgr.ts`'s `isAltGraphText` first and, for AltGr text, types the
+  character itself (through `EditorView.inputHandler`, as one `input.type`
+  transaction) so no keymap ever sees it; CM6 preventDefaults a claimed
+  keydown, so the browser can't be left to type it. Real chords (US
+  Ctrl+Alt+\) fall through. New Ctrl+Alt bindings on punctuation are covered
+  automatically; tests in `__tests__/cm6-altgr.test.ts`.
 - **Line endings.** CM6 splits on `\r\n`, `\r` and `\n` alike and its
   `doc.toString()` joins with `\n`, so pushing that would turn a CRLF file
   into an all-LF whole-file rewrite on the first keystroke. The adapter edits

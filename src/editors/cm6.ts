@@ -24,7 +24,8 @@ import {
   placeholder,
   type DecorationSet,
 } from '@codemirror/view';
-import { EditorState, Compartment, StateEffect, StateField } from '@codemirror/state';
+import { EditorState, Compartment, Prec, StateEffect, StateField } from '@codemirror/state';
+import { isAltGraphText } from '../core/altgr';
 import { diffToChanges } from '../core/diff';
 import { joinDictation } from '../core/dictation-insert';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
@@ -434,6 +435,61 @@ const bulletIndentKeymap = keymap.of([
   { key: 'Tab', run: (view) => changeListIndent(view, 1) },
   { key: 'Shift-Tab', run: (view) => changeListIndent(view, -1) },
 ]);
+
+/**
+ * Type `text` at every selection range the way a keystroke would: through
+ * the `EditorView.inputHandler`s first, as one `input.type` transaction
+ * otherwise. Nothing happens in a read-only or non-editable editor, where the
+ * browser would not type either.
+ */
+function typeText(view: EditorView, text: string): void {
+  const { state } = view;
+  if (state.readOnly || !state.facet(EditorView.editable)) {
+    return;
+  }
+  const { from, to } = state.selection.main;
+  const insert = () =>
+    state.update(state.replaceSelection(text), { scrollIntoView: true, userEvent: 'input.type' });
+  if (
+    state.facet(EditorView.inputHandler).some((handler) => handler(view, from, to, text, insert))
+  ) {
+    return;
+  }
+  view.dispatch(insert());
+}
+
+/**
+ * AltGr text beats every keymap. Windows reports AltGr as Ctrl+Alt, so
+ * German AltGr+ß arrives as Ctrl+Alt+"\" and would run CM6's default
+ * `Mod-Alt-\` (indentSelection) instead of typing the backslash; AltGr+8 / 9
+ * would hit the fold-all chords. Rather than vet each keymap, this keydown
+ * handler runs before all of them: when `isAltGraphText` (core/altgr.ts)
+ * says the key is a typed character, it is typed and no keymap sees it. Real
+ * chords — US Ctrl+Alt+\ — fall through to the keymaps as before.
+ *
+ * CM6 preventDefaults any keydown a handler claims, so the guard types the
+ * character itself rather than leaving it to the browser.
+ */
+const altGraphTextGuard = Prec.highest(
+  EditorView.domEventHandlers({
+    keydown(event, view) {
+      const altGraph = isAltGraphText({
+        key: event.key,
+        code: event.code,
+        ctrl: event.ctrlKey,
+        alt: event.altKey,
+        shift: event.shiftKey,
+        meta: event.metaKey,
+        altGraph: event.getModifierState?.('AltGraph') ?? false,
+      });
+      if (!altGraph) {
+        return false;
+      }
+      typeText(view, event.key);
+      return true;
+    },
+  }),
+);
 
 /**
  * Toggle an inline markdown wrapper (`**` / `*`) around the main selection.
@@ -873,6 +929,7 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
       selection,
       extensions: [
         history(),
+        altGraphTextGuard,
         // Order matters: the bullet Tab handler and the markdown keymap (Enter
         // continues a list item — "auto bullets"; Backspace deletes markup)
         // must win over the default keymap's own Enter/Backspace. Neither
