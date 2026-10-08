@@ -21,7 +21,7 @@
  * through `runShortcutAction`.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { isDarkColor } from '../../core/color';
 import {
@@ -30,7 +30,18 @@ import {
   resolveTerminalProfile,
   terminalProgram,
 } from '../../core/settings';
-import { cdCommand, cdTarget, listCommand, quoteCommand } from '../../core/shell-commands';
+import {
+  cdCommand,
+  cdTarget,
+  fileManagerName,
+  listAllCommand,
+  listCommand,
+  openFolderCommand,
+  quoteCommand,
+  searchCommand,
+  upCommand,
+  type SearchTarget,
+} from '../../core/shell-commands';
 import { pathFromFileUrl, withShellIntegration } from '../../core/shell-integration';
 import { terminalEnvHints } from '../../core/terminal-palette';
 import { shellKind, type ShellKind } from '../../core/terminal-shells';
@@ -717,7 +728,14 @@ export function TerminalPane({
           shell={menu.altScreen ? null : paneShell}
           cwd={cwd ?? null}
           settings={settings}
-          onClose={() => setMenu(null)}
+          onClose={() => {
+            // Focus inside the menu (the search form's field) would fall to
+            // the body when it unmounts; hand it back to the shell instead.
+            if (document.activeElement?.closest('.term-pane-menu')) {
+              inputRef.current?.focus();
+            }
+            setMenu(null);
+          }}
           mac={platform === 'mac'}
         />
       )}
@@ -731,11 +749,14 @@ export function TerminalPane({
  * runner rather than a second copy of the switch: "Copy" from the menu, from
  * the palette and from Ctrl+Shift+C have to be one implementation.
  *
- * With `shell` set the menu also carries the SHELL HELPERS — three items that
- * type an ordinary command at the prompt (and press Enter) so a user who finds
- * the shell intimidating can watch what they would have typed: change
- * directory through the OS folder picker, list the files, start the AI agent.
- * The tooltips spell the command out; that is the teaching.
+ * With `shell` set the menu also carries the SHELL HELPERS — items that type
+ * an ordinary command at the prompt (and press Enter) so a user who finds the
+ * shell intimidating can watch what they would have typed: change directory
+ * through the OS folder picker or up one, list the files (hidden ones too),
+ * search by regex, open the folder in the file manager, start the AI agent.
+ * The tooltips spell the command out; that is the teaching. The two searches
+ * need a pattern, so they turn the menu into a small form (`SearchPrompt`)
+ * that shows the exact command as it is typed.
  */
 function PaneMenu({
   menu,
@@ -756,6 +777,26 @@ function PaneMenu({
   onClose: () => void;
   mac: boolean;
 }) {
+  /** Set while the menu is the search form instead of the item list. */
+  const [search, setSearch] = useState<SearchTarget | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Keep the menu on screen: opened near the bottom or right edge it would
+  // spill out of the window (more so now that it is taller, and again when it
+  // turns into the search form).
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) {
+      return;
+    }
+    const margin = 4;
+    const rect = el.getBoundingClientRect();
+    const left = Math.max(margin, Math.min(menu.x, window.innerWidth - rect.width - margin));
+    const top = Math.max(margin, Math.min(menu.y, window.innerHeight - rect.height - margin));
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  }, [menu.x, menu.y, search]);
+
   useEffect(() => {
     const close = () => onClose();
     window.addEventListener('pointerdown', close);
@@ -821,8 +862,26 @@ function PaneMenu({
         }
       : null;
 
+  const os = desktopOs();
+
+  if (shell && search) {
+    return (
+      <div
+        ref={rootRef}
+        className="tab-menu term-pane-menu"
+        role="dialog"
+        aria-label={search === 'names' ? 'Find files by name' : 'Search in files'}
+        style={{ left: menu.x, top: menu.y }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <SearchPrompt shell={shell} target={search} onRun={type} onCancel={onClose} />
+      </div>
+    );
+  }
+
   return (
     <div
+      ref={rootRef}
       className="tab-menu term-pane-menu"
       role="menu"
       style={{ left: menu.x, top: menu.y }}
@@ -871,10 +930,50 @@ function PaneMenu({
           <button
             className="tab-menu-item"
             role="menuitem"
+            title={`Type ${upCommand()} — move to the folder that contains this one`}
+            onClick={() => type(upCommand())}
+          >
+            Up a folder
+          </button>
+          <button
+            className="tab-menu-item"
+            role="menuitem"
             title={`Type ${listCommand(shell)} — show the files in the current folder`}
             onClick={() => type(listCommand(shell))}
           >
             List files
+          </button>
+          <button
+            className="tab-menu-item"
+            role="menuitem"
+            title={`Type ${listAllCommand(shell)} — list the files, hidden ones (.git, .env…) included`}
+            onClick={() => type(listAllCommand(shell))}
+          >
+            Show hidden files
+          </button>
+          <button
+            className="tab-menu-item"
+            role="menuitem"
+            title={`Type a regular expression, then ${searchCommand(shell, '<regex>', { target: 'contents', matchCase: false })} — every matching line in this folder and below`}
+            onClick={() => setSearch('contents')}
+          >
+            Search in files…
+          </button>
+          <button
+            className="tab-menu-item"
+            role="menuitem"
+            title={`Type a regular expression, then ${searchCommand(shell, '<regex>', { target: 'names', matchCase: false })} — every file whose path matches`}
+            onClick={() => setSearch('names')}
+          >
+            Find files by name…
+          </button>
+          <button
+            className="tab-menu-item"
+            role="menuitem"
+            title={`Type ${openFolderCommand(shell, os)} — open the current folder in ${fileManagerName(os)}`}
+            onClick={() => type(openFolderCommand(shell, os))}
+          >
+            Open in {fileManagerName(os)}
           </button>
           {agent && (
             <button
@@ -911,5 +1010,90 @@ function PaneMenu({
         Close pane<span className="tab-menu-chord">{chord('X')}</span>
       </button>
     </div>
+  );
+}
+
+/**
+ * The search helpers' form: a regex, a Match case box, and the command that
+ * will be typed, shown live underneath — the user watches the pattern land
+ * inside the quotes. Enter (or Run) types it at the prompt; Escape is the
+ * menu's own close.
+ */
+function SearchPrompt({
+  shell,
+  target,
+  onRun,
+  onCancel,
+}: {
+  shell: ShellKind;
+  target: SearchTarget;
+  onRun: (command: string) => void;
+  onCancel: () => void;
+}) {
+  const [pattern, setPattern] = useState('');
+  const [matchCase, setMatchCase] = useState(false);
+  const command = searchCommand(shell, pattern, { target, matchCase });
+  const hint =
+    pattern === ''
+      ? target === 'names'
+        ? 'e.g. \\.md$ — files ending in .md'
+        : 'e.g. TODO|FIXME — lines with either word'
+      : 'Command Prompt cannot quote a " inside a pattern';
+
+  return (
+    <form
+      className="term-search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (command) {
+          onRun(command);
+        }
+      }}
+    >
+      <label className="term-search-label">
+        {target === 'names' ? 'Find files whose path matches' : 'Search inside files for'}
+        <input
+          className="settings-control term-search-input"
+          type="text"
+          value={pattern}
+          spellCheck={false}
+          autoFocus
+          placeholder="Regular expression"
+          onChange={(e) => setPattern(e.target.value)}
+        />
+      </label>
+      <label className="term-search-check">
+        <input
+          type="checkbox"
+          checked={matchCase}
+          onChange={(e) => setMatchCase(e.target.checked)}
+        />
+        Match case
+      </label>
+      <code className={command ? 'term-search-preview' : 'term-search-preview term-search-hint'}>
+        {command
+          ? // One box per word, so a line wraps only BETWEEN words: a break
+            // at the hyphen of `-CaseSensitive` reads as a stray `-`.
+            command.split(' ').map((word, i) => (
+              <span key={i}>
+                {i > 0 && ' '}
+                <span className="term-search-word">{word}</span>
+              </span>
+            ))
+          : hint}
+      </code>
+      <div className="term-search-actions">
+        <button type="button" className="settings-button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="settings-button settings-button-primary"
+          disabled={!command}
+        >
+          Run
+        </button>
+      </div>
+    </form>
   );
 }

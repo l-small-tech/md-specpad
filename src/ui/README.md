@@ -381,8 +381,15 @@ workspace has no cue.
 
 On a plain shell that is NOT on the alternate screen (`Terminal.altScreen` —
 an agent TUI or vim owns the pane then), `PaneMenu` adds **Change directory…**
-(OS folder picker via `ipc/dialog.ts`, then `cdTarget` + `cdCommand`), **List
-files** and **Open <agent>** (`quoteCommand` of the harness profile). Each
+(OS folder picker via `ipc/dialog.ts`, then `cdTarget` + `cdCommand`), **Up a
+folder**, **List files**, **Show hidden files** (`listAllCommand`), **Search in
+files…** / **Find files by name…** (`searchCommand`: grep / `find | grep` on
+POSIX shells, `Get-ChildItem | Select-String` on PowerShell, findstr on cmd —
+the menu becomes `SearchPrompt`, a regex field with the command previewed
+live), **Open in File Explorer/Finder/file manager** (`openFolderCommand`, by
+desktop OS) and **Open <agent>** (`quoteCommand` of the harness profile).
+PowerShell helpers use cmdlet names where an alias would be a native program
+on macOS/Linux (`Get-ChildItem -Force`, not `ls -Force`). Each
 types a command plus `\r` through the pane's action runner
 (`PaneAction` `terminal-send` — raw keystrokes, not a paste, so bracketed
 paste cannot swallow the Enter) and carries a `title` tooltip naming the exact

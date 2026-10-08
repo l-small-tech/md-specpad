@@ -2,11 +2,16 @@ import { describe, expect, test } from 'vitest';
 import {
   cdCommand,
   cdTarget,
+  fileManagerName,
+  listAllCommand,
   listCommand,
+  openFolderCommand,
   quoteArg,
   quoteCommand,
   relativePath,
+  searchCommand,
   shellPath,
+  upCommand,
 } from '../shell-commands';
 import type { WorkspaceRoot } from '../tab-workspaces';
 
@@ -104,6 +109,15 @@ describe('quoteArg', () => {
     expect(quoteArg('bash', '~')).toBe("'~'");
     expect(quoteArg('bash', '')).toBe("''");
   });
+
+  test('fish: a backslash inside single quotes is doubled', () => {
+    expect(quoteArg('fish', 'a\\b c')).toBe("'a\\\\b c'");
+    expect(quoteArg('bash', 'a\\b c')).toBe("'a\\b c'");
+  });
+
+  test('PowerShell: typographic single quotes are doubled too', () => {
+    expect(quoteArg('pwsh', 'it’s')).toBe("'it’’s'");
+  });
 });
 
 describe('cdCommand', () => {
@@ -165,5 +179,99 @@ describe('quoteCommand', () => {
     expect(quoteCommand('zsh', '/opt/my agent', ['--prompt', "it's"])).toBe(
       "'/opt/my agent' --prompt 'it'\\''s'",
     );
+  });
+});
+
+describe('upCommand', () => {
+  test('is cd .. everywhere', () => {
+    expect(upCommand()).toBe('cd ..');
+  });
+});
+
+describe('listAllCommand', () => {
+  test('PowerShell uses the cmdlet: `ls` is the native one on macOS/Linux', () => {
+    expect(listAllCommand('pwsh')).toBe('Get-ChildItem -Force');
+    expect(listAllCommand('powershell')).toBe('Get-ChildItem -Force');
+    expect(listAllCommand('cmd')).toBe('dir /a');
+    expect(listAllCommand('bash')).toBe('ls -la');
+    expect(listAllCommand('fish')).toBe('ls -la');
+  });
+});
+
+describe('openFolderCommand', () => {
+  test('per OS; POSIX shells on Windows need the .exe', () => {
+    expect(openFolderCommand('pwsh', 'windows')).toBe('explorer .');
+    expect(openFolderCommand('cmd', 'windows')).toBe('explorer .');
+    expect(openFolderCommand('bash', 'windows')).toBe('explorer.exe .');
+    expect(openFolderCommand('zsh', 'mac')).toBe('open .');
+    expect(openFolderCommand('pwsh', 'mac')).toBe('open .');
+    expect(openFolderCommand('bash', 'linux')).toBe('xdg-open .');
+    expect(openFolderCommand('pwsh', 'linux')).toBe('xdg-open .');
+  });
+
+  test('names the file manager', () => {
+    expect(fileManagerName('windows')).toBe('File Explorer');
+    expect(fileManagerName('mac')).toBe('Finder');
+    expect(fileManagerName('linux')).toBe('file manager');
+  });
+});
+
+describe('searchCommand', () => {
+  const contents = { target: 'contents', matchCase: false } as const;
+  const names = { target: 'names', matchCase: false } as const;
+
+  test('nothing to search for', () => {
+    expect(searchCommand('bash', '', contents)).toBeNull();
+    expect(searchCommand('pwsh', '', names)).toBeNull();
+  });
+
+  test('POSIX: grep -E for contents, find | grep for names, .git skipped', () => {
+    expect(searchCommand('bash', 'TODO|FIXME', contents)).toBe(
+      "grep -rniE --exclude-dir=.git 'TODO|FIXME' .",
+    );
+    expect(searchCommand('zsh', '\\.md$', names)).toBe(
+      "find . -type f -not -path '*/.git/*' | grep -iE '\\.md$'",
+    );
+  });
+
+  test('POSIX: match case drops -i; a leading dash goes behind -e', () => {
+    expect(searchCommand('bash', 'Foo', { target: 'contents', matchCase: true })).toBe(
+      "grep -rnE --exclude-dir=.git 'Foo' .",
+    );
+    expect(searchCommand('bash', 'x', { target: 'names', matchCase: true })).toBe(
+      "find . -type f -not -path '*/.git/*' | grep -E 'x'",
+    );
+    expect(searchCommand('sh', '--force', contents)).toBe(
+      "grep -rniE --exclude-dir=.git -e '--force' .",
+    );
+  });
+
+  test('POSIX: quotes survive in the pattern', () => {
+    expect(searchCommand('bash', "it's", contents)).toBe(
+      "grep -rniE --exclude-dir=.git 'it'\\''s' .",
+    );
+    expect(searchCommand('fish', '\\d+', contents)).toBe(
+      "grep -rniE --exclude-dir=.git '\\\\d+' .",
+    );
+  });
+
+  test('PowerShell: Get-ChildItem | Select-String, case-insensitive unless asked', () => {
+    expect(searchCommand('pwsh', 'TODO|FIXME', contents)).toBe(
+      "Get-ChildItem -Recurse -File | Select-String -Pattern 'TODO|FIXME'",
+    );
+    expect(searchCommand('powershell', '\\.md$', names)).toBe(
+      "Get-ChildItem -Recurse -File -Name | Select-String -Pattern '\\.md$'",
+    );
+    expect(searchCommand('pwsh', "it's $x", { target: 'contents', matchCase: true })).toBe(
+      "Get-ChildItem -Recurse -File | Select-String -Pattern 'it''s $x' -CaseSensitive",
+    );
+  });
+
+  test('cmd: findstr, and no way to spell a double quote', () => {
+    expect(searchCommand('cmd', 'TODO', contents)).toBe('findstr /s /n /i /r /c:"TODO" *');
+    expect(searchCommand('cmd', '\\.md$', { target: 'names', matchCase: true })).toBe(
+      'dir /s /b /a-d | findstr /r /c:"\\.md$"',
+    );
+    expect(searchCommand('cmd', 'say "hi"', contents)).toBeNull();
   });
 });
