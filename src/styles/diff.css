@@ -87,8 +87,10 @@
   opacity: 0.8;
 }
 
+/* A long directory gives way first; the side labels keep their room. */
 .diff-sides {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  max-width: 45%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
