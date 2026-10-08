@@ -1,6 +1,6 @@
 //! Page-supplied items in WebView2's native context menu (Windows only).
 //!
-//! The heading right-click menu (Mark running / Mark complete / Clear mark)
+//! The heading right-click menu (a Mark heading submenu: Running, Focus, …)
 //! used to be the app's own DOM menu, which meant cancelling the native one —
 //! and with it the spell checker's suggestions, which only the native menu
 //! has (no web API exposes them). On Windows the page now lets the native menu
@@ -23,6 +23,7 @@ use webview2_com::Microsoft::Web::WebView2::Win32::{
     ICoreWebView2ContextMenuItem, ICoreWebView2ContextMenuRequestedEventArgs,
     ICoreWebView2Environment9, ICoreWebView2_11, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_CHECK_BOX,
     COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
+    COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SUBMENU,
 };
 use webview2_com::{
     ContextMenuRequestedEventHandler, CustomItemSelectedEventHandler, ExecuteScriptCompletedHandler,
@@ -41,6 +42,9 @@ struct PageItem {
     enabled: bool,
     #[serde(default)]
     separator: bool,
+    /// Makes this item a submenu of these items.
+    #[serde(default)]
+    children: Option<Vec<PageItem>>,
 }
 
 fn enabled_default() -> bool {
@@ -123,48 +127,66 @@ unsafe fn append(
         count += 1;
     }
     for item in items {
-        let entry: ICoreWebView2ContextMenuItem = if item.separator {
-            env.CreateContextMenuItem(
-                &HSTRING::new(),
-                None,
-                COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
-            )?
-        } else {
-            let kind = if item.checked {
-                COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_CHECK_BOX
-            } else {
-                COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND
-            };
-            let entry = env.CreateContextMenuItem(
-                &HSTRING::from(item.label.as_deref().unwrap_or("")),
-                None,
-                kind,
-            )?;
-            if item.checked {
-                entry.SetIsChecked(true)?;
-            }
-            entry.SetIsEnabled(item.enabled)?;
-            if let Some(id) = item.id.clone() {
-                let core = core.clone();
-                let mut token = 0i64;
-                entry.add_CustomItemSelected(
-                    &CustomItemSelectedEventHandler::create(Box::new(move |_, _| {
-                        let id = serde_json::to_string(&id).unwrap_or_else(|_| "null".into());
-                        let script = format!(
-                            "window.__mdSpecpadNativeMenu && window.__mdSpecpadNativeMenu.select({id})"
-                        );
-                        core.ExecuteScript(
-                            &HSTRING::from(script),
-                            &ExecuteScriptCompletedHandler::create(Box::new(|_, _| Ok(()))),
-                        )
-                    })),
-                    &mut token,
-                )?;
-            }
-            entry
-        };
-        menu.InsertValueAtIndex(count, &entry)?;
+        menu.InsertValueAtIndex(count, &build(env, core, item)?)?;
         count += 1;
     }
     Ok(())
+}
+
+/// One page item as a native menu entry; an item with `children` becomes a
+/// submenu holding them (built the same way).
+unsafe fn build(
+    env: &ICoreWebView2Environment9,
+    core: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2,
+    item: &PageItem,
+) -> windows::core::Result<ICoreWebView2ContextMenuItem> {
+    if item.separator {
+        return env.CreateContextMenuItem(
+            &HSTRING::new(),
+            None,
+            COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
+        );
+    }
+    let kind = if item.children.is_some() {
+        COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SUBMENU
+    } else if item.checked {
+        COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_CHECK_BOX
+    } else {
+        COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND
+    };
+    let entry = env.CreateContextMenuItem(
+        &HSTRING::from(item.label.as_deref().unwrap_or("")),
+        None,
+        kind,
+    )?;
+    if let Some(children) = &item.children {
+        let sub = entry.Children()?;
+        for (i, child) in children.iter().enumerate() {
+            sub.InsertValueAtIndex(i as u32, &build(env, core, child)?)?;
+        }
+        entry.SetIsEnabled(item.enabled)?;
+        return Ok(entry);
+    }
+    if item.checked {
+        entry.SetIsChecked(true)?;
+    }
+    entry.SetIsEnabled(item.enabled)?;
+    if let Some(id) = item.id.clone() {
+        let core = core.clone();
+        let mut token = 0i64;
+        entry.add_CustomItemSelected(
+            &CustomItemSelectedEventHandler::create(Box::new(move |_, _| {
+                let id = serde_json::to_string(&id).unwrap_or_else(|_| "null".into());
+                let script = format!(
+                    "window.__mdSpecpadNativeMenu && window.__mdSpecpadNativeMenu.select({id})"
+                );
+                core.ExecuteScript(
+                    &HSTRING::from(script),
+                    &ExecuteScriptCompletedHandler::create(Box::new(|_, _| Ok(()))),
+                )
+            })),
+            &mut token,
+        )?;
+    }
+    Ok(entry)
 }

@@ -47,19 +47,23 @@ Two honest caveats about Edit mode:
 Also note: undo history doesn't carry across a switch between Edit and the
 other modes.
 
-## Marking headings as running or complete
+## Marking headings (running, focus, backburner, complete)
 
 In Raw, Split or Edit mode, right-click any heading (`#` through `######`)
-and choose **Mark running**, **Mark complete** or **Clear mark**. Handy for
-keeping track of which sections of a plan or task list are under way and
-which are done. On Windows these sit at the bottom of the usual right-click
-menu, so spelling suggestions for a misspelled heading word still show.
+and open **Mark heading**: **Running**, **Focus**, **Backburner**,
+**Complete** or **Clear mark**. Handy for keeping track of which sections of
+a plan or task list are under way, parked or done. On Windows the submenu sits
+at the bottom of the usual right-click menu, so spelling suggestions for a
+misspelled heading word still show.
 
-A running heading gets an amber bar down its left edge; a complete one gets
-a green bar. The mark is saved in the file itself, as a ⏳ or ✅ at the end of
-the heading — so it shows in the preview, survives switching modes, and
-anyone (or any AI agent) reading the file sees it too. Deleting the emoji by
-hand clears the mark just the same.
+Each mark gets a bar down the left edge of the heading and everything under
+it, sub-headings included, as one unbroken band: blue for running, purple for
+focus, yellow for backburner, green for complete. Only one heading in a file
+can be the focus — marking another one moves the focus there. The mark is
+saved in the file itself, as a ⏳, 🎯, 💤 or ✅ at the end of the heading — so
+it shows in the preview, survives switching modes, and anyone (or any AI
+agent) reading the file sees it too. Deleting the emoji by hand clears the
+mark just the same.
 
 With **Collapsible headings** turned on in Settings, a heading collapses by
 itself the moment it is marked running — in Raw and Split modes, which show a

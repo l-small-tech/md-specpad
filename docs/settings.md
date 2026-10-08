@@ -76,7 +76,7 @@ button in its header opens this guide.
   pointer is over the gutter; a collapsed section's arrow always shows. Ctrl+Shift+[
   and Ctrl+Shift+] fold and unfold the section the caret is in; Ctrl+Alt+[ and
   Ctrl+Alt+] fold and unfold them all. A heading you mark **running** (see
-  [Editing modes](editing-modes.md#marking-headings-as-running-or-complete))
+  [Editing modes](editing-modes.md#marking-headings-running-focus-backburner-complete))
   collapses on its own the moment the mark lands, whether you set it from the
   right-click menu or an AI agent writes it into the file. On a Mac the fold
   chords are Cmd+Alt+[ and Cmd+Alt+].

@@ -147,8 +147,11 @@ code, comments → quote), so themes need nothing new. Like `'xml'` and
 
 ## Heading marks (both text editors)
 
-Right-click an ATX heading → Mark running / Mark complete / Clear mark
-(picking the ticked mark again clears it, `markAfterPick`). The
+Right-click an ATX heading → Mark heading ▸ Running / Focus / Backburner /
+Complete / Clear mark (picking the ticked mark again clears it,
+`markAfterPick`). Focus is `UNIQUE_MARK`: setting it also clears it from
+every other heading, in the same edit (`headingMarkChanges` in CM6,
+`applyMark` in Milkdown). The
 mark is a trailing glyph in the heading text (`core/heading-mark.ts`), so the
 editors only (a) decide a line IS a heading, (b) rewrite its tail, and (c)
 tint it with `.heading-mark .heading-mark-<mark>` (app.css). The rest of the
@@ -157,8 +160,11 @@ or a higher level — gets `.heading-mark-section .heading-mark-section-<mark>`;
 `sectionMarks` (core) decides which mark each section shows (its own, else
 the innermost marked ancestor's). Sections are built from TOP-LEVEL headings
 only (a heading inside a list or quote still gets its own tint but does not
-open a section). In Edit mode the band is per block, so block margins leave
-small gaps in the bar; in CM6 lines are contiguous.
+open a section). The band is continuous through sub-headings in the same
+band (`bandContinues`): CM6 keeps the blank lines in front of them tinted,
+and Edit mode tags each block joined to the band above
+`.heading-mark-joined`, which turns the block margin into padding so the bar
+has no gaps. Only the band's outer end is trimmed.
 
 - `heading-marks-cm6.ts` (markdown language only): a `ViewPlugin` of line
   decorations over the visible ranges, and a `contextmenu` handler that
@@ -172,7 +178,7 @@ small gaps in the bar; in CM6 lines are contiguous.
   the native menu (that would hide the spell checker's suggestions, which no
   web API exposes): it stashes the items on `window.__mdSpecpadNativeMenu`
   and `src-tauri/src/native_menu.rs` appends them to WebView2's menu under a
-  deferral, calling `select(id)` on a pick. A capture-phase `contextmenu`
+  deferral (an item with `children` becomes a native submenu), calling `select(id)` on a pick. A capture-phase `contextmenu`
   listener clears the stash on every right-click. Other platforms cancel the
   native menu and open `whiteboard-menu.ts`'s `openContextMenu` instead. Only
   heading right-clicks are touched; everywhere else the native menu stays.

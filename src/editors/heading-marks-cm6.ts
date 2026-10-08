@@ -7,7 +7,8 @@
  *   level — takes the same hue, so a running or complete section stands out.
  * - Right-clicking a heading line offers the mark menu (folded into the
  *   native one on Windows, so spelling suggestions stay; see
- *   `heading-mark-menu.ts`) and rewrites just that line — an ordinary user edit, so it lands in
+ *   `heading-mark-menu.ts`) and rewrites just that line (plus, for Focus,
+ *   the heading that held it before) — an ordinary user edit, so it lands in
  *   undo history and writes back to the model like typing would.
  *
  * Heading detection goes through the markdown syntax tree, never a regex
@@ -24,9 +25,11 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import {
+  bandContinues,
   parseHeadingLine,
-  sectionMarks,
+  sectionMarkOwners,
   setHeadingLineMark,
+  UNIQUE_MARK,
   type HeadingMark,
 } from '../core/heading-mark';
 import { headingMarkClass, openHeadingMarkMenu, sectionMarkClass } from './heading-mark-menu';
@@ -52,7 +55,8 @@ export function isAtxHeadingLine(state: EditorState, line: Line): boolean {
  * The marked sections as line-number spans (inclusive), from the TOP-LEVEL
  * headings (ATX and setext — both end a section). Each span starts at its
  * heading line and stops before the next heading of any level, minus the
- * blank lines in front of it; `sectionMarks` says which mark each shows.
+ * blank lines in front of it unless that heading carries the band on
+ * (`bandContinues`); `sectionMarkOwners` says which mark each shows.
  */
 export function markedSectionLines(
   state: EditorState,
@@ -71,20 +75,58 @@ export function markedSectionLines(
       mark: m[1] === 'ATX' ? (parseHeadingLine(line.text)?.mark ?? null) : null,
     });
   }
-  const shown = sectionMarks(headings);
+  const owners = sectionMarkOwners(headings);
   const out: { first: number; last: number; mark: HeadingMark }[] = [];
   headings.forEach((heading, i) => {
-    const mark = shown[i];
+    const mark = headings[owners[i]!]?.mark;
     if (!mark) {
       return;
     }
     let last = (headings[i + 1]?.line ?? doc.lines + 1) - 1;
-    while (last > heading.line && doc.line(last).text.trim() === '') {
+    // The blank lines in front of a sub-heading inside the same band stay
+    // tinted, so the band reads as one; only its outer end is trimmed.
+    const trim = !bandContinues(headings, owners, i);
+    while (trim && last > heading.line && doc.line(last).text.trim() === '') {
       last--;
     }
     out.push({ first: heading.line, last, mark });
   });
   return out;
+}
+
+/**
+ * The edits that set `mark` on the heading line at `pos`: that line, plus —
+ * for the unique mark (Focus) — clearing it from every other ATX heading in
+ * the document, all in one change so one undo puts everything back.
+ */
+export function headingMarkChanges(
+  state: EditorState,
+  pos: number,
+  mark: HeadingMark | null,
+): { from: number; to: number; insert: string }[] {
+  const { doc } = state;
+  // Re-read: the document may have changed while the menu was open.
+  const target = doc.lineAt(Math.min(pos, doc.length));
+  const out: { from: number; to: number; insert: string }[] = [];
+  if (mark === UNIQUE_MARK) {
+    syntaxTree(state).iterate({
+      enter(node) {
+        if (!node.name.startsWith('ATXHeading')) {
+          return;
+        }
+        const line = doc.lineAt(node.from);
+        if (line.number !== target.number && parseHeadingLine(line.text)?.mark === mark) {
+          out.push({ from: line.from, to: line.to, insert: setHeadingLineMark(line.text, null)! });
+        }
+        return false;
+      },
+    });
+  }
+  const next = setHeadingLineMark(target.text, mark);
+  if (next !== null && next !== target.text) {
+    out.push({ from: target.from, to: target.to, insert: next });
+  }
+  return out.sort((x, y) => x.from - y.from);
 }
 
 function build(view: EditorView): DecorationSet {
@@ -164,14 +206,9 @@ const menu = EditorView.domEventHandlers({
       return false;
     }
     return openHeadingMarkMenu(parsed.mark, event, (mark) => {
-      // Re-read: the document may have changed while the menu was open.
-      const current = view.state.doc.lineAt(Math.min(line.from, view.state.doc.length));
-      const next = setHeadingLineMark(current.text, mark);
-      if (next !== null && next !== current.text) {
-        view.dispatch({
-          changes: { from: current.from, to: current.to, insert: next },
-          userEvent: 'input.heading-mark',
-        });
+      const changes = headingMarkChanges(view.state, line.from, mark);
+      if (changes.length > 0) {
+        view.dispatch({ changes, userEvent: 'input.heading-mark' });
       }
     });
   },
