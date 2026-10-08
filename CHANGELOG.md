@@ -10,6 +10,16 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- Git tab: **Delete all clean worktrees** (the broom beside the filter) clears
+  every worktree with nothing uncommitted in one go — you see the list first,
+  their branches are kept, and one with a terminal open is left alone.
+- Git tab: removing a worktree with **uncommitted changes** now explains what
+  would be lost and lists the files; Cancel is the default, **Delete anyway**
+  is a deliberate click.
+- Git tab: a worktree being removed shows **Removing…** until it is gone — no
+  more brief "missing" flash — and the worktree strip scrolls with a normal
+  mouse wheel and wears the app's own scrollbar.
+
 ## [0.11.0] — 2026-10-07
 
 - Git tab: **Start tracking with Git** turns a plain workspace folder into a

@@ -73,13 +73,7 @@ import {
   suggestRemoteName,
   validateRemoteName,
 } from '../../core/git/remotes';
-import {
-  emptyGroups,
-  groupStatus,
-  mergingInto,
-  statusCounts,
-  statusLabel,
-} from '../../core/git/status';
+import { emptyGroups, groupStatus, mergingInto } from '../../core/git/status';
 import type {
   ConflictTracker,
   FinishState,
@@ -105,6 +99,13 @@ import {
   planNewWorktree,
   WORKTREES_IGNORE_LINE,
 } from '../../core/git/worktree-plan';
+import {
+  describeUncommitted,
+  planCleanRemoval,
+  removalSkipText,
+  type RemovalSkip,
+  type UncommittedList,
+} from '../../core/git/worktree-removal';
 import { joinPath } from '../../core/session/plan-flush';
 
 /* ------------------------------ dependencies ----------------------------- */
@@ -312,7 +313,57 @@ export interface RepoState {
   finish: FinishState | null;
   newWorktree: NewWorktreeDraft;
   remotesDialog: RemotesDialog | null;
+  /**
+   * Checkouts whose removal is in flight (a single Remove, the bulk delete —
+   * queued ones included — or the finish flow's removal step). Their cards
+   * show "Removing…" and keep the facts they had: a listing taken while the
+   * folder is half deleted would call them missing.
+   */
+  removing: string[];
+  /** The bulk delete's progress while it runs. */
+  removal: RemovalProgress | null;
+  /** The modal a worktree removal opened instead of going ahead. */
+  worktreeDialog: WorktreeDialog | null;
 }
+
+/** "Delete all clean worktrees", while it runs. */
+export interface RemovalProgress {
+  total: number;
+  /** Removed or skipped so far. */
+  done: number;
+  /** The worktree being removed now. */
+  current: string | null;
+}
+
+/** A worktree as the bulk-delete dialog lists it. */
+export interface RemovalTarget {
+  path: string;
+  /** `worktrees/x`, or the path itself outside the main root. */
+  rel: string;
+  branch: string | null;
+  /** The folder is already gone — removing it only tidies git's record. */
+  missing: boolean;
+}
+
+/**
+ * The modal a worktree removal opens:
+ * - `dirty` — the worktree holds work that was never committed; the dialog
+ *   lists it and offers Cancel (the default) or Delete anyway (`--force`);
+ * - `locked` — git will not remove a locked worktree; the dialog explains;
+ * - `bulk` — "Delete all clean worktrees": exactly which go and which stay.
+ */
+export type WorktreeDialog =
+  | {
+      kind: 'dirty';
+      path: string;
+      rel: string;
+      branch: string | null;
+      changes: UncommittedList;
+      /** Titles of this window's terminal tabs inside it (closed on Delete anyway). */
+      terminals: string[];
+    }
+  | { kind: 'locked'; path: string; rel: string }
+  | { kind: 'bulk'; remove: RemovalTarget[]; skipped: (RemovalSkip & { rel: string })[] };
 
 export interface GitState {
   /** `pathKey(mainRoot)` → the repository's state. */
@@ -440,7 +491,26 @@ export interface GitState {
     patch: Partial<Pick<NewWorktreeDraft, 'slug' | 'prefix' | 'base' | 'openTerminal'>>,
   ) => void;
   createWorktree: (mainRoot: string) => Promise<void>;
-  removeWorktree: (mainRoot: string, path: string, opts?: { force?: boolean }) => Promise<void>;
+  /**
+   * Remove a linked worktree. Without `force`, a locked one or one holding
+   * uncommitted work opens `worktreeDialog` instead (nothing is closed or
+   * forgotten); a clean one asks the native confirm unless `confirmed` (the
+   * dialog already asked).
+   */
+  removeWorktree: (
+    mainRoot: string,
+    path: string,
+    opts?: { force?: boolean; confirmed?: boolean },
+  ) => Promise<void>;
+  /**
+   * "Delete all clean worktrees": open the dialog listing the clean linked
+   * worktrees that would go and the clean ones left alone (a terminal open
+   * inside, another removal busy with it) — or say there is nothing to do.
+   */
+  removeCleanWorktrees: (mainRoot: string) => void;
+  /** The dialog's go-ahead: Delete anyway (dirty) / Delete (bulk) / OK (locked). */
+  confirmWorktreeDialog: (mainRoot: string) => Promise<void>;
+  closeWorktreeDialog: (mainRoot: string) => void;
   openWorktreeAsWorkspace: (mainRoot: string, path: string) => void;
   openTerminalIn: (mainRoot: string, path: string, harness: boolean) => void;
 
@@ -499,7 +569,23 @@ export function emptyRepoState(mainRoot: string, checkout?: string | null): Repo
     finish: null,
     newWorktree: EMPTY_NEW_WORKTREE,
     remotesDialog: null,
+    removing: [],
+    removal: null,
+    worktreeDialog: null,
   };
+}
+
+/**
+ * Checkouts another removal is already busy with — the bulk delete leaves
+ * them alone: those in flight and the one a running finish flow is about.
+ */
+export function removalBusyPaths(r: RepoState): string[] {
+  return r.finish && !r.finish.finished ? [...r.removing, r.finish.worktree] : r.removing;
+}
+
+/** Is `path` being removed right now (or queued in the bulk delete)? */
+export function isRemoving(r: RepoState, path: string): boolean {
+  return r.removing.some((p) => checkoutKey(p) === checkoutKey(path));
 }
 
 function remotesDialog(view: RemotesView, fields: Partial<RemotesDialog> = {}): RemotesDialog {
@@ -638,24 +724,23 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
     };
 
     /**
-     * Why a plain (non-forced) `git worktree remove` of `path` would refuse,
-     * as the sentence to show — or null when it should go through. Locked
-     * comes from the dashboard row; dirt from a fresh `git status` of the
-     * worktree (the row may be stale, or past the dashboard's cap). A missing
-     * folder is only pruned, so it has nothing to check; a status that fails
-     * leaves the verdict to the removal itself.
+     * Why a plain (non-forced) `git worktree remove` of `path` would refuse —
+     * or null when it should go through. Locked comes from the dashboard row;
+     * dirt from a fresh `git status` of the worktree (the row may be stale, or
+     * past the dashboard's cap). A missing folder is only pruned, so it has
+     * nothing to check; a status that fails leaves the verdict to the removal
+     * itself.
      */
     const worktreeRemoveBlocker = async (
       mainRoot: string,
       path: string,
-      rel: string,
-    ): Promise<string | null> => {
+    ): Promise<{ kind: 'locked' } | { kind: 'dirty'; status: GitStatus } | null> => {
       const row = repo(mainRoot)?.checkouts.find((c) => sameCheckout(c.path, path))?.summary;
       if (row?.missing) {
         return null;
       }
       if (row?.locked) {
-        return `${rel} is locked — unlock it (git worktree unlock) first.`;
+        return { kind: 'locked' };
       }
       let status: GitStatus;
       try {
@@ -663,11 +748,146 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       } catch {
         return null;
       }
-      if (status.entries.length === 0) {
-        return null;
+      return status.entries.length === 0 ? null : { kind: 'dirty', status };
+    };
+
+    /** Add `path` to (or take it off) the repository's in-flight removals. */
+    const markRemoving = (mainRoot: string, paths: readonly string[], on: boolean) =>
+      patch(mainRoot, (r) => {
+        const rest = r.removing.filter((p) => !paths.some((q) => sameCheckout(p, q)));
+        return { removing: on ? [...rest, ...paths] : rest };
+      });
+
+    /**
+     * `removeWorktreeDir`, keeping the card honest. While git deletes the
+     * folder, a worktree listing sees it half gone — its `.git` file is among
+     * the first things deleted, so `git status` there fails and the dashboard
+     * reports the worktree MISSING — and a listing started before the removal
+     * (a focus poke when the confirm closed, the watcher) can land at any
+     * point during it. So: a listing already on its way is dropped when the
+     * removal starts, listings taken meanwhile keep the row's old facts (see
+     * `refreshNow`), and once the folder is gone the card is dropped at once
+     * instead of waiting for the next listing, which can take a second or two
+     * with many worktrees. The caller marks `path` as removing.
+     */
+    const removeTracked = async (mainRoot: string, path: string, force: boolean) => {
+      const state = it(mainRoot);
+      state.seq.info += 1;
+      await removeWorktreeDir(mainRoot, path, force);
+      state.seq.info += 1;
+      patch(mainRoot, (r) => ({
+        checkouts: r.checkouts.filter((c) => !sameCheckout(c.path, path)),
+      }));
+    };
+
+    /**
+     * One worktree of the bulk delete, re-checked first: the dialog's list
+     * came from a listing that may be stale, so a terminal opened since, or a
+     * fresh `git status` showing changes (or failing on a folder that is
+     * there), leaves it alone. Never forced — git's own clean check is the
+     * last word. Resolves null once removed, else why not.
+     */
+    const removeOneClean = async (mainRoot: string, path: string): Promise<RemovalSkip | null> => {
+      const deps = getDeps();
+      const cur = repo(mainRoot);
+      if (!cur) {
+        return { path, reason: 'failed' };
       }
-      const counts = statusLabel(statusCounts(groupStatus(status.entries)));
-      return `${rel} has uncommitted changes (${counts}) — commit or discard them first.`;
+      const row = cur.checkouts.find((c) => sameCheckout(c.path, path))?.summary ?? null;
+      const inside = terminalsInside(
+        deps.terminalTabs(),
+        path,
+        cur.checkouts.map((c) => c.path),
+      );
+      if (inside.length > 0) {
+        return { path, reason: 'terminal', terminals: inside.map((t) => t.title) };
+      }
+      try {
+        const status = await deps.ipc.gitStatus(path);
+        if (status.entries.length > 0 || status.state !== 'clean') {
+          return { path, reason: 'changed' };
+        }
+      } catch {
+        // A folder that is gone cannot be asked; it is only pruned. One that
+        // is there but cannot be read is not deleted on a guess.
+        if (row?.missing !== true) {
+          return { path, reason: 'unreadable' };
+        }
+      }
+      let restoreWorkspace: (() => void) | undefined;
+      try {
+        restoreWorkspace = deps.removeWorkspace(path);
+        await deps.refreshWatchedDirs();
+        if (sameCheckout(repo(mainRoot)?.selectedCheckout ?? '', path)) {
+          it(mainRoot).explicitCheckout = true;
+          patch(mainRoot, () => ({ selectedCheckout: mainRoot, ...clearedForCheckout() }));
+        }
+        await removeTracked(mainRoot, path, false);
+        return null;
+      } catch (err) {
+        if (restoreWorkspace) {
+          restoreWorkspace();
+          await deps.refreshWatchedDirs().catch(() => {});
+        }
+        return { path, reason: 'failed', detail: gitFailureText(err) };
+      }
+    };
+
+    /**
+     * "Delete all clean worktrees", confirmed: remove `paths` one after the
+     * other. All are marked removing up front (their cards say so and hold
+     * still); `removal` counts the progress; each card goes the moment its
+     * folder does. Ends in one notice: how many went, which stayed and why.
+     */
+    const removeCleanBatch = async (mainRoot: string, paths: readonly string[]): Promise<void> => {
+      const r = repo(mainRoot);
+      if (!r || r.removal !== null || paths.length === 0) {
+        return;
+      }
+      const deps = getDeps();
+      const state = it(mainRoot);
+      const busy = removalBusyPaths(r);
+      const todo = paths.filter((p) => !busy.some((b) => sameCheckout(b, p)));
+      const skipped: RemovalSkip[] = paths
+        .filter((p) => !todo.includes(p))
+        .map((p) => ({ path: p, reason: 'busy' }));
+      let removed = 0;
+      state.inflight += 1;
+      markRemoving(mainRoot, todo, true);
+      patch(mainRoot, () => ({ removal: { total: todo.length, done: 0, current: null } }));
+      try {
+        for (const [i, path] of todo.entries()) {
+          patch(mainRoot, () => ({ removal: { total: todo.length, done: i, current: path } }));
+          const skip = await removeOneClean(mainRoot, path);
+          if (skip) {
+            skipped.push(skip);
+          } else {
+            removed += 1;
+          }
+          markRemoving(mainRoot, [path], false);
+        }
+      } finally {
+        state.inflight -= 1;
+        markRemoving(mainRoot, todo, false);
+        patch(mainRoot, () => ({ removal: null }));
+      }
+      const parts: string[] = [];
+      if (removed > 0) {
+        parts.push(
+          `Deleted ${removed} clean ${removed === 1 ? 'worktree' : 'worktrees'} — ${
+            removed === 1 ? 'its branch is' : 'their branches are'
+          } kept.`,
+        );
+      }
+      if (skipped.length > 0) {
+        parts.push(
+          `Left ${skipped.length}: ${skipped
+            .map((s) => `${relCheckout(mainRoot, s.path)} (${removalSkipText(s)})`)
+            .join('; ')}.`,
+        );
+      }
+      deps.notice(parts.join(' '));
+      await get().refresh(mainRoot, { force: true });
     };
 
     const patch = (mainRoot: string, update: (repo: RepoState) => Partial<RepoState>) => {
@@ -880,8 +1100,18 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         if (seq !== state.seq.info || !repo(mainRoot)) {
           return;
         }
-        const checkouts = buildCheckouts(info, summaries);
+        const listed = buildCheckouts(info, summaries);
         patch(mainRoot, (r) => {
+          // A checkout being removed keeps the facts it had: this listing may
+          // have caught its folder half deleted (removeTracked).
+          const checkouts =
+            r.removing.length === 0
+              ? listed
+              : listed.map((c) =>
+                  isRemoving(r, c.path)
+                    ? (r.checkouts.find((o) => sameCheckout(o.path, c.path)) ?? c)
+                    : c,
+                );
           const selected = pickSelected(
             checkouts,
             state.explicitCheckout ? r.selectedCheckout : null,
@@ -1390,7 +1620,14 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
             it(mainRoot).explicitCheckout = true;
             patch(mainRoot, () => ({ selectedCheckout: f.mainRoot, ...clearedForCheckout() }));
           }
-          await removeWorktreeDir(f.mainRoot, f.worktree, false);
+          markRemoving(mainRoot, [f.worktree], true);
+          try {
+            // Marked as removing, the worktree is no longer watched (watchRoots).
+            await deps.refreshWatchedDirs();
+            await removeTracked(mainRoot, f.worktree, false);
+          } finally {
+            markRemoving(mainRoot, [f.worktree], false);
+          }
           return { type: 'step-done' };
         }
         case 'delete-branch':
@@ -1566,9 +1803,12 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         }
       },
       watchRoots() {
+        // A checkout being removed is no longer watched: the store re-arms
+        // the watcher right before deleting it, and Windows refuses to delete
+        // a directory a watcher still holds.
         return Object.values(get().repos).map((r) => ({
           mainRoot: r.mainRoot,
-          checkoutPaths: r.checkouts.map((c) => c.path),
+          checkoutPaths: r.checkouts.filter((c) => !isRemoving(r, c.path)).map((c) => c.path),
         }));
       },
 
@@ -2215,39 +2455,64 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
           getDeps().notice('The main checkout cannot be removed');
           return;
         }
+        if (isRemoving(r, path)) {
+          return;
+        }
         const deps = getDeps();
         const force = opts.force ?? false;
         const rel = relCheckout(mainRoot, path);
+        const terminals = terminalsInside(deps.terminalTabs(), path);
         // `git worktree remove` without --force refuses a locked worktree and
         // one with uncommitted or untracked changes. Ask BEFORE anything is
-        // closed or forgotten, so a refusal costs nothing.
+        // closed or forgotten, so a refusal costs nothing — and explain it in
+        // a dialog rather than a notice: the way on (Delete anyway) loses work.
         if (!force) {
-          const blocker = await worktreeRemoveBlocker(mainRoot, path, rel);
+          const blocker = await worktreeRemoveBlocker(mainRoot, path);
           if (blocker) {
-            deps.notice(`${blocker} Nothing was removed.`);
+            const branch = r.checkouts.find((c) => sameCheckout(c.path, path))?.branch ?? null;
+            patch(mainRoot, () => ({
+              worktreeDialog:
+                blocker.kind === 'locked'
+                  ? { kind: 'locked', path, rel }
+                  : {
+                      kind: 'dirty',
+                      path,
+                      rel,
+                      branch: blocker.status.branch ?? branch,
+                      changes: describeUncommitted(blocker.status.entries),
+                      terminals: terminals.map((t) => t.title),
+                    },
+            }));
             return;
           }
         }
-        const terminals = terminalsInside(deps.terminalTabs(), path);
-        const lines = [`Remove the worktree ${rel}?`];
-        if (terminals.length > 0) {
+        if (!opts.confirmed) {
+          const lines = [`Remove the worktree ${rel}?`];
+          if (terminals.length > 0) {
+            lines.push(
+              `${terminals.length} terminal ${terminals.length === 1 ? 'tab' : 'tabs'} inside it will be closed: ${terminals
+                .map((t) => t.title)
+                .join(', ')}`,
+            );
+          }
+          if (force) {
+            lines.push('Uncommitted changes in it will be lost.');
+          }
           lines.push(
-            `${terminals.length} terminal ${terminals.length === 1 ? 'tab' : 'tabs'} inside it will be closed: ${terminals
-              .map((t) => t.title)
-              .join(', ')}`,
+            'Its workspace entry will be removed from the explorer. A linked node_modules (junction or symlink) inside it loses the link only — the folder it points to is left alone.',
           );
+          if (!(await deps.confirm(lines.join('\n\n'), 'Remove worktree'))) {
+            return;
+          }
         }
-        if (force) {
-          lines.push('Uncommitted changes in it will be lost.');
-        }
-        lines.push(
-          'Its workspace entry will be removed from the explorer. A linked node_modules (junction or symlink) inside it loses the link only — the folder it points to is left alone.',
-        );
-        if (!(await deps.confirm(lines.join('\n\n'), 'Remove worktree'))) {
+        if (!repo(mainRoot) || isRemoving(repo(mainRoot)!, path)) {
           return;
         }
         const state = it(mainRoot);
         state.inflight += 1;
+        // The card says "Removing…" from here on (and the watcher lets go of
+        // the folder: watchRoots skips a checkout being removed).
+        markRemoving(mainRoot, [path], true);
         // Terminals go first: on Windows a shell whose cwd is inside the
         // worktree holds the folder. The workspace entry goes before the
         // watcher is re-armed (Windows refuses to delete a watched folder).
@@ -2262,11 +2527,12 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
             state.explicitCheckout = true;
             patch(mainRoot, () => ({ selectedCheckout: mainRoot, ...clearedForCheckout() }));
           }
-          await removeWorktreeDir(mainRoot, path, force);
+          await removeTracked(mainRoot, path, force);
           deps.notice(`Removed ${rel}`);
         } catch (err) {
           // The worktree is still there: put its workspace entry back. Closed
           // terminals cannot be reopened as they were — say so.
+          markRemoving(mainRoot, [path], false);
           if (restoreWorkspace) {
             restoreWorkspace();
             await deps.refreshWatchedDirs().catch(() => {});
@@ -2282,8 +2548,64 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
           deps.notice(message);
         } finally {
           state.inflight -= 1;
+          markRemoving(mainRoot, [path], false);
         }
         await get().refresh(mainRoot, { force: true });
+      },
+      removeCleanWorktrees(mainRoot) {
+        const r = repo(mainRoot);
+        if (!r || r.removal !== null) {
+          return;
+        }
+        const plan = planCleanRemoval(r.checkouts, getDeps().terminalTabs(), removalBusyPaths(r));
+        const skipped = plan.skipped.map((s) => ({ ...s, rel: relCheckout(mainRoot, s.path) }));
+        if (plan.remove.length === 0) {
+          getDeps().notice(
+            skipped.length === 0
+              ? 'There are no clean worktrees to delete.'
+              : `Nothing to delete — ${skipped
+                  .map((s) => `${s.rel}: ${removalSkipText(s)}`)
+                  .join('; ')}.`,
+          );
+          return;
+        }
+        patch(mainRoot, () => ({
+          worktreeDialog: {
+            kind: 'bulk',
+            remove: plan.remove.map((c) => ({
+              path: c.path,
+              rel: relCheckout(mainRoot, c.path),
+              branch: c.branch,
+              missing: c.summary?.missing === true,
+            })),
+            skipped,
+          },
+        }));
+      },
+      closeWorktreeDialog(mainRoot) {
+        if (repo(mainRoot)?.worktreeDialog) {
+          patch(mainRoot, () => ({ worktreeDialog: null }));
+        }
+      },
+      async confirmWorktreeDialog(mainRoot) {
+        const dialog = repo(mainRoot)?.worktreeDialog;
+        if (!dialog) {
+          return;
+        }
+        patch(mainRoot, () => ({ worktreeDialog: null }));
+        switch (dialog.kind) {
+          case 'dirty':
+            await get().removeWorktree(mainRoot, dialog.path, { force: true, confirmed: true });
+            return;
+          case 'locked':
+            return;
+          case 'bulk':
+            await removeCleanBatch(
+              mainRoot,
+              dialog.remove.map((t) => t.path),
+            );
+            return;
+        }
       },
       openWorktreeAsWorkspace(mainRoot, path) {
         if (repo(mainRoot)) {

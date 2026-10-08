@@ -1119,6 +1119,143 @@
   flex: 1 1 auto;
 }
 
+/* ---- remove-worktree dialog (dirty / locked / delete all clean) --------- */
+
+.git-rm-dialog .git-dialog-body {
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.git-rm-dialog code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.git-rm-warning {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.git-rm-note {
+  color: var(--fg-muted);
+}
+
+.git-rm-list-head {
+  margin-bottom: -4px;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+
+.git-rm-list {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  /* Room for the dirty list's ten files and its "and N more"; a long bulk
+     list scrolls. */
+  max-height: 262px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-alt);
+}
+
+.git-rm-file,
+.git-rm-more {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.git-rm-more {
+  color: var(--fg-muted);
+}
+
+.git-rm-path {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The path keeps its width; the note beside it (a branch) gives way. */
+.git-rm-aside {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-family: var(--font-ui);
+  text-align: right;
+}
+
+/* A skipped worktree's reason is a sentence: it goes under the path. */
+.git-rm-file.is-skipped {
+  flex-direction: column;
+  gap: 1px;
+}
+
+.git-rm-file.is-skipped .git-rm-path {
+  max-width: 100%;
+}
+
+.git-rm-file.is-skipped .git-rm-aside {
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/* The plain-word change, a fixed column so the paths line up. */
+.git-rm-change {
+  flex: 0 0 auto;
+  width: 8ch;
+  font-family: var(--font-ui);
+  color: var(--git-modified);
+}
+
+.git-rm-change.is-new {
+  color: var(--git-added);
+}
+
+.git-rm-change.is-deleted,
+.git-rm-change.is-conflicted {
+  color: var(--git-deleted);
+}
+
+.git-rm-command {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-alt);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
+
+/* The one button that deletes for good: red, and never the default. */
+.git-btn-destructive:not(:disabled) {
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger) 60%, var(--border));
+}
+
+.git-btn-destructive:hover:not(:disabled),
+.git-btn-destructive:focus-visible {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--bg);
+}
+
 /* ---- remotes dialog ----------------------------------------------------- */
 
 .git-remote-lead {
@@ -1331,9 +1468,25 @@
   color: var(--fg);
 }
 
-.git-strip-filter .git-icon {
+.git-strip-filter .git-icon,
+.git-strip-clean .git-icon {
   width: 16px;
   height: 16px;
+}
+
+/* "Delete all clean worktrees": its count rides the corner like the
+   funnel's; while a run goes it is the spinner and "2/5". */
+.git-strip-clean.is-running {
+  cursor: progress;
+}
+
+.git-strip-clean .git-spinner {
+  width: 14px;
+  height: 14px;
+}
+
+.git-strip-clean.is-running .git-strip-filter-n {
+  min-width: 22px;
 }
 
 /* Lit while the clean cards are tucked away, like the pane toggle below. */
@@ -1369,7 +1522,9 @@
   padding: 8px 10px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  scrollbar-width: thin;
+  /* No scrollbar-width / scrollbar-color here: in Chromium either one turns
+     off the app's shared fading thumb (base.css). A vertical wheel scrolls the
+     row sideways (ui/horizontal-wheel.ts). */
 }
 
 .git-card {
@@ -1416,6 +1571,32 @@
 
 .git-card.is-missing .git-card-name {
   text-decoration: line-through;
+}
+
+/* Being removed (one Remove, the bulk delete, or Finish…): dimmed, inert,
+   its actions gone — until the folder is, and the card with it. */
+.git-card.is-removing {
+  opacity: 0.6;
+  cursor: progress;
+  border-style: dashed;
+}
+
+.git-card.is-removing:hover {
+  border-color: var(--border);
+}
+
+.git-card.is-removing .git-card-actions {
+  visibility: hidden;
+}
+
+.git-chip-removing {
+  gap: 4px;
+  color: var(--fg);
+}
+
+.git-chip-removing .git-spinner {
+  width: 9px;
+  height: 9px;
 }
 
 .git-card.is-placeholder {

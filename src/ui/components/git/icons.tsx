@@ -38,7 +38,8 @@ export type IconName =
   | 'arrow-up'
   | 'arrow-down'
   | 'filter'
-  | 'more';
+  | 'more'
+  | 'broom';
 
 const PATHS: Record<IconName, ReactNode> = {
   'chevron-down': <path d="M4 6l4 4 4-4" />,
@@ -166,6 +167,13 @@ const PATHS: Record<IconName, ReactNode> = {
   'arrow-up': <path d="M8 13V3m0 0L4.5 6.5M8 3l3.5 3.5" />,
   'arrow-down': <path d="M8 3v10m0 0l-3.5-3.5M8 13l3.5-3.5" />,
   filter: <path d="M2.5 3.5h11L9.5 8.5v4l-3 1.5v-5.5z" />,
+  broom: (
+    <>
+      <path d="M13.5 2.5L9 7" />
+      <path d="M9.5 9.5L6.5 6.5 5 7.5 2.5 13.5 8.5 11z" />
+      <path d="M5.2 12.4l1.3-2.1M7 12l.9-1.6" />
+    </>
+  ),
   more: (
     <>
       <circle cx="4" cy="8" r="1.1" fill="currentColor" stroke="none" />
