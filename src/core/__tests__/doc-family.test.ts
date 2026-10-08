@@ -19,7 +19,7 @@ describe('docFamilyFor', () => {
     expect(docFamilyFor('/notes/board.svg.md')).toBe('markdown');
     expect(docFamilyFor('/notes/todo.TXT')).toBe('markdown');
     expect(docFamilyFor('/notes/photo.png')).toBe('markdown');
-    expect(docFamilyFor('/notes/report.pdf')).toBe('markdown');
+    expect(docFamilyFor('/notes/report.docx')).toBe('markdown');
     expect(docFamilyFor(null)).toBe('markdown');
     expect(docFamilyFor(undefined)).toBe('markdown');
   });
@@ -29,6 +29,22 @@ describe('docFamilyFor', () => {
     expect(docFamilyFor('C:\\proj\\app.rc')).toBe('code');
     expect(docFamilyFor('/notes/svg')).toBe('code');
     expect(docFamilyFor('/proj/Makefile')).toBe('code');
+  });
+});
+
+describe('the pdf family', () => {
+  it('is any .pdf path, whatever its case', () => {
+    expect(docFamilyFor('/notes/report.pdf')).toBe('pdf');
+    expect(docFamilyFor('C:\\Docs\\Spec.PDF')).toBe('pdf');
+    expect(docFamilyForTab({ kind: 'import', filePath: '/d/spec.pdf' })).toBe('pdf');
+  });
+
+  it('offers Review only, and heals every other mode to it', () => {
+    expect(allowedModesFor('pdf')).toEqual(['read']);
+    expect(defaultModeFor('pdf', 'raw')).toBe('read');
+    expect(defaultModeFor('pdf', 'wysiwyg')).toBe('read');
+    expect(isModeAllowed('pdf', 'split')).toBe(false);
+    expect(modeLabel('read', 'pdf')).toBe('Review');
   });
 });
 

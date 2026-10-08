@@ -12,13 +12,17 @@
  * reveal) and Edit mode (via the adapter's optional revealHeading).
  *
  * Image/import tabs have no markdown model — the panel shows the empty state.
+ * A PDF tab lists the document's own bookmarks instead (ui/stores/pdf-view.ts);
+ * a click goes to the viewer's registered jump.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { DocModel } from '../../core/doc-model';
 import { extractOutline, type OutlineHeading } from '../../core/outline';
+import { isPdfPath } from '../../core/pdf';
 import { getSourceAdapter } from '../editor-registry';
 import { planOutlineJump } from '../outline-jump';
+import { jumpPdfOutline, usePdfViewStore } from '../stores/pdf-view';
 import { hasPreviewReveal, revealPreviewHeading } from '../stores/preview-nav';
 import { tabsStore, useTabsStore } from '../stores/tabs';
 import { uiStore, useUiStore } from '../stores/ui';
@@ -67,7 +71,62 @@ export function OutlinePanel() {
   // Keyed by tab: the body mounts fresh per tab, so its model never changes
   // while mounted and the initial outline can be computed in the useState
   // initializer (no setState-in-effect).
-  return <OutlinePanelBody key={activeTabId} />;
+  return <OutlinePanelSwitch key={activeTabId} />;
+}
+
+function OutlinePanelSwitch() {
+  const pdfTabId = useTabsStore((s) => {
+    const tab = s.tabs.find((t) => t.id === s.activeTabId);
+    return tab?.kind === 'import' && tab.filePath && isPdfPath(tab.filePath) ? tab.id : null;
+  });
+  return pdfTabId !== null ? <PdfOutlineBody tabId={pdfTabId} /> : <OutlinePanelBody />;
+}
+
+function OutlineFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="outline-panel">
+      <div className="outline-header">
+        <span className="outline-title">Outline</span>
+        <button
+          className="outline-close"
+          aria-label="Close outline"
+          title="Close outline"
+          onClick={() => uiStore.getState().toggleOutline()}
+        >
+          ×
+        </button>
+      </div>
+      <div className="outline-list">{children}</div>
+    </div>
+  );
+}
+
+/** A PDF's bookmarks, indented by depth like headings. */
+function PdfOutlineBody({ tabId }: { tabId: string }) {
+  const outline = usePdfViewStore((s) => s.byTab[tabId]?.outline);
+  return (
+    <OutlineFrame>
+      {(outline ?? []).map((entry, i) => (
+        <button
+          key={i}
+          className="outline-item"
+          style={{ paddingLeft: 10 + (entry.level - 1) * 12 }}
+          title={entry.url ?? entry.title}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            if (!jumpPdfOutline(tabId, i)) {
+              uiStore.getState().showNotice('Cannot jump to that bookmark right now.');
+            }
+          }}
+        >
+          {entry.title || '(untitled)'}
+        </button>
+      ))}
+      {outline !== undefined && outline.length === 0 && (
+        <div className="outline-empty">This PDF has no bookmarks</div>
+      )}
+    </OutlineFrame>
+  );
 }
 
 function OutlinePanelBody() {
@@ -105,34 +164,21 @@ function OutlinePanelBody() {
   }, [model]);
 
   return (
-    <div className="outline-panel">
-      <div className="outline-header">
-        <span className="outline-title">Outline</span>
+    <OutlineFrame>
+      {outline.map((h, i) => (
         <button
-          className="outline-close"
-          aria-label="Close outline"
-          title="Close outline"
-          onClick={() => uiStore.getState().toggleOutline()}
+          key={`${h.line}-${i}`}
+          className="outline-item"
+          style={{ paddingLeft: 10 + (h.level - 1) * 12 }}
+          title={h.text}
+          // Keep focus where it is — revealLine refocuses the editor itself.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => jumpTo(i, h.line)}
         >
-          ×
+          {h.text || '(untitled)'}
         </button>
-      </div>
-      <div className="outline-list">
-        {outline.map((h, i) => (
-          <button
-            key={`${h.line}-${i}`}
-            className="outline-item"
-            style={{ paddingLeft: 10 + (h.level - 1) * 12 }}
-            title={h.text}
-            // Keep focus where it is — revealLine refocuses the editor itself.
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => jumpTo(i, h.line)}
-          >
-            {h.text || '(untitled)'}
-          </button>
-        ))}
-        {outline.length === 0 && <div className="outline-empty">No headings</div>}
-      </div>
-    </div>
+      ))}
+      {outline.length === 0 && <div className="outline-empty">No headings</div>}
+    </OutlineFrame>
   );
 }

@@ -37,6 +37,7 @@ do not rewrite them.
 | `notes-move.ts` | M6 | pure `planNoteMoves` for the notes-dir change flow |
 | `window-drop.ts` | M8 | `pickDropWindow`: which window a tab drag released over (containment + focus-recency for overlap), for the cross-window tab drop |
 | `doc-family.ts` | reference | which modes a path's document type may use (`.svg` → Raw/Split/Draw, where Split is the source beside the board; any non-note, non-image, non-document file → `code`, Raw + Review) |
+| `pdf.ts` | feature | PDF Review mode's pure half: `isPdfPath` (a PDF is an `import`-kind tab routed to the viewer by extension, family `pdf`), the zoom menu and page-field parsing, `flattenPdfOutline` (bookmarks → Outline rows), `findStatusText` |
 | `text-files.ts` | reference | which extensions are text notes (`.md`/`.markdown`/`.txt`, mirrored by Rust `list_dir`), and `showAllFilesState` — whether a folder lists every file: nearest switch wins between `settings.showAllFilesDirs` and `settings.hideUnsupportedDirs`; `toggleShowAllFiles` resets the subfolders below the toggled one |
 | `explorer-clipboard.ts` | feature | the file drawer's own cut/copy/paste: `duplicateName` (the free name a pasted duplicate takes — `notes copy.md`, `notes copy 2.md`) and `checkPaste` (a folder into itself, a cut back into its own folder). The clipboard state is `ui/stores/explorer.ts`, the disk work `ui/session/explorer-ops.ts`; the OS clipboard is deliberately not involved — it cannot carry a file list out of a webview |
 | `explorer-sort.ts` | reference | the order rows appear in the file drawer: `sortExplorerEntries` (directories first, then files) over `compareEntryNames` — A→Z ignoring case, with digit runs compared as numbers (`note2.md` before `note10.md`) and a deterministic tie-break for names differing only in case. Applied in `ui/session`'s listing dispatch, not in a backend: desktop `list_dir` and the Android SAF listing return different orders (SAF also reports `mtimeMs: 0`), so one comparator over the mapped entries is what makes every workspace look the same everywhere |
@@ -48,6 +49,7 @@ do not rewrite them.
 | `session/plan-flush.ts` | reference | pure flush planner + executor (I3, I4) |
 | `export/doc-source.ts` | feature | shared export vocabulary (`DocSource`, `ExportFormat`) |
 | `export/docx.ts` | feature | markdown → .docx (same remark/GFM parse as the preview, mapped onto `docx` objects; images via injected resolver) |
+| `import/pdfjs.ts` | feature | the one lazily loaded pdf.js instance (and worker) shared by the PDF importer and the PDF viewer, plus `pdfResourceOptions` — the fonts/CMaps/decoder-wasm URLs the `pdfjsResources` Vite plugin serves under `/pdfjs/` |
 | `export/pdf.ts` | feature | markdown → .pdf via a pure pdfmake doc-definition (same parse/degrades as docx.ts; theme colors via `pdfThemeFromPlugin`; no print dialog) |
 | `export/svg-theme.ts` | feature | recolors an embedded .svg onto the export theme's ink/paper (achromatic → theme ramp, chromatic kept) for the HTML and PDF exports; also reads an svg's intrinsic size |
 | `session/debounce.ts` | reference | idle+maxWait debouncer with drain semantics |

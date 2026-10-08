@@ -5,29 +5,16 @@
  * and anchored inline by the y position where they were painted.
  *
  * Touches pdf.js and the DOM (canvas) but never ipc — the session controller
- * owns all disk IO. pdf.js is dynamically imported so its ~1 MB (plus the
- * worker) stays out of the startup bundle.
+ * owns all disk IO. pdf.js comes from the shared lazy loader (`./pdfjs.ts`),
+ * the same instance the PDF tab's viewer uses.
  */
 
 import { base64ToBytes } from '../images';
 import type { ImportResult, ImportedImage } from './registry';
 import { pagesToMarkdown, pageToMarkdown, type PdfImageItem, type PdfTextItem } from './pdf-text';
+import { loadPdfjs, pdfResourceOptions } from './pdfjs';
 
 type Pdfjs = typeof import('pdfjs-dist');
-
-let pdfjsPromise: Promise<Pdfjs> | null = null;
-
-/** Load pdf.js once and point it at the Vite-bundled module worker. */
-function loadPdfjs(): Promise<Pdfjs> {
-  pdfjsPromise ??= import('pdfjs-dist').then((pdfjs) => {
-    pdfjs.GlobalWorkerOptions.workerPort = new Worker(
-      new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url),
-      { type: 'module' },
-    );
-    return pdfjs;
-  });
-  return pdfjsPromise;
-}
 
 /** Raw decoded image data as pdf.js hands it out of page.objs. */
 interface PdfImageObj {
@@ -212,7 +199,13 @@ async function pageImages(
 export async function convertPdf(bytesBase64: string, name: string): Promise<ImportResult> {
   const pdfjs = await loadPdfjs();
   const data = base64ToBytes(bytesBase64);
-  const task = pdfjs.getDocument({ data, useSystemFonts: true });
+  // The CMaps matter here too: without them CJK text in a CID font
+  // extracts as nothing.
+  const task = pdfjs.getDocument({
+    data,
+    useSystemFonts: true,
+    ...pdfResourceOptions(location.href),
+  });
   const doc = await task.promise;
   const baseName = name.replace(/\.[^.]*$/, '').toLowerCase() || 'import';
   const images: ImportedImage[] = [];

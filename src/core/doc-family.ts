@@ -17,11 +17,12 @@
 import { isAudioPath } from './audio';
 import { isImagePath } from './images';
 import { isImportablePath } from './import/registry';
+import { isPdfPath } from './pdf';
 import { extName } from './session/plan-flush';
 import { isEditableTextPath } from './text-files';
 import type { EditorMode, TabKind } from './types';
 
-export type DocFamily = 'markdown' | 'svg' | 'code' | 'terminal' | 'deck' | 'tool';
+export type DocFamily = 'markdown' | 'svg' | 'code' | 'terminal' | 'deck' | 'tool' | 'pdf';
 
 /**
  * Order matters: this is the order the mode segments are drawn in. Every
@@ -82,10 +83,18 @@ const TOOL_MODES: readonly EditorMode[] = ['tool'];
  * content, and swaps them if the frontmatter arrives or leaves mid-Edit.
  */
 const DECK_MODES: readonly EditorMode[] = ['raw', 'split', 'wysiwyg', 'read'];
+/**
+ * A PDF: Review only, read-only for now. The mode VALUE is `read` (labelled
+ * Review, as on a code file) so the manifest, mod+4 and `isModeAllowed` need
+ * nothing new; the tab itself is an `import`-kind viewer tab routed to the
+ * PDF viewer by extension (core/pdf.ts), not an editor.
+ */
+const PDF_MODES: readonly EditorMode[] = ['read'];
 
 /**
- * No path (an unsaved note) is markdown. Images and importable documents stay
- * 'markdown' too: they open as viewer/import tabs, never through a mode.
+ * No path (an unsaved note) is markdown. Images and the other importable
+ * documents stay 'markdown' too: they open as viewer/import tabs, never
+ * through a mode. A PDF is its own family — the viewer is its Review mode.
  */
 export function docFamilyFor(path: string | null | undefined): DocFamily {
   if (!path) {
@@ -93,6 +102,9 @@ export function docFamilyFor(path: string | null | undefined): DocFamily {
   }
   if (extName(path).toLowerCase() === '.svg') {
     return 'svg';
+  }
+  if (isPdfPath(path)) {
+    return 'pdf';
   }
   return isEditableTextPath(path) ||
     isImagePath(path) ||
@@ -136,6 +148,8 @@ export function allowedModesFor(family: DocFamily): readonly EditorMode[] {
       return TOOL_MODES;
     case 'deck':
       return DECK_MODES;
+    case 'pdf':
+      return PDF_MODES;
     default:
       return MARKDOWN_MODES;
   }
@@ -181,6 +195,7 @@ const FAMILY_DEFAULTS: Record<DocFamily, EditorMode> = {
   // Source beside slides: where a deck being written (usually by an agent)
   // is watched. Edit is one segment away once it is time to tweak.
   deck: 'split',
+  pdf: 'read',
 };
 
 /**

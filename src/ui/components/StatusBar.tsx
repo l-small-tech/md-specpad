@@ -17,6 +17,7 @@ import { allowedModesFor, docFamilyForTab, modeLabel, type DocFamily } from '../
 import { formatClockTime, isLiveEditTab } from '../../core/live-edit';
 import type { EditorMode } from '../../core/types';
 import { useLiveEditStore } from '../stores/live-edit';
+import { usePdfViewStore } from '../stores/pdf-view';
 import { useSettingsStore } from '../stores/settings';
 import { tabsStore, useTabsStore } from '../stores/tabs';
 import { useUiStore } from '../stores/ui';
@@ -45,6 +46,7 @@ const MODE_HINTS: Record<EditorMode, string> = {
 };
 const REVIEW_HINT = 'Review — the structure of the code, read-only (Ctrl/Cmd+4)';
 const PRESENT_HINT = 'Present — the slides with their notes; F11 for the show (Ctrl/Cmd+4)';
+const PDF_REVIEW_HINT = 'Review — the PDF, read-only';
 const DECK_EDIT_HINT =
   'Edit the slides — reorder, restyle, click any text to change it (Ctrl/Cmd+3)';
 const BOARD_SPLIT_HINT = 'Source + drawing, each following the other (Ctrl/Cmd+2)';
@@ -55,7 +57,13 @@ function splitHint(family: DocFamily): string {
 }
 
 function readHint(family: DocFamily): string {
-  return family === 'code' ? REVIEW_HINT : family === 'deck' ? PRESENT_HINT : MODE_HINTS.read;
+  return family === 'code'
+    ? REVIEW_HINT
+    : family === 'deck'
+      ? PRESENT_HINT
+      : family === 'pdf'
+        ? PDF_REVIEW_HINT
+        : MODE_HINTS.read;
 }
 
 function ModeSegments({
@@ -151,6 +159,7 @@ export function StatusBar() {
   const active = useTabsStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const cursor = useUiStore((s) => s.cursor);
   const notice = useUiStore((s) => s.notice);
+  const pdfInfo = usePdfViewStore((s) => (active ? s.byTab[active.id] : undefined));
 
   // Right-click anywhere on the bar: nothing here has a menu of its own, so
   // swallow the event rather than let the webview default (Back / Reload /
@@ -167,24 +176,31 @@ export function StatusBar() {
   // A family with ONE mode (a tool tab — the git tab; a terminal never gets
   // here) has nothing to pick and no text to count: the git tab puts its
   // branch picker and network buttons where the segments would sit, and the
-  // bar keeps its notice area and the chips.
-  const singleMode = allowedModesFor(family).length === 1;
+  // bar keeps its notice area and the chips. A PDF has one mode too, but it
+  // is a document: its lone Review segment says what you are looking at, and
+  // the readout counts pages.
+  const pdf = family === 'pdf';
+  const singleMode = allowedModesFor(family).length === 1 && !pdf;
   const gitRoot = active.kind === 'git' ? active.gitRoot : null;
   // A deck reads in slides, not lines: the caret becomes `Slide 4 / 12` and
   // the word count a talk length (core/deck). The split is cheap — it is a
   // line scan of a document that is, by nature, short.
   const slides = family === 'deck' ? splitSlides(active.model.getText()) : null;
-  const caret = slides
-    ? `Slide ${slideIndexForLine(slides, cursor?.line ?? 1) + 1} / ${slides.length}`
-    : cursor
-      ? `Ln ${cursor.line}, Col ${cursor.col}`
-      : 'Ln 1, Col 1';
+  const caret = pdf
+    ? pdfInfo && pdfInfo.pages > 0
+      ? `Page ${pdfInfo.page} / ${pdfInfo.pages}`
+      : ''
+    : slides
+      ? `Slide ${slideIndexForLine(slides, cursor?.line ?? 1) + 1} / ${slides.length}`
+      : cursor
+        ? `Ln ${cursor.line}, Col ${cursor.col}`
+        : 'Ln 1, Col 1';
 
   return (
     <div className="statusbar" onContextMenu={swallowContextMenu}>
       {gitRoot !== null ? (
         <GitStatusBar root={gitRoot} />
-      ) : singleMode ? null : active.readOnly ? (
+      ) : singleMode ? null : active.readOnly && !pdf ? (
         <span className="statusbar-readonly" title="This document can be read but not edited">
           Read-only
         </span>
@@ -204,7 +220,7 @@ export function StatusBar() {
       {singleMode ? null : (
         <div className="statusbar-meta">
           <span className="statusbar-caret">{caret}</span>
-          {slides ? (
+          {pdf ? null : slides ? (
             <span
               className="statusbar-words"
               title="Slides, and a talk length at about 130 words a minute"
