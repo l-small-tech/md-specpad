@@ -85,6 +85,11 @@
 
 /* ---- controls ---------------------------------------------------------- */
 
+/* An empty span in a flex row that pushes whatever follows to the far end. */
+.git-header-spacer {
+  flex: 1 1 auto;
+}
+
 .git-btn {
   display: inline-flex;
   align-items: center;
@@ -847,10 +852,6 @@
   font-size: 12px;
 }
 
-.git-push-head > .git-header-spacer {
-  flex: 1 1 auto;
-}
-
 .git-push-icon {
   flex: 0 0 auto;
   color: var(--accent);
@@ -1113,10 +1114,6 @@
   gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid var(--border);
-}
-
-.git-dialog-footer > .git-header-spacer {
-  flex: 1 1 auto;
 }
 
 /* ---- remove-worktree dialog (dirty / locked / delete all clean) --------- */
