@@ -54,7 +54,8 @@ and open **Mark heading**: **Running**, **Focus**, **Backburner**,
 **Complete** or **Clear mark**. Handy for keeping track of which sections of
 a plan or task list are under way, parked or done. On Windows the submenu sits
 at the bottom of the usual right-click menu, so spelling suggestions for a
-misspelled heading word still show.
+misspelled heading word still show. With text selected, right-clicking
+anywhere in the selection marks the heading at its top, if it starts with one.
 
 Each mark gets a bar down the left edge of the heading and everything under
 it, sub-headings included, as one unbroken band: blue for running, purple for

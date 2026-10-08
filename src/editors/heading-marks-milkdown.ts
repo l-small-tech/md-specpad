@@ -101,6 +101,44 @@ function headingAt(view: EditorView, pos: number): { node: ProseNode; pos: numbe
 }
 
 /**
+ * The heading a right-click at `pos` marks: inside a selection whose top
+ * block is a heading, that heading (wherever in the selection the click
+ * landed); otherwise the heading under the click, if any.
+ */
+function menuHeading(view: EditorView, pos: number): { node: ProseNode; pos: number } | null {
+  const { doc, selection } = view.state;
+  const { from, to } = selection;
+  const $click = doc.resolve(pos);
+  const [clickFrom, clickTo] = $click.parent.isTextblock
+    ? [$click.start(), $click.end()]
+    : [pos, pos];
+  if (from < to && clickTo >= from && clickFrom <= to) {
+    // The top is the first textblock with selected text in it: a selection
+    // starting at the very end of a block, or on empty ones, starts below.
+    let top: { node: ProseNode; pos: number } | null = null;
+    doc.nodesBetween(from, to, (node, at) => {
+      if (top) {
+        return false;
+      }
+      if (!node.isTextblock) {
+        return true;
+      }
+      const start = at + 1;
+      const end = start + node.content.size;
+      if (Math.min(to, end) > Math.max(from, start) && node.textContent.trim() !== '') {
+        top = { node, pos: at };
+      }
+      return false;
+    });
+    const found = top as { node: ProseNode; pos: number } | null;
+    if (found?.node.type.name === 'heading') {
+      return found;
+    }
+  }
+  return headingAt(view, pos);
+}
+
+/**
  * Rewrite one heading's trailing mark in `tr`. Positions: content starts one
  * past the node's opening token. The tail past the stripped text is plain
  * text (the mark regex matched it), so text offsets map 1:1 onto document
@@ -167,13 +205,14 @@ export const headingMarksPlugin = $prose(
         handleDOMEvents: {
           contextmenu(view, event) {
             const hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
-            const found = hit ? headingAt(view, hit.pos) : null;
-            if (!hit || !found) {
+            const found = hit ? menuHeading(view, hit.pos) : null;
+            if (!found) {
               return false;
             }
             const current = markOfText(found.node.textContent);
+            // One past the opening token: inside the heading, wherever the click was.
             return openHeadingMarkMenu(current, event, (mark) =>
-              applyMark(view, Math.min(hit.pos, view.state.doc.content.size), mark),
+              applyMark(view, Math.min(found.pos + 1, view.state.doc.content.size), mark),
             );
           },
         },

@@ -5,11 +5,12 @@
  *   (`core/heading-mark.ts`), and every line of its section — body text and
  *   unmarked sub-headings, down to the next heading of the same or a higher
  *   level — takes the same hue, so a running or complete section stands out.
- * - Right-clicking a heading line offers the mark menu (folded into the
- *   native one on Windows, so spelling suggestions stay; see
- *   `heading-mark-menu.ts`) and rewrites just that line (plus, for Focus,
- *   the heading that held it before) — an ordinary user edit, so it lands in
- *   undo history and writes back to the model like typing would.
+ * - Right-clicking a heading line — or inside a selection that starts with
+ *   one — offers the mark menu (folded into the native one on Windows, so
+ *   spelling suggestions stay; see `heading-mark-menu.ts`) and rewrites just
+ *   that line (plus, for Focus, the heading that held it before) — an
+ *   ordinary user edit, so it lands in undo history and writes back to the
+ *   model like typing would.
  *
  * Heading detection goes through the markdown syntax tree, never a regex
  * over the line alone, so a `#` line inside a fenced code block is left be.
@@ -194,15 +195,40 @@ const decorations = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 );
 
+/**
+ * The heading line a right-click at `pos` marks, or null for none. A click
+ * inside a selection whose first line is a heading marks that heading (the
+ * selection's top, wherever in it the click landed); otherwise only a click
+ * on a heading line itself does.
+ */
+export function menuHeadingLine(state: EditorState, pos: number): Line | null {
+  const { doc } = state;
+  const { from, to } = state.selection.main;
+  const clicked = doc.lineAt(pos).number;
+  if (from < to && clicked >= doc.lineAt(from).number && clicked <= doc.lineAt(to).number) {
+    // The top is the first line with selected text on it: a selection
+    // starting at the very end of a line, or on blank lines, starts below.
+    let top = doc.lineAt(from);
+    while (top.number < doc.lines && top.to < to && (from >= top.to || top.text.trim() === '')) {
+      top = doc.line(top.number + 1);
+    }
+    if (parseHeadingLine(top.text) && isAtxHeadingLine(state, top)) {
+      return top;
+    }
+  }
+  const line = doc.lineAt(pos);
+  return parseHeadingLine(line.text) && isAtxHeadingLine(state, line) ? line : null;
+}
+
 const menu = EditorView.domEventHandlers({
   contextmenu(event, view) {
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
     if (pos === null) {
       return false;
     }
-    const line = view.state.doc.lineAt(pos);
-    const parsed = parseHeadingLine(line.text);
-    if (!parsed || !isAtxHeadingLine(view.state, line)) {
+    const line = menuHeadingLine(view.state, pos);
+    const parsed = line ? parseHeadingLine(line.text) : null;
+    if (!line || !parsed) {
       return false;
     }
     return openHeadingMarkMenu(parsed.mark, event, (mark) => {
