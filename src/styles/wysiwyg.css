@@ -69,6 +69,19 @@
   --prosemirror-virtual-cursor-color: var(--fg);
 }
 
+/* Same --border mapping, other casualty: Crepe colors the icons of its
+ * popups (selection toolbar's bold/italic/…, slash menu, link tooltip) with
+ * --crepe-color-outline, so live buttons looked grayed out / disabled. Inside
+ * those popups the outline is the foreground — their dividers already mix it
+ * down to 20%, so they stay hairlines. The toolbar's active state still reads
+ * --crepe-color-primary. */
+.milkdown .milkdown-toolbar,
+.milkdown .milkdown-slash-menu,
+.milkdown .milkdown-link-preview,
+.milkdown .milkdown-link-edit {
+  --crepe-color-outline: var(--fg);
+}
+
 /* ---- Content parity with Review mode --------------------------------------
  * Read and Edit render the same document, so they should read the same.
  * Crepe ships its own content typography (fixed 16px text, 42px
