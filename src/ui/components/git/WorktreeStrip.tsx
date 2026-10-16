@@ -17,7 +17,9 @@
  * were; clicking it brings them back. Under it, the broom is "Delete all
  * clean worktrees" (shown only while there is one; the store opens the
  * dialog listing exactly what goes) — and its spinner + "2/5" while a run
- * goes. A card being removed (`repo.removing`) is dimmed and inert with a
+ * goes. Beside it, the crossed folder is "Clear missing worktrees" (shown
+ * only while a worktree's folder is gone): one confirm, then git's stale
+ * records go and nothing on disk is touched. A card being removed (`repo.removing`) is dimmed and inert with a
  * "Removing…" chip in place of any "missing" one, until it is gone.
  *
  * The row scrolls sideways under a plain vertical wheel (ui/horizontal-wheel)
@@ -392,15 +394,15 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
   const terminalsAt = new Map(checkouts.map((c) => [c.path, terminalsInside(tabs, c.path)]));
   const removingKeys = new Set(removing.map(checkoutKey));
   const removingState = (c: GitCheckout) => cardRemoval(c.path, removingKeys, removal);
-  // What "Delete all clean worktrees" would take right now (core decides).
-  const cleanPlan = planCleanRemoval(
-    checkouts,
-    tabs
-      .filter((t) => t.kind === 'terminal')
-      .map((t) => ({ id: t.id, title: tabDisplayTitle(t), cwd: t.terminalCwd })),
-    finishing === null ? removing : [...removing, finishing],
-  );
-  const cleanCount = cleanPlan.remove.length;
+  // What "Delete all clean worktrees" / "Clear missing worktrees" would take
+  // right now (core decides).
+  const terminalCwds = tabs
+    .filter((t) => t.kind === 'terminal')
+    .map((t) => ({ id: t.id, title: tabDisplayTitle(t), cwd: t.terminalCwd }));
+  const busyPaths = finishing === null ? removing : [...removing, finishing];
+  const cleanCount = planCleanRemoval(checkouts, terminalCwds, busyPaths).remove.length;
+  const missingCount = planCleanRemoval(checkouts, terminalCwds, busyPaths, 'missing').remove
+    .length;
   const isShown = (c: GitCheckout) =>
     !activeOnly ||
     c.path.replaceAll('\\', '/').toLowerCase() === selKey ||
@@ -501,6 +503,19 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
               <span className="git-strip-filter-n">{cleanCount}</span>
             </button>
           )
+        )}
+        {removal === null && missingCount > 0 && (
+          <button
+            type="button"
+            className="git-strip-tool git-strip-clean git-strip-missing"
+            aria-label="Clear missing worktrees"
+            title={`Clear missing worktrees (${missingCount}) — the ones whose folder is gone. Only git's record of them goes; branches and commits are kept.`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => void actions.clearMissingWorktrees(root)}
+          >
+            <Icon name="folder-x" />
+            <span className="git-strip-filter-n">{missingCount}</span>
+          </button>
         )}
         {/* Hidden with the rest of the chrome's buttons once chrome-less: the
             floating cluster (App) and Esc are the way back, as on a document. */}

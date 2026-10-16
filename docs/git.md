@@ -71,7 +71,11 @@ part away too, unstage the file first (its box empty), then discard. Only
 untracked files are ever deleted, and the question
 says so (*Delete … ? It is new and has never been committed*). Click a row to see
 its diff against the last commit. When Commit is disabled, its tooltip says
-why. A **Merge conflicts** group appears above when a merge stops on
+why. Tick **Auto-stage** to commit without ticking files, VS Code
+style: with nothing staged, the button becomes **Commit all** and stages every
+change (new files too) before committing. Anything you did tick wins — then
+only that goes in. An amend never auto-stages. The switch is remembered (also
+in Settings → Files). A **Merge conflicts** group appears above when a merge stops on
 conflicts. Select a commit and the same column shows that commit instead —
 its message and files; a worktree card's *vs base* shows the files its
 branch changes; the Finish stepper lives here too. The bar on top (or Esc)
@@ -97,7 +101,11 @@ history** pages further back.
 working tree's changes or one of a commit's files — and closes with its ×
 or Esc (which steps back to the commit, then to the working tree). Drag the
 divider between the graph and the diff, or between the two columns, to
-resize.
+resize. Too cramped? The diff's header has two more buttons: **Fill the
+window** lays the diff over the whole app (Esc or the button again puts it
+back), and **Open in a new window** moves it to a window of its own that you
+can size or put on another monitor — it keeps following the git tab, so
+picking another file shows that one there.
 
 **The status bar** carries the controls while a Git tab is active: a folder
 button that shows or hides the workspace pane, the
@@ -159,6 +167,14 @@ window's terminals is open inside it, or while its folder is missing; the main
 checkout and the selected card always stay. A faint *+N clean* tally stands
 where the hidden cards were; click the button again to show all. The choice is
 remembered (it is the `gitActiveWorktreesOnly` setting).
+
+Worktree folders deleted outside the app (by hand, or by an agent cleaning up)
+leave cards marked *missing*. While there is one, a **Clear missing
+worktrees** button (a crossed folder, with a count) sits beside the filter:
+one confirm listing them, then git forgets them all at once. Nothing on disk
+is touched — the folders are already gone — and their branches and commits
+stay. A locked worktree, or one a terminal of this window still stands in, is
+left alone.
 
 ### Finishing a worktree
 

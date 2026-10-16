@@ -119,6 +119,7 @@ describe('normalizeSettings', () => {
       showHiddenFiles: true,
       reviewBaseBranch: '',
       gitActiveWorktreesOnly: false,
+      gitAutoStage: false,
       diffInline: false,
       scanPreset: 'balanced',
       scanSmoothing: 'precise',

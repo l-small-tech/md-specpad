@@ -91,6 +91,7 @@ function DiffPane({ root, label, onClose }: { root: string; label: string; onClo
       notice={notice}
       onClose={onClose}
       closeTitle={closeTitle}
+      followKey={`git:${root}`}
     />
   );
 }

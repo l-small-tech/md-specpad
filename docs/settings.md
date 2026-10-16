@@ -113,6 +113,10 @@ button in its header opens this guide.
   compares against. Leave it empty (the default) and md-specpad looks for
   `development`, then `main`, then `master`. Only used when the file lives in a
   git repository and git is installed; on Android the view is hidden.
+- **Git: auto-stage on commit** — like VS Code's smart commit: when nothing is
+  staged, **Commit** stages every change (new files too) and commits them all.
+  Anything you did tick wins — then only that is committed. The Git tab's
+  commit box has the same switch (**Auto-stage**). Off by default.
 - **Notes folder** — shows where your notes live, with a **Change…** button
   to move them. When you pick a new folder the app offers to bring your
   existing notes along. The default location is inside your personal app-data

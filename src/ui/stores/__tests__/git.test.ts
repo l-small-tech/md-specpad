@@ -196,7 +196,9 @@ const okResult = (over: Partial<GitNetResult> = {}): GitNetResult => ({
   ...over,
 });
 
-function harness(opts: { active?: string | null; terminals?: GitTerminalTab[] } = {}) {
+function harness(
+  opts: { active?: string | null; terminals?: GitTerminalTab[]; autoStage?: boolean } = {},
+) {
   const ipc = fakeIpc();
   const net = fakeNet();
   const order: string[] = [];
@@ -218,6 +220,7 @@ function harness(opts: { active?: string | null; terminals?: GitTerminalTab[] } 
     net: net.runner,
     now: () => clock,
     baseBranchSetting: () => '',
+    autoStageSetting: () => opts.autoStage ?? false,
     activeWorkspaceDir: () => opts.active ?? null,
     terminalTabs: () => opts.terminals ?? [],
     confirm: vi.fn(() => Promise.resolve(true)),
@@ -565,6 +568,67 @@ describe('changes and commit', () => {
     await h.s().refresh(MAIN, { force: true, parts: ['status'] });
     await h.s().commit(MAIN);
     expect(h.ipc.gitCommit).toHaveBeenLastCalledWith(MAIN, null, false);
+  });
+
+  test('auto-stage: nothing staged → every change (untracked too) is staged, then committed', async () => {
+    const h = harness({ autoStage: true });
+    h.ipc.gitStatus.mockResolvedValue(
+      statusFor(MAIN, {
+        entries: [entry('a.ts', '.', 'M'), entry('new.md', '?', '?', 'untracked')],
+      }),
+    );
+    await h.open();
+    h.s().setCommitDraft(MAIN, 'all of it');
+    const calls: string[] = [];
+    h.ipc.gitStage.mockImplementation(() => {
+      calls.push('stage');
+      return Promise.resolve();
+    });
+    h.ipc.gitCommit.mockImplementation(() => {
+      calls.push('commit');
+      return Promise.resolve();
+    });
+    await h.s().commit(MAIN);
+    expect(h.ipc.gitStage).toHaveBeenCalledWith(MAIN, ['a.ts', 'new.md']);
+    expect(calls).toEqual(['stage', 'commit']);
+  });
+
+  test('auto-stage: something already staged → only that is committed', async () => {
+    const h = harness({ autoStage: true });
+    h.ipc.gitStatus.mockResolvedValue(
+      statusFor(MAIN, { entries: [entry('a.ts', 'M', '.'), entry('b.ts', '.', 'M')] }),
+    );
+    await h.open();
+    h.s().setCommitDraft(MAIN, 'just a');
+    await h.s().commit(MAIN);
+    expect(h.ipc.gitStage).not.toHaveBeenCalled();
+    expect(h.ipc.gitCommit).toHaveBeenCalledWith(MAIN, 'just a', false);
+  });
+
+  test('auto-stage stays out of an amend, and off means off', async () => {
+    const h = harness({ autoStage: true });
+    h.ipc.gitStatus.mockResolvedValue(statusFor(MAIN, { entries: [entry('a.ts', '.', 'M')] }));
+    await h.open();
+    h.s().toggleAmend(MAIN);
+    await h.s().commit(MAIN);
+    expect(h.ipc.gitStage).not.toHaveBeenCalled();
+    expect(h.ipc.gitCommit).toHaveBeenLastCalledWith(MAIN, null, true);
+
+    const off = harness();
+    off.ipc.gitStatus.mockResolvedValue(statusFor(MAIN, { entries: [entry('a.ts', '.', 'M')] }));
+    await off.open();
+    off.s().setCommitDraft(MAIN, 'msg');
+    await off.s().commit(MAIN);
+    expect(off.ipc.gitStage).not.toHaveBeenCalled();
+  });
+
+  test('auto-stage with nothing changed says so instead of committing', async () => {
+    const h = harness({ autoStage: true });
+    await h.open();
+    h.s().setCommitDraft(MAIN, 'msg');
+    await h.s().commit(MAIN);
+    expect(h.ipc.gitCommit).not.toHaveBeenCalled();
+    expect(h.notices()).toContain('Nothing to commit');
   });
 
   test('a failed call lands in error and a notice; the refresh still happens', async () => {
@@ -1621,6 +1685,31 @@ describe('delete all clean worktrees', () => {
     expect(h.notices().at(-1)).toBe(
       'Deleted 2 clean worktrees — their branches are kept. Left 1: worktrees/stale (it has new changes that are not committed yet).',
     );
+  });
+
+  test('clear missing: confirms, prunes only the gone folders, keeps branches', async () => {
+    const h = bulkHarness();
+    await h.open();
+    (h.deps.confirm as Mock).mockResolvedValueOnce(false);
+    await h.s().clearMissingWorktrees(MAIN);
+    expect(h.deps.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('Clear the missing worktree worktrees/gone?'),
+      'Clear missing worktrees',
+    );
+    expect(h.ipc.gitWorktreeRemove).not.toHaveBeenCalled();
+
+    await h.s().clearMissingWorktrees(MAIN);
+    expect(h.ipc.gitWorktreeRemove.mock.calls).toEqual([[MAIN, wt('gone'), false]]);
+    expect(h.ipc.gitDeleteBranch).not.toHaveBeenCalled();
+    expect(h.notices().at(-1)).toBe('Cleared 1 missing worktree — its branch is kept.');
+  });
+
+  test('clear missing with none missing says so and asks nothing', async () => {
+    const h = harness();
+    await h.open();
+    await h.s().clearMissingWorktrees(MAIN);
+    expect(h.deps.confirm).not.toHaveBeenCalled();
+    expect(h.notices()).toContain('There are no missing worktrees to clear.');
   });
 
   test('a terminal opened after the dialog, or a failed removal, skips that one and goes on', async () => {

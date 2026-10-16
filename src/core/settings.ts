@@ -210,6 +210,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showHiddenFiles: false,
   reviewBaseBranch: '',
   gitActiveWorktreesOnly: false,
+  gitAutoStage: false,
   diffInline: false,
   scanPreset: DEFAULT_SCAN_PRESET,
   scanSmoothing: DEFAULT_SCAN_SMOOTHING,
@@ -606,6 +607,7 @@ export function normalizeSettings(raw: unknown): Settings {
       typeof r.gitActiveWorktreesOnly === 'boolean'
         ? r.gitActiveWorktreesOnly
         : d.gitActiveWorktreesOnly,
+    gitAutoStage: typeof r.gitAutoStage === 'boolean' ? r.gitAutoStage : d.gitAutoStage,
     diffInline: typeof r.diffInline === 'boolean' ? r.diffInline : d.diffInline,
     scanPreset:
       typeof r.scanPreset === 'string' && r.scanPreset in SCAN_PRESETS

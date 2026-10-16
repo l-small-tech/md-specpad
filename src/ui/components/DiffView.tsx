@@ -16,11 +16,25 @@
  * columns stay aligned. Keyboard (focus inside the diff): F7 / Shift+F7 or
  * Alt+↓ / Alt+↑ step through changes.
  *
+ * Too small to read? The header's maximize button lays the diff over the
+ * whole window (Esc or the button again puts it back), and "Open in a new
+ * window" moves it to a window of its own (ui/diff-window.ts) that follows
+ * this view — the git tab picking another file shows up there too.
+ *
  * Callers: git/GitDetail (a file's diff), EditorHost (conflict "View diff",
  * on disk ↔ in editor).
  */
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { buildDiffRows, diffLines, diffStats, type DiffRow, type DiffSide } from '../../core/diff';
 import {
   buildUnifiedRows,
@@ -36,6 +50,8 @@ import {
   type UnifiedRow,
 } from '../../core/diff-layout';
 import { mergeSpans, tokenizeLines, type TokenSpan } from '../../core/diff-syntax';
+import { isDiffWindow, isDiffWindowSource, openDiffWindow, updateDiffWindow } from '../diff-window';
+import { isAndroid } from '../platform';
 import { settingsStore, useSettingsStore } from '../stores/settings';
 import '../../styles/diff.css';
 
@@ -66,6 +82,16 @@ const GLYPHS = {
   expandUp: <path d="M5 7l3-3 3 3M8 4v8" />,
   expandDown: <path d="M5 9l3 3 3-3M8 12V4" />,
   close: <path d="M4 4l8 8M12 4l-8 8" />,
+  // Four corners pointing out / in.
+  maximize: <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />,
+  restore: <path d="M6 2.5V6H2.5M13.5 6H10V2.5M10 13.5V10h3.5M2.5 10H6v3.5" />,
+  // A window with an arrow leaving it.
+  detach: (
+    <>
+      <path d="M7 3H3.5a1 1 0 0 0-1 1v8.5a1 1 0 0 0 1 1H12a1 1 0 0 0 1-1V9" />
+      <path d="M9.5 2.5h4v4M13.5 2.5L8 8" />
+    </>
+  ),
 } as const;
 
 function Glyph({ name }: { name: keyof typeof GLYPHS }) {
@@ -281,6 +307,7 @@ export function DiffView({
   notice,
   onClose,
   closeTitle = 'Close the diff',
+  followKey,
 }: {
   oldText: string;
   newText: string;
@@ -294,8 +321,19 @@ export function DiffView({
   /** Shows a close button at the header's end. */
   onClose?: () => void;
   closeTitle?: string;
+  /** Names this diff for the detached window, which keeps following it while
+   *  the key stays the same — the git tab passes one per repository, so a
+   *  newly picked file replaces the old one over there. Default: this view. */
+  followKey?: string;
 }) {
   const inline = useSettingsStore((s) => s.settings.diffInline);
+  const ownKey = useId();
+  const windowKey = followKey ?? ownKey;
+  // The diff window is the diff already: no maximize, no window of its own.
+  const standalone = isDiffWindow();
+  const canDetach = !standalone && !isAndroid();
+  const [maximized, setMaximized] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const { rows, stats } = useMemo(() => {
     const ops = diffLines(oldText, newText);
@@ -447,6 +485,12 @@ export function DiffView({
   }, [blocks]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape' && maximized) {
+      e.preventDefault();
+      e.stopPropagation();
+      setMaximized(false);
+      return;
+    }
     let dir: 1 | -1 | 0 = 0;
     if (e.key === 'F7' && !e.altKey && !e.ctrlKey && !e.metaKey) {
       dir = e.shiftKey ? -1 : 1;
@@ -476,6 +520,29 @@ export function DiffView({
     settingsStore.getState().update({ diffInline: !inline });
   };
 
+  const content = useMemo(
+    () => ({
+      oldText,
+      newText,
+      oldLabel,
+      newLabel,
+      path: path ?? null,
+      notice: notice ?? null,
+    }),
+    [oldText, newText, oldLabel, newLabel, path, notice],
+  );
+  useEffect(() => {
+    if (isDiffWindowSource(windowKey)) {
+      updateDiffWindow(windowKey, content);
+    }
+  }, [windowKey, content]);
+
+  const toggleMaximized = () => {
+    setMaximized((m) => !m);
+    // Keep the keyboard here (Esc restores, F7 steps) whichever way it went.
+    rootRef.current?.focus();
+  };
+
   const digits = String(Math.max(oldText.split('\n').length, newText.split('\n').length)).length;
   const count = blocks.length;
   const counter =
@@ -487,7 +554,8 @@ export function DiffView({
 
   return (
     <div
-      className={`diff-view${inline ? ' diff-view-inline' : ' diff-view-split'}`}
+      ref={rootRef}
+      className={`diff-view${inline ? ' diff-view-inline' : ' diff-view-split'}${maximized ? ' is-maximized' : ''}`}
       style={{ '--diff-digits': digits } as React.CSSProperties}
       tabIndex={0}
       onKeyDown={onKeyDown}
@@ -533,6 +601,32 @@ export function DiffView({
         >
           <Glyph name={inline ? 'split' : 'inline'} />
         </button>
+        {!standalone && (
+          <button
+            type="button"
+            className={`diff-btn${maximized ? ' is-active' : ''}`}
+            title={maximized ? 'Restore (Esc)' : 'Fill the window'}
+            aria-label={maximized ? 'Restore' : 'Fill the window'}
+            aria-pressed={maximized}
+            onClick={toggleMaximized}
+          >
+            <Glyph name={maximized ? 'restore' : 'maximize'} />
+          </button>
+        )}
+        {canDetach && (
+          <button
+            type="button"
+            className="diff-btn"
+            title="Open in a new window"
+            aria-label="Open in a new window"
+            onClick={() => {
+              setMaximized(false);
+              void openDiffWindow(windowKey, content);
+            }}
+          >
+            <Glyph name="detach" />
+          </button>
+        )}
         {onClose && (
           <button
             type="button"

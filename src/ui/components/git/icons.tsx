@@ -39,7 +39,8 @@ export type IconName =
   | 'arrow-down'
   | 'filter'
   | 'more'
-  | 'broom';
+  | 'broom'
+  | 'folder-x';
 
 const PATHS: Record<IconName, ReactNode> = {
   'chevron-down': <path d="M4 6l4 4 4-4" />,
@@ -72,6 +73,13 @@ const PATHS: Record<IconName, ReactNode> = {
   folder: (
     <>
       <path d="M2.5 12.5V3.5h4l1.5 1.8h5.5v7.2z" />
+    </>
+  ),
+  // A folder with a cross: a worktree whose folder is gone.
+  'folder-x': (
+    <>
+      <path d="M2.5 12.5V3.5h4l1.5 1.8h5.5v7.2z" />
+      <path d="M6.5 7.5l3 3M9.5 7.5l-3 3" />
     </>
   ),
   terminal: (

@@ -6,6 +6,10 @@
  * untracked ones say so in the glyph (`?`) and a dimmed name. Clicking a row
  * diffs HEAD against the working tree. Every action is a store call.
  *
+ * "Auto-stage" (the `gitAutoStage` setting, VS Code's smart commit): with
+ * nothing ticked, Commit stages every change and commits it all — the button
+ * says "Commit all" while that is what it will do.
+ *
  * mod+Enter in the message box commits. Handled on the textarea itself (and
  * stopped there) so the global shortcut listener never sees it.
  *
@@ -25,6 +29,7 @@ import {
 import { identityMissing, type CommitIdentity } from '../../../core/git/identity';
 import { flattenStatus, type ChangeState, type FlatChange } from '../../../core/git/status';
 import { gitStore } from '../../stores/git';
+import { settingsStore, useSettingsStore } from '../../stores/settings';
 import { Empty, IconButton, PathLabel, Section, StatusGlyph, useRepoSlice } from './shared';
 
 const STATE_TITLE: Record<ChangeState, string> = {
@@ -200,6 +205,7 @@ export function ChangesSection({ root }: { root: string }) {
   const status = useRepoSlice(root, (r) => r.status) ?? null;
   const op = useRepoSlice(root, (r) => r.op) ?? null;
   const identity = useRepoSlice(root, (r) => r.identity) ?? null;
+  const autoStageOn = useSettingsStore((s) => s.settings.gitAutoStage);
   const actions = gitStore.getState();
 
   const rows = flattenStatus(entries ?? []);
@@ -209,13 +215,17 @@ export function ChangesSection({ root }: { root: string }) {
   const toUnstage = rows.filter((r) => r.state !== 'unstaged' && r.state !== 'untracked');
 
   const merging = status?.state === 'merging';
+  // Mirrors the store's commit(): nothing staged + the setting → stage it all.
+  const autoStage = autoStageOn && staged.length === 0 && !amend && !merging;
   const reason =
     status === null
       ? 'Waiting for git'
       : op?.running
         ? 'Wait for the running operation'
-        : staged.length === 0 && !amend && !merging
-          ? 'Tick the files to commit'
+        : staged.length === 0 && !amend && !merging && (!autoStage || rows.length === 0)
+          ? autoStage
+            ? 'Nothing to commit'
+            : 'Tick the files to commit'
           : draft.trim() === '' && !amend && !merging
             ? 'Write a commit message'
             : null;
@@ -261,15 +271,33 @@ export function ChangesSection({ root }: { root: string }) {
               />
               Amend
             </label>
+            <label
+              className="git-check"
+              title="With nothing ticked, Commit stages every change (new files too) and commits them all"
+            >
+              <input
+                type="checkbox"
+                checked={autoStageOn}
+                onChange={() => settingsStore.getState().update({ gitAutoStage: !autoStageOn })}
+              />
+              Auto-stage
+            </label>
             <span className="git-header-spacer" />
             <button
               type="button"
               className="git-btn git-btn-accent"
               disabled={reason !== null}
-              title={reason ?? (amend ? 'git commit --amend' : 'git commit')}
+              title={
+                reason ??
+                (amend
+                  ? 'git commit --amend'
+                  : autoStage
+                    ? `git add, then git commit — all ${rows.length} change${rows.length === 1 ? '' : 's'}`
+                    : 'git commit')
+              }
               onClick={() => void actions.commit(root)}
             >
-              {merging ? 'Commit merge' : amend ? 'Amend' : 'Commit'}
+              {merging ? 'Commit merge' : amend ? 'Amend' : autoStage ? 'Commit all' : 'Commit'}
             </button>
           </div>
         )}
