@@ -54,9 +54,9 @@ slide in Present mode and in the presenter window, never on the slide.
 ## Viewing and presenting
 
 - **Split** (Ctrl+2) — the text beside the slides, updating as you type
-- **Edit** (Ctrl+3) — a filmstrip and the rendered slide: click a block to edit it, drag slides to reorder
+- **Edit** (Ctrl+3) — a filmstrip and the rendered slide: click any text and type, drag slides to reorder
 - **Present** (Ctrl+4) — full-size slides with your notes; **F11** starts the show
-- Right-click the tab → **Presenter view** for notes, the next slide and a timer
+- **Presenter view** (the button beside Present, at the bottom) — notes, the next slide and a timer
 
 ---
 

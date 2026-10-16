@@ -16,6 +16,8 @@ import { deckSummary, slideIndexForLine, splitSlides } from '../../core/deck';
 import { allowedModesFor, docFamilyForTab, modeLabel, type DocFamily } from '../../core/doc-family';
 import { formatClockTime, isLiveEditTab } from '../../core/live-edit';
 import type { EditorMode } from '../../core/types';
+import { isAndroid } from '../platform';
+import { openPresenterView } from '../presenter';
 import { useLiveEditStore } from '../stores/live-edit';
 import { usePdfViewStore } from '../stores/pdf-view';
 import { useSettingsStore } from '../stores/settings';
@@ -49,6 +51,8 @@ const PRESENT_HINT = 'Present — the slides with their notes; F11 for the show 
 const PDF_REVIEW_HINT = 'Review — the PDF, read-only';
 const DECK_EDIT_HINT =
   'Edit the slides — reorder, restyle, click any text to change it (Ctrl/Cmd+3)';
+const PRESENTER_HINT =
+  'Presenter view — your notes, the next slide and a timer in their own window';
 const BOARD_SPLIT_HINT = 'Source + drawing, each following the other (Ctrl/Cmd+2)';
 
 /** The one hint that differs per family besides `read`: Split on a drawing. */
@@ -96,6 +100,17 @@ function ModeSegments({
           {modeLabel(mode, family)}
         </button>
       ))}
+      {/* Not a mode — it opens a window — but it sits beside Present, the
+          mode it belongs with. No second window on Android. */}
+      {family === 'deck' && !isAndroid() ? (
+        <button
+          className="mode-segment mode-segment-action"
+          title={PRESENTER_HINT}
+          onClick={() => void openPresenterView(tabId)}
+        >
+          Presenter
+        </button>
+      ) : null}
     </div>
   );
 }

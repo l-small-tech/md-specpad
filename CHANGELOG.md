@@ -20,6 +20,12 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 - **Bigger diffs.** The diff header can now fill the whole window (Esc puts it
   back) or **open in a window of its own**, which follows the git tab as you
   pick other files. Both show the text at the editor's full size.
+- **Edit slides in place.** In a deck's Edit mode, click any heading,
+  paragraph, list item or code block and type right on the slide — no more
+  popover with Revert / Done. Click away to finish; Esc undoes the edit.
+- A **Presenter** button now sits beside **Present** in the status bar.
+- The speaker notes box is taller and grows with your notes, so scrolling no
+  longer skips past a line.
 
 ## [0.11.1] — 2026-10-07
 

@@ -11,8 +11,10 @@
  *
  * - Filmstrip: select, drag to reorder, add / duplicate / delete.
  * - Stage: the slide exactly as Marp renders it, stamped with source lines
- *   (`stampLines`). Click a block and a popover edits THAT block's markdown;
- *   the slide follows as you type. Esc puts the block back.
+ *   (`stampLines`). Click a heading, paragraph, list item or code fence and
+ *   you type into it where it stands (`deck-inline.ts`); anything richer (an
+ *   image, a table, math) opens a popover over THAT block's markdown, the
+ *   slide following as you type. Click away to finish; Esc puts it back.
  * - Inspector: this slide's spot directives (`_class`, `_backgroundColor`…),
  *   its `![bg]` image, and the deck-wide frontmatter settings.
  * - Notes: the slide's speaker notes, one comment.
@@ -52,6 +54,15 @@ import type { DocModel } from '../core/doc-model';
 import { extractOutline } from '../core/outline';
 import { dirName } from '../core/session/plan-flush';
 import type { EditorAdapter } from './adapter';
+import {
+  canEditInline,
+  inlineKindOf,
+  inlineMarkdown,
+  inlineSource,
+  rebuildInline,
+  type InlineKind,
+  type InlineSource,
+} from './deck-inline';
 
 /** What the editor needs of Marp — `preview/marp.ts`, handed over by `ui`. */
 export interface DeckEngine {
@@ -145,6 +156,20 @@ interface Pop {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
+/** A block being typed into where it stands, on the stage itself. */
+interface Inline {
+  start: number;
+  end: number;
+  originalDoc: string;
+  key: string;
+  block: HTMLElement;
+  kind: InlineKind;
+  parts: InlineSource;
+  /** The body as last written to the document (at first: as it was opened). */
+  written: string;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
 /** A form field whose typing is pushed after a pause, and at once on demand. */
 interface Writer {
   flush(): void;
@@ -180,6 +205,9 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
     const thumbs: Thumb[] = [];
     const writers: Writer[] = [];
     let pop: Pop | null = null;
+    let inline: Inline | null = null;
+    /** The stage's DOM was typed into: the next mount must replace it. */
+    let stageDirty = false;
     let popSerial = 0;
 
     /* ---- skeleton ------------------------------------------------------ */
@@ -656,7 +684,14 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
         `notes:${current}:${notesVisit}`,
       );
     };
+    // The box grows with the notes (to a cap) rather than scrolling a few
+    // lines at a time: a short box let the wheel jump past a whole line.
+    const fitNotes = () => {
+      notesArea.style.height = 'auto';
+      notesArea.style.height = `${notesArea.scrollHeight + notesArea.offsetHeight - notesArea.clientHeight}px`;
+    };
     notesArea.addEventListener('input', () => {
+      fitNotes();
       if (notesTimer !== null) {
         clearTimeout(notesTimer);
       }
@@ -668,6 +703,7 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
     syncers.push((text, external) => {
       if (notesTimer === null && settable(notesArea, external)) {
         notesArea.value = getSlideNotes(text, current);
+        fitNotes();
       }
     });
 
@@ -698,7 +734,14 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
       if (!deck || !slide) {
         return;
       }
-      if (engine.mountSlide(stageRoot, deck.css, slide.html)) {
+      // The block being typed into IS the stage: a remount would take the
+      // caret with it. The slide catches up when the typing ends.
+      if (inline) {
+        return;
+      }
+      const force = stageDirty;
+      stageDirty = false;
+      if (engine.mountSlide(stageRoot, deck.css, slide.html, force)) {
         void engine.inlineImages(stageRoot, docDir(), resolveImage);
       }
       // A remount leaves the hover outline around an element that is gone;
@@ -842,7 +885,8 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
       return shown.getBoundingClientRect();
     }
 
-    function placeOutline(block: Element | null): void {
+    function placeOutline(block: Element | null, editing = false): void {
+      outline.classList.toggle('deck-edit-outline-editing', editing);
       if (!block) {
         outline.hidden = true;
         return;
@@ -857,6 +901,10 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
     }
 
     function placePop(): void {
+      if (inline) {
+        placeOutline(inline.block, true);
+        return;
+      }
       if (!pop) {
         return;
       }
@@ -896,6 +944,7 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
     }
 
     function closePop(commit: boolean): void {
+      closeInline(commit);
       const closing = pop;
       if (!closing) {
         return;
@@ -954,13 +1003,20 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
         box.appendChild(line);
       }
       area.addEventListener('input', onTyped);
-      const actions = el(dom, 'div', 'deck-edit-pop-actions');
-      actions.append(
-        el(dom, 'span', 'deck-edit-pop-hint', 'Markdown · Esc reverts'),
-        button('Revert', 'Put the block back as it was (Esc)', () => revertPop()),
-        button('Done', 'Done (Ctrl/Cmd+Enter)', () => closePop(true)),
+      // Finishing is clicking away (or Ctrl/Cmd+Enter): no buttons to aim at.
+      box.addEventListener('focusout', (event) => {
+        const to = event.relatedTarget;
+        if (pop === opened && dom.hasFocus() && !(to instanceof Node && box.contains(to))) {
+          closePop(true);
+        }
+      });
+      const hint = el(
+        dom,
+        'span',
+        'deck-edit-pop-hint',
+        'Markdown · click away when done · Esc reverts',
       );
-      box.append(area, actions);
+      box.append(area, hint);
       stage.appendChild(box);
       pop = opened;
       placePop();
@@ -971,7 +1027,7 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
     }
 
     function revertPop(): void {
-      const closing = pop;
+      const closing = inline ?? pop;
       if (!closing) {
         return;
       }
@@ -979,17 +1035,193 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
       push(closing.originalDoc, closing.key);
     }
 
+    /* ---- typing into the slide itself (deck-inline.ts) -------------------- */
+
+    /** The stamped block a press lands on, when it can be typed into in place. */
+    function inlineTarget(block: HTMLElement): InlineKind | null {
+      const kind = inlineKindOf(block.tagName);
+      return kind && canEditInline(block, kind) ? kind : null;
+    }
+
+    /**
+     * Lines moved under the stage's stale stamps (the typed block grew or
+     * shrank, and the slide is not remounted until the typing ends): shift
+     * every stamp below the block, and the end of every block around it.
+     */
+    function shiftStamps(oldEnd: number, delta: number): void {
+      if (delta === 0) {
+        return;
+      }
+      for (const node of stageRoot.querySelectorAll<HTMLElement>('[data-line]')) {
+        const line = Number(node.dataset.line);
+        const end = Number(node.dataset.lineEnd ?? line);
+        if (line > oldEnd) {
+          node.dataset.line = String(line + delta);
+          node.dataset.lineEnd = String(end + delta);
+        } else if (end >= oldEnd) {
+          node.dataset.lineEnd = String(end + delta);
+        }
+      }
+    }
+
+    function lineCount(text: string): number {
+      return text.split('\n').length;
+    }
+
+    function writeInline(state: Inline, body: string): void {
+      const before = doc.getText();
+      const next = replaceLines(before, state.start, state.end, rebuildInline(state.parts, body));
+      const delta = lineCount(next) - lineCount(before);
+      shiftStamps(state.end, delta);
+      state.end += delta;
+      state.written = body;
+      push(next, state.key);
+    }
+
+    function commitInline(): void {
+      const state = inline;
+      if (!state) {
+        return;
+      }
+      if (state.timer !== null) {
+        clearTimeout(state.timer);
+        state.timer = null;
+      }
+      const body = inlineMarkdown(state.block, state.kind);
+      // Untouched stays byte-identical; emptied is only removed on close.
+      if (body === state.written || (body.trim() === '' && state.kind !== 'code')) {
+        return;
+      }
+      writeInline(state, body);
+    }
+
+    function closeInline(commit: boolean): void {
+      const closing = inline;
+      if (!closing) {
+        return;
+      }
+      if (commit) {
+        commitInline();
+        if (closing.kind !== 'code' && inlineMarkdown(closing.block, closing.kind).trim() === '') {
+          writeInline(closing, '');
+        }
+      } else if (closing.timer !== null) {
+        clearTimeout(closing.timer);
+      }
+      inline = null;
+      closing.block.removeAttribute('contenteditable');
+      outline.hidden = true;
+      outline.classList.remove('deck-edit-outline-editing');
+      // The typed DOM is not Marp's: let a fresh render replace it.
+      stageDirty = true;
+      scheduleRender();
+    }
+
+    function openInline(block: HTMLElement, kind: InlineKind): boolean {
+      closePop(true); // may shift this block's stamp: read it after
+      flushWriters();
+      const text = doc.getText();
+      const start = Number(block.dataset.line);
+      const range = blockRange(text, start, Number(block.dataset.lineEnd ?? start));
+      const parts = inlineSource(getLines(text, range.start, range.end), kind);
+      if (!parts) {
+        return false;
+      }
+      const opened: Inline = {
+        start: range.start,
+        end: range.end,
+        originalDoc: text,
+        key: `pop:${++popSerial}`,
+        block,
+        kind,
+        parts,
+        written: inlineMarkdown(block, kind),
+        timer: null,
+      };
+      block.contentEditable = kind === 'code' ? 'plaintext-only' : 'true';
+      block.spellcheck = kind !== 'code';
+      block.addEventListener('input', () => {
+        if (inline !== opened) {
+          return;
+        }
+        if (opened.timer !== null) {
+          clearTimeout(opened.timer);
+        }
+        opened.timer = setTimeout(commitInline, TYPING_DEBOUNCE_MS);
+        placeOutline(block, true);
+      });
+      // Clicking anywhere else finishes; leaving the window does not.
+      block.addEventListener('focusout', () => {
+        if (inline === opened && dom.hasFocus()) {
+          closePop(true);
+        }
+      });
+      block.addEventListener('paste', (event) => {
+        const pasted = event.clipboardData?.getData('text/plain');
+        if (inline !== opened || pasted === undefined) {
+          return;
+        }
+        event.preventDefault();
+        dom.execCommand(
+          'insertText',
+          false,
+          kind === 'heading' ? pasted.replace(/\s+/g, ' ') : pasted,
+        );
+      });
+      inline = opened;
+      placeOutline(block, true);
+      return true;
+    }
+
+    function onInlineKey(event: KeyboardEvent, state: Inline): void {
+      const mod = event.ctrlKey || event.metaKey;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        revertPop();
+        focusStrip();
+      } else if (event.key === 'Enter' && (mod || state.kind === 'heading')) {
+        event.preventDefault();
+        closePop(true);
+        focusStrip();
+      } else if (event.key === 'Enter' && !event.isComposing) {
+        // A line break inside the block, never a browser <div>.
+        event.preventDefault();
+        dom.execCommand(state.kind === 'code' ? 'insertText' : 'insertLineBreak', false, '\n');
+      }
+      // Everything else is the text's own: arrows, native undo, bold.
+    }
+
     /* ---- events ---------------------------------------------------------- */
 
     function onStageMove(event: PointerEvent): void {
-      if (!pop) {
+      if (!pop && !inline) {
         placeOutline(stampedAt(event)?.block ?? null);
       }
     }
 
     function onStageLeave(): void {
-      if (!pop) {
+      if (!pop && !inline) {
         outline.hidden = true;
+      }
+    }
+
+    /*
+     * A press on a block that can be typed into makes it editable BEFORE the
+     * browser handles the press, so the caret lands where the press did.
+     */
+    function onStageDown(event: PointerEvent): void {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+      const path = event.composedPath();
+      if ((inline && path.includes(inline.block)) || (pop && path.includes(pop.box))) {
+        return;
+      }
+      const hit = stampedAt(event);
+      const kind = hit ? inlineTarget(hit.block) : null;
+      if (hit && kind) {
+        openInline(hit.block, kind);
       }
     }
 
@@ -999,6 +1231,9 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
       }
       // The window must never navigate, whatever was clicked inside a slide.
       event.preventDefault();
+      if (inline && event.composedPath().includes(inline.block)) {
+        return;
+      }
       const hit = stampedAt(event);
       if (!hit) {
         closePop(true);
@@ -1122,6 +1357,10 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
     function onKeyDown(event: KeyboardEvent): void {
       const mod = event.ctrlKey || event.metaKey;
       const target = event.target;
+      if (inline && event.composedPath().includes(inline.block)) {
+        onInlineKey(event, inline);
+        return;
+      }
       if (pop && target === pop.area) {
         if (event.key === 'Escape') {
           event.preventDefault();
@@ -1184,12 +1423,18 @@ export function createDeckEditorAdapter(options: DeckEditorOptions): DeckEditorA
     }
 
     const resize =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => placePop());
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => {
+            placePop();
+            fitNotes(); // a narrower column wraps the notes onto more lines
+          });
     resize?.observe(stage);
 
     strip.appendChild(drop);
     stage.addEventListener('pointermove', onStageMove);
     stage.addEventListener('pointerleave', onStageLeave);
+    stage.addEventListener('pointerdown', onStageDown);
     stage.addEventListener('click', onStageClick);
     strip.addEventListener('pointerdown', onStripDown);
     strip.addEventListener('pointermove', onStripMove);

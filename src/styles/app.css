@@ -2243,6 +2243,13 @@ body.explorer-dragging * {
   color: var(--accent);
 }
 
+/* Presenter: an action beside the modes, not one of them — the arrow says it
+   opens elsewhere (a window of its own). */
+.mode-segment-action::after {
+  content: ' 97';
+  font-size: 11px;
+}
+
 /* Dev-build indicator — shown only under `tauri dev` (Vite dev mode). */
 .statusbar-dev {
   flex: 0 0 auto;

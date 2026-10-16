@@ -180,6 +180,12 @@
   pointer-events: none;
 }
 
+/* Typed into where it stands: a solid frame says the text is live. */
+.deck-edit-outline-editing {
+  border-style: solid;
+  border-width: 2px;
+}
+
 .deck-edit-pop {
   position: absolute;
   z-index: 2;
@@ -215,14 +221,7 @@
   border-color: var(--accent);
 }
 
-.deck-edit-pop-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .deck-edit-pop-hint {
-  flex: 1 1 auto;
   font-size: 11px;
   color: var(--fg-muted);
 }
@@ -243,9 +242,11 @@
 }
 
 .deck-edit-notes-text {
-  height: 84px;
-  min-height: 48px;
+  /* Sized to its content by the editor (fitNotes); five lines at least. */
+  min-height: calc(5 * 1.5em + 14px);
   max-height: 40vh;
+  resize: none;
+  overflow-y: auto;
 }
 
 /* ---- inspector ----------------------------------------------------------- */
