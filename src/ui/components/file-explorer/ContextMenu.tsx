@@ -2,7 +2,8 @@
  * The FileExplorer's right-click menus, unified into one component. Two
  * variants, selected by which props are given:
  * - `entry` — a file row's menu (Rename / Reveal in explorer / Delete);
- * - `dir` — a directory or workspace-root menu (see DirMenuProps).
+ * - `dir` — a directory or workspace-root menu (see DirMenuProps), with
+ *   **Open in explorer** on desktop.
  * Both carry the clipboard group (Cut / Copy / Paste, backed by
  * `stores/explorer.ts`) and **Copy path**; a file pastes into its own folder,
  * exactly as VSCode does.
@@ -19,6 +20,7 @@ import { baseName, dirName } from '../../../core/session/plan-flush';
 import { harnessName } from '../../../core/settings';
 import { isMarkdownPath } from '../../../core/text-files';
 import { HARNESS_PROFILE_ID, WORKSPACE_COLORS, type WorkspaceColor } from '../../../core/types';
+import { ipc } from '../../../ipc/commands';
 import { isAndroid } from '../../platform';
 import { openTerminal } from '../../terminal-open';
 import { openGitTab } from '../../git-open';
@@ -571,6 +573,24 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
           }}
         >
           Git
+        </button>
+      )}
+      {/* The folder itself in the OS file manager (a file row's "Reveal in
+          explorer" selects the file in its parent instead). Workspaces and
+          subfolders alike; desktop, local only — same gate as terminals. */}
+      {canTerminal && (
+        <button
+          className="context-menu-item"
+          role="menuitem"
+          title="Open this folder in your system's file manager"
+          onClick={() => {
+            onClose();
+            void ipc
+              .openDir(dir)
+              .catch(() => uiStore.getState().showNotice('Could not open the folder.'));
+          }}
+        >
+          Open in explorer
         </button>
       )}
       {/* Live Edit: a shared Drive/OneDrive folder. Files opened from it save

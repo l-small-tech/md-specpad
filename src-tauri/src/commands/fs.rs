@@ -907,6 +907,25 @@ pub async fn stat_path(path: PathBuf) -> FsResult<PathStat> {
     }
 }
 
+/// Open a folder in the OS file manager (Explorer / Finder / the desktop's
+/// default). Directories only: the opener plugin's JS `openPath` is scoped to a
+/// fixed allow-list, and widening it would let the webview launch any file —
+/// this command can only ever show a folder. Desktop only.
+#[cfg(desktop)]
+#[tauri::command]
+pub async fn open_dir(path: PathBuf) -> FsResult<()> {
+    match fs::metadata(&path) {
+        Ok(meta) if meta.is_dir() => {}
+        Ok(_) => return Err(FsError::InvalidPath(path.display().to_string())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(FsError::NotFound(path))
+        }
+        Err(e) => return Err(e.into()),
+    }
+    tauri_plugin_opener::open_path(&path, None::<&str>)
+        .map_err(|e| FsError::Io(std::io::Error::other(e.to_string())))
+}
+
 // Android-only commands (external_files_dir, SAF workspaces, STT, …) live in
 // `android.rs`; that module is cfg-gated at the `mod.rs` declaration.
 
