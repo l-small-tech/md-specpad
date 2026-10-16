@@ -1486,11 +1486,15 @@ describe('saveActive / saveAsActive (M3)', () => {
   });
 
   test('Save As on a note onto its OWN name in the notes folder keeps the file it just wrote', async () => {
-    // The dialog suggests the note's on-disk name; accepting it in the notes
-    // folder must not let the graduation tombstone delete the saved file.
+    // The dialog suggests the note's own path in the notes folder; accepting
+    // it must not let the graduation tombstone delete the saved file.
     const fs = makeFakeFs();
+    let suggestedPath: string | undefined;
     const controller = makeController(fs, () => 111, {
-      saveDialog: async (suggested) => `${NOTES}/${suggested}`,
+      saveDialog: async (suggested) => {
+        suggestedPath = suggested;
+        return suggested ?? null;
+      },
     });
     const t = tabs.tabsStore.getState().tabs[0]!;
     t.model.pushText('# Idea', 'cm6');
@@ -1498,6 +1502,7 @@ describe('saveActive / saveAsActive (M3)', () => {
     expect(tabs.tabsStore.getState().tabs[0]!.notePath).toBe(`${NOTES}/idea.md`);
 
     await controller.saveAsActive();
+    expect(suggestedPath).toBe(`${NOTES}/idea.md`);
     await controller.flushNow();
     await controller.flushNow();
 

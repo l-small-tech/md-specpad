@@ -1,23 +1,18 @@
 /**
- * Executing a `NewTabChoice`. The decision itself is pure and lives in
- * `core/new-tab.ts`; this is the one place it becomes an action, so the "+"
- * button and the command palette take the same path (mod+N opens a window).
+ * Executing a `NewTabChoice` — the one place a tab type becomes an action, so
+ * the "+" button, the picker and the command palette take the same path.
  */
 
-import { defaultNewTabChoice, type NewTabChoice } from '../core/new-tab';
 import { createDeck, createWhiteboard } from './session';
 import { tabsStore } from './stores/tabs';
 import { isAndroid } from './platform';
 import { openTerminal } from './terminal-open';
 
+export type NewTabChoice = 'note' | 'drawing' | 'deck' | 'terminal';
+
 /** True where a terminal tab can exist at all (everywhere but Android). */
 export function terminalsAvailable(): boolean {
   return !isAndroid();
-}
-
-/** What a plain "+" / mod+N makes right now. */
-export function currentNewTabChoice(): NewTabChoice {
-  return defaultNewTabChoice(tabsStore.getState().activeTab() ?? null, terminalsAvailable());
 }
 
 export function runNewTabChoice(choice: NewTabChoice): void {
@@ -37,7 +32,11 @@ export function runNewTabChoice(choice: NewTabChoice): void {
   }
 }
 
-/** "+" with no modifier, and mod+N: another one of whatever is in front. */
+/**
+ * "+" with no modifier, and the "New tab" shortcut: always a new markdown
+ * note in the notes folder, whatever tab is in front. Every other type is one
+ * pick away in the "+ ⌄" picker.
+ */
 export function newTabDefault(): void {
-  runNewTabChoice(currentNewTabChoice());
+  runNewTabChoice('note');
 }

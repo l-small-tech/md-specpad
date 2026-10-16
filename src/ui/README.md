@@ -239,15 +239,13 @@ drag drop-indicator is scroller-relative and must add `scroller.scrollLeft`.
 ### The "+ ⌄" button pair
 
 The two live in one floating pill after the last tab (Windows Terminal
-style). A plain click on + makes **another one of whatever is in front** —
-`defaultNewTabChoice` in `core/new-tab.ts` (pure, tested): terminal → terminal,
-`.svg` → drawing, a `marp: true` markdown tab → deck (the example
-presentation, `core/deck-template.ts`), everything else → note. The ⌄ button — or alt-click,
+style). A plain click on + always makes **a new markdown note** in the notes folder,
+whatever tab is in front (`newTabDefault` in `new-tab.ts`). The ⌄ button — or alt-click,
 right-click, long-press or mod+Shift+N — opens the type picker instead, which
 lists every type explicitly — note, one row per terminal profile (shell icon,
 no heading of its own: a shell is one more thing "+" makes), then the drawing —
-so the inference is never the only route. mod+N follows the
-same rule — the binding has always been labelled "New tab", not "New note".
+so every other type is one pick away. The palette's "New tab" follows the
+same rule.
 
 Under the tab kinds the picker carries the app rows — **Themes** (drilling
 into the same `ThemesMenuPage`), **Settings**, and the two full-screen stages
@@ -725,7 +723,7 @@ elsewhere (`navigator.platform`-based helper).
 | Keys | Action | Milestone |
 | --- | --- | --- |
 | mod+N | new OS window with one empty note (`session/windows.ts` `openEmptyWindow`) | M8 |
-| + button / palette "New tab" | new tab, of the type in front (`core/new-tab.ts`) | M1/M9 |
+| + button / palette "New tab" | new markdown note in the notes folder (`new-tab.ts`) | M1/M9 |
 | mod+Shift+N | new-tab type picker (note / drawing / Marp presentation / terminal) | M9 |
 | mod+W | close tab (confirm per semantics) | M1/M2 |
 | Ctrl+Tab / Ctrl+Shift+Tab | next / previous tab — Ctrl on macOS too (Cmd+Tab is the system app switcher and never reaches the app) | M1 |

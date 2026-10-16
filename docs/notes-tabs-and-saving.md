@@ -79,7 +79,8 @@ toggle auto save or to reach Save As.
 ### Save and Save As
 
 - **Ctrl+S** — save the current file. On a *note* tab this acts as Save As,
-  turning the note into a regular file wherever you choose. The note's own
+  turning the note into a regular file wherever you choose — the dialog
+  starts in your notes folder. The note's own
   file in the notes folder is then removed — unless you saved right over it
   (the name the dialog suggests), in which case that file is what you keep.
 - **Ctrl+Shift+S** — Save As: save a copy under a new name or location. The
