@@ -10,7 +10,9 @@
  *   nothing left to lose. One a terminal of this window stands in is SKIPPED
  *   (an agent is probably working there), and so is one another flow is busy
  *   with; both are reported so the dialog can say why. Branches are never
- *   touched — the commits stay reachable.
+ *   touched — the commits stay reachable. `which: 'missing'` narrows the
+ *   same plan to the worktrees whose folder is gone ("Clear missing
+ *   worktrees"): nothing on disk to lose, only git's stale record goes.
  * - `describeUncommitted` turns a fresh `git status` into the file list the
  *   force-delete dialog shows: plain words (new / modified / deleted /
  *   renamed / conflicted), the first `limit` files, and how many more.
@@ -30,6 +32,12 @@ export function isCleanWorktree(checkout: GitCheckout): boolean {
     return true;
   }
   return s.state === 'clean' && s.staged + s.unstaged + s.untracked + s.conflicted === 0;
+}
+
+/** A linked worktree whose folder is gone (git: prunable), not locked. */
+export function isMissingWorktree(checkout: GitCheckout): boolean {
+  const s = checkout.summary;
+  return !checkout.isMain && s !== null && s.missing && !s.locked;
 }
 
 /**
@@ -67,13 +75,15 @@ export function planCleanRemoval<T extends TerminalCwd>(
   checkouts: readonly GitCheckout[],
   terminals: readonly T[],
   busy: readonly string[] = [],
+  which: 'clean' | 'missing' = 'clean',
 ): CleanRemovalPlan {
   const paths = checkouts.map((c) => c.path);
   const busyKeys = new Set(busy.map(checkoutKey));
   const remove: GitCheckout[] = [];
   const skipped: RemovalSkip[] = [];
+  const takes = which === 'missing' ? isMissingWorktree : isCleanWorktree;
   for (const c of checkouts) {
-    if (!isCleanWorktree(c)) {
+    if (!takes(c)) {
       continue;
     }
     if (busyKeys.has(checkoutKey(c.path))) {

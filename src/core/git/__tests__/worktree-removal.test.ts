@@ -3,6 +3,7 @@ import type { GitCheckout, GitStatusEntry, GitWorktreeSummary } from '../types';
 import {
   describeUncommitted,
   isCleanWorktree,
+  isMissingWorktree,
   planCleanRemoval,
   removalProgressText,
   removalSkipText,
@@ -103,6 +104,20 @@ describe('planCleanRemoval', () => {
       { path: wt('agent'), reason: 'terminal', terminals: ['claude'] },
       { path: wt('finishing'), reason: 'busy' },
     ]);
+  });
+
+  test("which: 'missing' takes only the gone folders — locked and main never", () => {
+    const plan = planCleanRemoval(
+      [...checkouts, checkout(wt('gone-locked'), { missing: true, locked: true })],
+      [],
+      [],
+      'missing',
+    );
+    expect(plan.remove.map((c) => c.path)).toEqual([wt('gone')]);
+    expect(plan.skipped).toEqual([]);
+    expect(isMissingWorktree(checkout(wt('a')))).toBe(false);
+    expect(isMissingWorktree(checkout(wt('a'), { missing: true, unstaged: 3 }))).toBe(true);
+    expect(isMissingWorktree(checkout(wt('a'), null))).toBe(false);
   });
 
   test('a shell in the main checkout does not hold back the worktrees under it', () => {

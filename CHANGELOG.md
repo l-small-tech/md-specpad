@@ -12,6 +12,14 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 - **Open in explorer** on a workspace or folder's right-click menu opens it
   in your system's file manager.
+- Git tab: **Auto-stage** on commit, like VS Code's smart commit — with
+  nothing ticked, **Commit all** stages every change (new files too) and
+  commits it. Anything you ticked still wins. Also in Settings → Files.
+- Git tab: **Clear missing worktrees** — one click (and one confirm) forgets
+  every worktree whose folder was deleted outside the app. Branches are kept.
+- **Bigger diffs.** The diff header can now fill the whole window (Esc puts it
+  back) or **open in a window of its own**, which follows the git tab as you
+  pick other files. Both show the text at the editor's full size.
 
 ## [0.11.1] — 2026-10-07
 

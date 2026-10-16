@@ -73,7 +73,7 @@ import {
   suggestRemoteName,
   validateRemoteName,
 } from '../../core/git/remotes';
-import { emptyGroups, groupStatus, mergingInto } from '../../core/git/status';
+import { emptyGroups, flattenStatus, groupStatus, mergingInto } from '../../core/git/status';
 import type {
   ConflictTracker,
   FinishState,
@@ -161,6 +161,9 @@ export interface GitStoreDeps {
   now?: () => number;
   /** The `reviewBaseBranch` setting ('' = auto-detect). */
   baseBranchSetting: () => string;
+  /** The `gitAutoStage` setting: with nothing staged, Commit stages every
+   *  change first (VS Code's smart commit). Absent = off. */
+  autoStageSetting?: () => boolean;
   /** The explorer's active directory, to pick the checkout a tab opens on. */
   activeWorkspaceDir: () => string | null;
   /** This window's terminal tabs. */
@@ -508,6 +511,12 @@ export interface GitState {
    * inside, another removal busy with it) — or say there is nothing to do.
    */
   removeCleanWorktrees: (mainRoot: string) => void;
+  /**
+   * "Clear missing worktrees": after a native confirm, drop git's record of
+   * every linked worktree whose folder is already gone (not locked, no
+   * terminal of this window inside, not busy). Branches are kept.
+   */
+  clearMissingWorktrees: (mainRoot: string) => Promise<void>;
   /** The dialog's go-ahead: Delete anyway (dirty) / Delete (bulk) / OK (locked). */
   confirmWorktreeDialog: (mainRoot: string) => Promise<void>;
   closeWorktreeDialog: (mainRoot: string) => void;
@@ -839,7 +848,11 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
      * still); `removal` counts the progress; each card goes the moment its
      * folder does. Ends in one notice: how many went, which stayed and why.
      */
-    const removeCleanBatch = async (mainRoot: string, paths: readonly string[]): Promise<void> => {
+    const removeCleanBatch = async (
+      mainRoot: string,
+      paths: readonly string[],
+      which: 'clean' | 'missing' = 'clean',
+    ): Promise<void> => {
       const r = repo(mainRoot);
       if (!r || r.removal !== null || paths.length === 0) {
         return;
@@ -874,9 +887,9 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       const parts: string[] = [];
       if (removed > 0) {
         parts.push(
-          `Deleted ${removed} clean ${removed === 1 ? 'worktree' : 'worktrees'} — ${
-            removed === 1 ? 'its branch is' : 'their branches are'
-          } kept.`,
+          `${which === 'missing' ? 'Cleared' : 'Deleted'} ${removed} ${which} ${
+            removed === 1 ? 'worktree' : 'worktrees'
+          } — ${removed === 1 ? 'its branch is' : 'their branches are'} kept.`,
         );
       }
       if (skipped.length > 0) {
@@ -1958,7 +1971,24 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         }
         const root = r.selectedCheckout;
         const amend = r.amend;
+        // Auto-stage: nothing staged → stage every change (untracked too)
+        // and commit it all. Never for an amend (that rewords) or a merge.
+        const autoStage =
+          !amend &&
+          !merging &&
+          r.groups.staged.length === 0 &&
+          (getDeps().autoStageSetting?.() ?? false);
+        const toStage = autoStage
+          ? flattenStatus(r.status?.entries ?? []).map((row) => row.entry.path)
+          : [];
+        if (autoStage && toStage.length === 0) {
+          getDeps().notice('Nothing to commit');
+          return;
+        }
         const ok = await mutate(mainRoot, ['status', 'log', 'worktrees'], async () => {
+          if (toStage.length > 0) {
+            await getDeps().ipc.gitStage(root, toStage);
+          }
           await getDeps().ipc.gitCommit(root, message, amend);
           patch(mainRoot, () => ({ commitDraft: '', amend: false }));
           if (merging) {
@@ -2589,6 +2619,49 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
             skipped,
           },
         }));
+      },
+      async clearMissingWorktrees(mainRoot) {
+        const r = repo(mainRoot);
+        if (!r || r.removal !== null) {
+          return;
+        }
+        const deps = getDeps();
+        const plan = planCleanRemoval(
+          r.checkouts,
+          deps.terminalTabs(),
+          removalBusyPaths(r),
+          'missing',
+        );
+        const skipped = plan.skipped.map(
+          (s) => `${relCheckout(mainRoot, s.path)}: ${removalSkipText(s)}`,
+        );
+        if (plan.remove.length === 0) {
+          deps.notice(
+            skipped.length === 0
+              ? 'There are no missing worktrees to clear.'
+              : `Nothing to clear — ${skipped.join('; ')}.`,
+          );
+          return;
+        }
+        const n = plan.remove.length;
+        const names = plan.remove.map((c) => relCheckout(mainRoot, c.path));
+        const lines = [
+          n === 1
+            ? `Clear the missing worktree ${names[0]}?`
+            : `Clear ${n} missing worktrees?\n\n${names.join('\n')}`,
+          `${n === 1 ? 'Its folder is' : 'Their folders are'} already gone — this only removes git's record of ${n === 1 ? 'it' : 'them'}. Branches and commits are kept.`,
+        ];
+        if (skipped.length > 0) {
+          lines.push(`Left alone: ${skipped.join('; ')}.`);
+        }
+        if (!(await deps.confirm(lines.join('\n\n'), 'Clear missing worktrees'))) {
+          return;
+        }
+        await removeCleanBatch(
+          mainRoot,
+          plan.remove.map((c) => c.path),
+          'missing',
+        );
       },
       closeWorktreeDialog(mainRoot) {
         if (repo(mainRoot)?.worktreeDialog) {

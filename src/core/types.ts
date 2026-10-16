@@ -554,6 +554,15 @@ export interface Settings {
    */
   gitActiveWorktreesOnly: boolean;
   /**
+   * "Auto-stage on commit" (VS Code's smart commit): when nothing is staged,
+   * Commit stages every change — untracked files too — and commits them all.
+   * Anything already staged wins: then only that is committed. Never applies
+   * to an amend (an amend with nothing staged rewords) or a merge commit.
+   * The commit box's "Stage all" checkbox and the Settings dialog both flip
+   * it. Default false.
+   */
+  gitAutoStage: boolean;
+  /**
    * Diffs (git tab, conflict "View diff") draw as one inline column of
    * removed / added lines instead of two side-by-side columns. The diff
    * header's toggle flips it; no dialog field. Default false (side by side).

@@ -917,6 +917,22 @@ function SettingsBody({ initialTab }: { initialTab: SettingsTabId }) {
                 </span>
               </div>
 
+              <label className="settings-row">
+                <span className="settings-label">Git: auto-stage on commit</span>
+                <input
+                  className="settings-control settings-checkbox"
+                  type="checkbox"
+                  checked={settings.gitAutoStage}
+                  onChange={(e) => update({ gitAutoStage: e.target.checked })}
+                />
+              </label>
+              <div className="settings-row settings-row-hint">
+                <span className="settings-label" />
+                <span className="settings-hint">
+                  With nothing staged, Commit stages every change and commits them all
+                </span>
+              </div>
+
               <div className="settings-row settings-row-notes">
                 <span className="settings-label">Notes folder</span>
                 <div className="settings-notes-value">

@@ -57,7 +57,9 @@ import { settingsStore } from './ui/stores/settings';
 import { mergeIncomingSettings, sharedSettings, windowThemeStore } from './ui/stores/window-theme';
 import { docSync, startDocSync } from './ui/doc-sync';
 import { listenPresenter, PRESENTER_LABEL } from './ui/presenter';
+import { DIFF_WINDOW_LABEL, listenDiffWindow } from './ui/diff-window';
 import { PresenterView } from './ui/components/PresenterView';
+import { DiffWindowView } from './ui/components/DiffWindowView';
 import { tabsStore, tabDisplayTitle } from './ui/stores/tabs';
 import { harnessAvailabilityStore } from './ui/stores/harness-availability';
 import {
@@ -261,11 +263,11 @@ const IS_MAIN_WINDOW = WINDOW_LABEL === 'main';
 
 /**
  * Windows that are not the app proper and hold no tabs: tab-drag ghosts and
- * the presenter view. They are never a drop / "move to window" target and
+ * the presenter view and the diff window. They are never a drop / "move to window" target and
  * never count as "another window is still open" when one closes.
  */
 function isHelperWindow(label: string): boolean {
-  return label.startsWith('ghost-') || label === PRESENTER_LABEL;
+  return label.startsWith('ghost-') || label === PRESENTER_LABEL || label === DIFF_WINDOW_LABEL;
 }
 
 /**
@@ -609,8 +611,9 @@ const saveDiscardCancelDialog: SaveDiscardCancelDialog = async (msg, title) => {
 const platform = detectPlatform(navigator.platform);
 
 window.addEventListener('keydown', (event) => {
-  // The presenter window has no tabs and no commands — only its own slide keys.
-  if (WINDOW_LABEL === PRESENTER_LABEL) {
+  // The presenter window has no tabs and no commands — only its own slide
+  // keys; the diff window likewise only its DiffView's.
+  if (WINDOW_LABEL === PRESENTER_LABEL || WINDOW_LABEL === DIFF_WINDOW_LABEL) {
     return;
   }
   // Something nearer the event already claimed this key — a focused terminal
@@ -747,6 +750,28 @@ async function boot(): Promise<void> {
     installContextMenuGuard();
     removeBootSplash();
     createRoot(document.getElementById('root')!).render(<PresenterView />);
+    return;
+  }
+
+  // The diff window (`?diff=1`, ui/diff-window.ts): same deal as the
+  // presenter — themed, settings followed, one DiffView fed over events.
+  if (bootParams.get('diff') === '1') {
+    void listen<{ from: string; settings: Settings }>('settings-changed', (event) => {
+      // Its own inline ⇄ side-by-side flip comes back too: drop the echo.
+      if (event.payload.from === WINDOW_LABEL) {
+        return;
+      }
+      applyingRemoteSettings = true;
+      try {
+        settingsStore.getState().replace(normalizeSettings(event.payload.settings));
+      } finally {
+        applyingRemoteSettings = false;
+      }
+    }).catch(() => {});
+    installLinkGuard();
+    installContextMenuGuard();
+    removeBootSplash();
+    createRoot(document.getElementById('root')!).render(<DiffWindowView />);
     return;
   }
 
@@ -1082,6 +1107,8 @@ async function boot(): Promise<void> {
   // Presenter view: follow slide changes made in the presenter window (or a
   // mirror's show) and feed the presenter its deck — ui/presenter.ts.
   listenPresenter();
+  // The diff window: answer it when it mounts — ui/diff-window.ts.
+  listenDiffWindow();
 
   // Tab sync: mirrors of one file (another tab here, or a tab in another
   // window) type into each other live — src/ui/doc-sync.ts. Same echo rule as
@@ -1292,6 +1319,7 @@ async function boot(): Promise<void> {
           const windows = await getAllWebviewWindows();
           if (!windows.some((w) => w.label !== WINDOW_LABEL && !isHelperWindow(w.label))) {
             await windows.find((w) => w.label === PRESENTER_LABEL)?.destroy();
+            await windows.find((w) => w.label === DIFF_WINDOW_LABEL)?.destroy();
           }
         })().catch(() => {});
         void appWindow.destroy();

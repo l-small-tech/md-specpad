@@ -114,6 +114,7 @@ export function installAppGitDeps(dialogs: {
     ipc,
     net: startGitNetOp,
     baseBranchSetting: () => settingsStore.getState().settings.reviewBaseBranch,
+    autoStageSetting: () => settingsStore.getState().settings.gitAutoStage,
     activeWorkspaceDir: () => uiStore.getState().selectedExplorerDir ?? getDefaultWorkspacePath(),
     terminalTabs: () =>
       tabsStore

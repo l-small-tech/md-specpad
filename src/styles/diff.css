@@ -40,6 +40,31 @@
   --diff-del-hi: color-mix(in oklab, var(--diff-del) 34%, var(--editor-bg));
 }
 
+/* Maximized: laid over the whole window, under the dialogs (z 100) so a
+   confirm opened from underneath still shows. */
+.diff-view.is-maximized {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* The diff window (`?diff=1`, DiffWindowView): one DiffView filling it. */
+.diff-window {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--editor-bg);
+}
+
+.diff-window-hint {
+  margin: auto;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
 /* ---- header ---------------------------------------------------------------- */
 
 .diff-header {
@@ -145,6 +170,10 @@
   color: var(--fg);
 }
 
+.diff-btn.is-active {
+  color: var(--accent);
+}
+
 .diff-btn:disabled {
   opacity: 0.4;
   cursor: default;
@@ -186,6 +215,12 @@
   overflow: auto;
   font-family: var(--font-mono);
   font-size: calc(var(--editor-font-size) - 2px);
+}
+
+/* Given the room, the text gets the editor's own size back. */
+.diff-view.is-maximized .diff-pane,
+.diff-window .diff-pane {
+  font-size: var(--editor-font-size);
 }
 
 .diff-divider {
