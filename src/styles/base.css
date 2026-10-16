@@ -239,7 +239,8 @@ html[data-cursor='underscore'] .cm-cursor {
   }
 }
 
-/* Runs of periods in the raw editor never ligate (editors/plain-dots.ts). */
+/* Runs of periods and of markdown markers (** __ ~~) in the raw editor never
+   ligate (editors/plain-dots.ts). */
 .cm-plain-dots {
   font-variant-ligatures: none;
 }
