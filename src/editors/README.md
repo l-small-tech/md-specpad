@@ -523,9 +523,17 @@ the file must stay the agent's markdown.
   (`preview/marp.ts`): every rendered block carries `data-line` /
   `data-line-end`. The innermost stamped element under the pointer is the
   block; `core/deck-edit blockRange` trims the trailing blank line
-  markdown-it's `map` swallows; a popover textarea edits exactly those lines
-  and pushes as you type (one undo entry per popover). Esc restores the
-  document as it was when the block was opened. Filmstrip thumbnails mount the
+  markdown-it's `map` swallows. A heading, paragraph, list item or fence is
+  typed into where it stands (`deck-inline.ts`): it turns `contenteditable`
+  on pointerdown (so the caret lands where the press did), `inlineSource`
+  keeps the lines' frame (`## `, `> - `, the fence lines) and
+  `inlineMarkdown` reads the body back out of the DOM. The stage is not
+  remounted while a block is being typed into (stamps below it are shifted
+  instead) and is force-remounted once it closes. Anything the serialiser
+  cannot speak for — an image, math, inline HTML, a nested list, an HTML
+  comment in the lines — falls back to a popover textarea over those lines.
+  Either way: pushes as you type (one undo entry per block), clicking away
+  finishes, Esc restores the document as it was when the block was opened. Filmstrip thumbnails mount the
   same render with the stamps STRIPPED, so a line added above a slide does
   not remount its thumbnail.
 - **The engine is injected** (`DeckEngine`): Marp lives in `preview/`, which

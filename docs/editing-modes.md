@@ -134,8 +134,9 @@ modes:
   screen, **arrow keys / Space / PgUp / PgDn / Home / End** to move, a number
   then **Enter** to jump, and a thin progress line along the bottom. **Esc**
   brings you back to the light table on the slide you were showing.
-- **Presenter view** — right-click the deck's tab → **Presenter view** (or
-  press **P** during the show, or find it in the command palette). A second
+- **Presenter view** — the **Presenter** button beside Present in the status
+  bar (or right-click the deck's tab → **Presenter view**, press **P** during
+  the show, or find it in the command palette). A second
   window opens with the current slide, the next slide, your speaker notes, a
   clock and a timer (click it to pause; **Reset** zeroes it). Drag it to your
   own screen, then press **F11** in the main window for the show on the
@@ -144,7 +145,9 @@ modes:
 
 - **Edit** — not the word-processor view (it would rewrite the comments and
   image syntax Marp relies on) but a filmstrip beside the rendered slide:
-  click a block to edit its text, drag slides to reorder, and set a slide's
+  click any heading, paragraph, list item or code block and type straight
+  into the slide (click away to finish, **Esc** to undo the edit; an image,
+  table or formula opens its markdown instead), drag slides to reorder, and set a slide's
   class, background and notes in the inspector. Each change touches only its
   own lines.
 

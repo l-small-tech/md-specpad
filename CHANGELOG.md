@@ -10,6 +10,13 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- **Edit slides in place.** In a deck's Edit mode, click any heading,
+  paragraph, list item or code block and type right on the slide — no more
+  popover with Revert / Done. Click away to finish; Esc undoes the edit.
+- A **Presenter** button now sits beside **Present** in the status bar.
+- The speaker notes box is taller and grows with your notes, so scrolling no
+  longer skips past a line.
+
 ## [0.11.1] — 2026-10-07
 
 - **Read PDFs in the app.** Opening a PDF now shows its pages (Review mode)
