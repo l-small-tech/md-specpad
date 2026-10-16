@@ -857,8 +857,8 @@ function usePhoneLayout(): boolean {
 /**
  * The "+" button's type picker: the ⌄ button beside it, alt-click,
  * right-click, long-press, or mod+Shift+N. A plain click on + never opens it —
- * it just makes another one of whatever is in front (core/new-tab.ts) — so the
- * menu is the explicit route to a type the inference would not have chosen.
+ * it always makes a new markdown note in the notes folder — so the menu is
+ * the route to every other type.
  *
  * It carries the app rows (Themes, Settings, the two full-screen stages)
  * under the tab kinds, and drills into the same Themes page the bar menu
@@ -1481,7 +1481,7 @@ export function TabBar() {
         </button>
       )}
       {/* The + and ⌄ pair share one floating pill (Windows Terminal style):
-          + makes another of whatever is in front, ⌄ is the explicit picker. */}
+          + makes a new note, ⌄ is the explicit picker. */}
       <div className="tabbar-actions" ref={actionsRef}>
         <button
           className="tab-new"
@@ -1489,7 +1489,7 @@ export function TabBar() {
           title="New tab (Ctrl/Cmd+N) — Alt-click or right-click to choose a type"
           onClick={(e) => {
             // Alt-click is the mouse's route to the picker; a plain click makes
-            // another one of whatever is in front.
+            // a new note in the notes folder.
             if (e.altKey) {
               openPicker();
             } else {

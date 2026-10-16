@@ -63,8 +63,7 @@ export function runShortcutAction(action: ShortcutAction): void {
   const store = tabsStore.getState();
   switch (action.type) {
     case 'new-tab':
-      // "New tab" has always meant a tab, not a note: from a terminal or a
-      // drawing it makes another one of those (core/new-tab.ts).
+      // Same as a plain "+": a new markdown note in the notes folder.
       newTabDefault();
       break;
     case 'new-window':

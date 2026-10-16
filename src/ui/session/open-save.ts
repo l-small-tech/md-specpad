@@ -55,8 +55,12 @@ export function createOpenSave(ctx: SessionCtx, saveFileTab: (id: string) => Pro
       uiStore.getState().showNotice('This document is read-only.');
       return;
     }
+    // A note's dialog opens in the notes folder (where the note already
+    // lives), not wherever the OS last left the save dialog.
     const suggested =
-      tab.kind === 'file' ? (tab.filePath ?? undefined) : `${slugifyTitle(tab.title)}.md`;
+      tab.kind === 'file'
+        ? (tab.filePath ?? undefined)
+        : joinPath(ctx.notesDir, `${slugifyTitle(tab.title)}.md`);
     const target = await ctx.saveDialog(suggested);
     if (!target) {
       return; // user cancelled
