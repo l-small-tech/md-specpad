@@ -358,6 +358,8 @@ pub fn run() {
             commands::fs::rename_path,
             commands::fs::delete_path,
             commands::fs::stat_path,
+            #[cfg(desktop)]
+            commands::fs::open_dir,
             commands::search::search_notes,
             #[cfg(desktop)]
             commands::watch::watch_dirs,

@@ -472,6 +472,8 @@ export const ipc = {
   renamePath: (from: string, to: string) => call<void>('rename_path', { from, to }),
   deletePath: (path: string) => call<void>('delete_path', { path }),
   statPath: (path: string) => call<PathStat>('stat_path', { path }),
+  /** Desktop only: open a folder (folders only) in the OS file manager. */
+  openDir: (path: string) => call<void>('open_dir', { path }),
   /** Files from first-launch argv; call once at boot (see src-tauri/src/lib.rs). */
   drainStartupFiles: () => call<string[]>('drain_startup_files'),
   /**

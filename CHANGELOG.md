@@ -10,6 +10,9 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- **Open in explorer** on a workspace or folder's right-click menu opens it
+  in your system's file manager.
+
 ## [0.11.1] — 2026-10-07
 
 - **Read PDFs in the app.** Opening a PDF now shows its pages (Review mode)

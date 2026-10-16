@@ -81,6 +81,8 @@ Right-click gets you everywhere:
   **Folder** (the same page also makes a vector drawing, a Marp presentation,
   a terminal, or an AI session in that folder). A new file opens immediately with its name ready to
   type.
+- **Right-click a workspace or folder** → **Open in explorer** opens that
+  folder in your system's file manager (desktop).
 - **Right-click a file** → **Rename**, **Reveal in explorer** (shows the
   file in your system's file manager), **Open in new window**, **Cut** /
   **Copy** / **Paste** (move or copy it between folders), **Copy path**,
