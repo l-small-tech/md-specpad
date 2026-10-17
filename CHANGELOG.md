@@ -10,6 +10,10 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- Windows: the heading right-click menu's **Mark heading** submenu now sits
+  right next to the pointer — at the top when the menu drops down, at the
+  bottom when it opens upward near the foot of the screen.
+
 ## [0.12.0] — 2026-10-16
 
 - **Open in explorer** on a workspace or folder's right-click menu opens it
