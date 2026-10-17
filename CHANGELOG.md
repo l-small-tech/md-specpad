@@ -10,11 +10,7 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
-- Windows: the heading right-click menu's **Mark heading** submenu now sits
-  right next to the pointer — at the top when the menu drops down, at the
-  bottom when it opens upward near the foot of the screen.
-
-## [0.12.0] — 2026-10-16
+## [0.12.0] — 2026-10-17
 
 - **Open in explorer** on a workspace or folder's right-click menu opens it
   in your system's file manager.
@@ -32,6 +28,11 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 - A **Presenter** button now sits beside **Present** in the status bar.
 - The speaker notes box is taller and grows with your notes, so scrolling no
   longer skips past a line.
+- Windows: the heading right-click menu's **Mark heading** submenu now sits
+  right next to the pointer — at the top when the menu drops down, at the
+  bottom when it opens upward near the foot of the screen.
+- Windows: the text cursor is now easy to see on light themes — a bolder
+  I-beam that stays dark on light paper and light on dark.
 
 ## [0.11.1] — 2026-10-07
 
