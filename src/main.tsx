@@ -95,7 +95,7 @@ import { startWatchingDirs } from './ui/watch-dirs';
 import { searchStore } from './ui/stores/search';
 import { closeOverview, notesOverviewStore } from './ui/notes-overview';
 import { closeWorkspaceInit, workspaceInitStore } from './ui/workspace-init';
-import { isAndroid } from './ui/platform';
+import { isAndroid, isWindows } from './ui/platform';
 import { spawnedWindowChrome } from './ui/window-chrome';
 import { globalCoordsTrusted } from './ui/global-coords';
 import { removeBootSplash, restoreStatusText, setBootStatus } from './ui/boot-splash';
@@ -189,6 +189,12 @@ subscribeDark(applyDomSettings);
 // runtime never changes.
 if (isAndroid()) {
   document.documentElement.dataset.android = 'true';
+}
+
+// Windows: base.css swaps the system I-beam (a thin white beam WebView2 loses
+// on light themes) for a haloed one under this flag. Also set once.
+if (isWindows()) {
+  document.documentElement.dataset.windows = 'true';
 }
 
 /* ---- Pluggable themes → injected <style> -------------------------------- */
