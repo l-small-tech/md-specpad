@@ -162,6 +162,59 @@ html[data-cursor='underscore'] .cm-cursor {
   border-bottom: 2px solid var(--fg);
 }
 
+/*
+ * Text (I-beam) mouse pointer. On Windows the system I-beam is a 1px inverting
+ * cursor that WebView2 draws white, so it all but vanishes on a light writing
+ * surface (Light Green's near-white paper). There we swap in our own: a 2px
+ * beam with a contrasting halo, dark-on-light or light-on-dark by theme mode,
+ * so it reads on any background (including the always-white slide frame).
+ * Elsewhere --cursor-text is just `text` — macOS and GTK already draw an
+ * outlined beam. main.tsx sets `data-windows` on <html>.
+ *
+ * Native `auto` turns into a beam over editable and text content without any
+ * rule saying `text`, so the override has to name those surfaces itself. The
+ * :where() keeps it at zero specificity: any component that sets its own
+ * cursor (links, widgets, resize handles) still wins.
+ */
+:root {
+  --cursor-text: text;
+}
+:root[data-windows] {
+  --cursor-text:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 6.5h1.5a2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1 2.5-2.5H20M16 9v14M12 25.5h1.5a2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0 2.5 2.5H20' stroke='white' stroke-width='4'/%3E%3Cpath d='M12 6.5h1.5a2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1 2.5-2.5H20M16 9v14M12 25.5h1.5a2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0 2.5 2.5H20' stroke='%23111' stroke-width='2'/%3E%3C/g%3E%3C/svg%3E")
+      16 16,
+    text;
+}
+:root[data-windows][data-theme='dark'] {
+  --cursor-text:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 6.5h1.5a2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1 2.5-2.5H20M16 9v14M12 25.5h1.5a2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0 2.5 2.5H20' stroke='%23111' stroke-width='4'/%3E%3Cpath d='M12 6.5h1.5a2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1 2.5-2.5H20M16 9v14M12 25.5h1.5a2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0 2.5 2.5H20' stroke='white' stroke-width='2'/%3E%3C/g%3E%3C/svg%3E")
+      16 16,
+    text;
+}
+:where(:root[data-windows])
+  :where(
+    [contenteditable]:not([contenteditable='false']),
+    textarea:not(:disabled),
+    input:not([type]):not(:disabled),
+    input:is(
+        [type='text'],
+        [type='search'],
+        [type='email'],
+        [type='url'],
+        [type='password'],
+        [type='number'],
+        [type='tel']
+      ):not(:disabled),
+    .preview :is(p, li, h1, h2, h3, h4, h5, h6, td, th, dt, dd, pre)
+  ) {
+  cursor: var(--cursor-text);
+}
+/* A non-editable island inside an editor (a widget, an image) gets the native
+   pointer back rather than inheriting the beam. */
+:where(:root[data-windows]) :where([contenteditable] [contenteditable='false']) {
+  cursor: auto;
+}
+
 ::selection {
   background: var(--selection);
 }

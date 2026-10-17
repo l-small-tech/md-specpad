@@ -41,7 +41,7 @@
 }
 
 .wb-stage[data-tool='text'] {
-  cursor: text;
+  cursor: var(--cursor-text);
 }
 
 .wb-stage.wb-panning {
