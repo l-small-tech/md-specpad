@@ -10,6 +10,8 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-10-16
+
 - **Open in explorer** on a workspace or folder's right-click menu opens it
   in your system's file manager.
 - Git tab: **Auto-stage** on commit, like VS Code's smart commit — with
