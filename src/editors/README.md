@@ -177,8 +177,10 @@ has no gaps. Only the band's outer end is trimmed.
 - `heading-mark-menu.ts` is the shared menu. On Windows it does NOT cancel
   the native menu (that would hide the spell checker's suggestions, which no
   web API exposes): it stashes the items on `window.__mdSpecpadNativeMenu`
-  and `src-tauri/src/native_menu.rs` appends them to WebView2's menu under a
-  deferral (an item with `children` becomes a native submenu), calling `select(id)` on a pick. A capture-phase `contextmenu`
+  and `src-tauri/src/native_menu.rs` adds them to WebView2's menu under a
+  deferral (an item with `children` becomes a native submenu), calling `select(id)` on a pick.
+  They go on the pointer's side: the top of a menu that drops down, the
+  bottom of one that flips up (predicted from the monitor's work area). A capture-phase `contextmenu`
   listener clears the stash on every right-click. Other platforms cancel the
   native menu and open `whiteboard-menu.ts`'s `openContextMenu` instead. Only
   heading right-clicks are touched; everywhere else the native menu stays.

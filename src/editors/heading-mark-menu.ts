@@ -12,7 +12,8 @@
  * heading word:
  *
  * - Windows: the native menu opens as usual and a Mark heading submenu
- *   joins it (one row, so the spelling items are not pushed off screen).
+ *   joins it (one row, so the spelling items are not pushed off screen),
+ *   at the end nearest the pointer.
  *   `src-tauri/src/native_menu.rs` reads them from `window.__mdSpecpadNativeMenu`
  *   while the menu is being built and calls `select(id)` on a pick.
  * - elsewhere: the app's own DOM menu replaces the native one (no native

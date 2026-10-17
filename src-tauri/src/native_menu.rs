@@ -4,8 +4,14 @@
 //! used to be the app's own DOM menu, which meant cancelling the native one —
 //! and with it the spell checker's suggestions, which only the native menu
 //! has (no web API exposes them). On Windows the page now lets the native menu
-//! open and this hook appends the page's items to it, so one menu carries
-//! both.
+//! open and this hook adds the page's items to it, so one menu carries both.
+//!
+//! The items go on the cursor's side of the menu: at the top when it drops
+//! down from the pointer, at the bottom when it flips up (a right-click near
+//! the bottom of the screen). WebView2 does not say which way it will open,
+//! so `opens_up` predicts it the way Chromium decides — does the menu fit
+//! between the pointer and the bottom of the monitor's work area — from an
+//! estimate of the menu's height.
 //!
 //! The page owns the items: its `contextmenu` handler stashes them on
 //! `window.__mdSpecpadNativeMenu` (`src/editors/heading-mark-menu.ts`), and a
@@ -15,8 +21,8 @@
 //! into the page with the item's id. A page with no stash gets the native
 //! menu untouched.
 //!
-//! No unit test: everything here needs a live WebView2; covered by the QA
-//! checklist instead.
+//! Only `opens_up` is unit-tested: the rest needs a live WebView2 and is
+//! covered by the QA checklist instead.
 
 use serde::Deserialize;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
@@ -29,6 +35,28 @@ use webview2_com::{
     ContextMenuRequestedEventHandler, CustomItemSelectedEventHandler, ExecuteScriptCompletedHandler,
 };
 use windows::core::{Interface, HSTRING};
+use windows::Win32::Foundation::POINT;
+use windows::Win32::Graphics::Gdi::{
+    GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+};
+use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
+use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+/// Rough heights of the native (Chromium-drawn) menu's rows at 100% scale,
+/// in DIPs. An estimate only: a wrong guess just puts the page's items at
+/// the far end of the menu for a right-click right on the flip line.
+const ROW_HEIGHT: i32 = 32;
+const SEPARATOR_HEIGHT: i32 = 9;
+const MENU_PADDING: i32 = 8;
+
+/// Will a menu `height` px tall, opened at `cursor_y`, flip up above the
+/// pointer? Chromium drops it down when it fits below, else opens it on
+/// the side with more room. All values in the same (physical) pixels.
+fn opens_up(cursor_y: i32, work_top: i32, work_bottom: i32, height: i32) -> bool {
+    let below = work_bottom - cursor_y;
+    let above = cursor_y - work_top;
+    height > below && above > below
+}
 
 /// What the page asks the menu to show (`null` → nothing; see module docs).
 #[derive(Deserialize)]
@@ -80,6 +108,10 @@ unsafe fn register(platform: &tauri::webview::PlatformWebview) -> windows::core:
                 return Ok(());
             };
             let deferral = args.GetDeferral()?;
+            // Where the pointer is now — by the time the page answers it may
+            // have moved. A failure (no cursor) reads as "drops down".
+            let mut cursor = POINT::default();
+            let cursor = GetCursorPos(&mut cursor).ok().map(|_| cursor);
             let env = env.clone();
             let sender_for_pick = sender.clone();
             sender.ExecuteScript(
@@ -89,7 +121,7 @@ unsafe fn register(platform: &tauri::webview::PlatformWebview) -> windows::core:
                         if let Ok(Some(items)) =
                             serde_json::from_str::<Option<Vec<PageItem>>>(&json)
                         {
-                            if let Err(e) = append(&args, &env, &sender_for_pick, &items) {
+                            if let Err(e) = append(&args, &env, &sender_for_pick, &items, cursor) {
                                 log::warn!("native menu items not added: {e}");
                             }
                         }
@@ -108,6 +140,7 @@ unsafe fn append(
     env: &ICoreWebView2Environment9,
     core: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2,
     items: &[PageItem],
+    cursor: Option<POINT>,
 ) -> windows::core::Result<()> {
     if items.is_empty() {
         return Ok(());
@@ -115,22 +148,78 @@ unsafe fn append(
     let menu = args.MenuItems()?;
     let mut count = 0u32;
     menu.Count(&mut count)?;
-    // A separator between the native items (spelling, cut/copy/paste) and
-    // the page's own — unless the native menu came up empty.
-    if count > 0 {
-        let sep = env.CreateContextMenuItem(
-            &HSTRING::new(),
-            None,
-            COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
-        )?;
-        menu.InsertValueAtIndex(count, &sep)?;
-        count += 1;
+    let native_height = (0..count)
+        .map(|i| {
+            let mut kind = COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_COMMAND;
+            let separator = menu
+                .GetValueAtIndex(i)
+                .and_then(|item| item.Kind(&mut kind))
+                .is_ok()
+                && kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR;
+            if separator {
+                SEPARATOR_HEIGHT
+            } else {
+                ROW_HEIGHT
+            }
+        })
+        .sum::<i32>();
+    let page_height = items
+        .iter()
+        .map(|item| {
+            if item.separator {
+                SEPARATOR_HEIGHT
+            } else {
+                ROW_HEIGHT
+            }
+        })
+        .sum::<i32>();
+    let separator = if count > 0 { SEPARATOR_HEIGHT } else { 0 };
+    let height = MENU_PADDING + native_height + separator + page_height;
+    let at_bottom = cursor.is_some_and(|cursor| flips_up(cursor, height));
+
+    // The page's items on the pointer's side, then a separator between them
+    // and the native items (spelling, cut/copy/paste) — unless the native
+    // menu came up empty.
+    let mut index = if at_bottom { count } else { 0 };
+    if at_bottom && count > 0 {
+        menu.InsertValueAtIndex(index, &separator_item(env)?)?;
+        index += 1;
     }
     for item in items {
-        menu.InsertValueAtIndex(count, &build(env, core, item)?)?;
-        count += 1;
+        menu.InsertValueAtIndex(index, &build(env, core, item)?)?;
+        index += 1;
+    }
+    if !at_bottom && count > 0 {
+        menu.InsertValueAtIndex(index, &separator_item(env)?)?;
     }
     Ok(())
+}
+
+/// `opens_up` for a menu `height` DIPs tall at `cursor` (screen pixels), on
+/// whichever monitor the pointer is on.
+unsafe fn flips_up(cursor: POINT, height: i32) -> bool {
+    let monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
+    let mut info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    if !GetMonitorInfoW(monitor, &mut info).as_bool() {
+        return false;
+    }
+    let (mut dpi, mut dpi_y) = (96u32, 96u32);
+    let _ = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi, &mut dpi_y);
+    let height = height * dpi as i32 / 96;
+    opens_up(cursor.y, info.rcWork.top, info.rcWork.bottom, height)
+}
+
+unsafe fn separator_item(
+    env: &ICoreWebView2Environment9,
+) -> windows::core::Result<ICoreWebView2ContextMenuItem> {
+    env.CreateContextMenuItem(
+        &HSTRING::new(),
+        None,
+        COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
+    )
 }
 
 /// One page item as a native menu entry; an item with `children` becomes a
@@ -141,11 +230,7 @@ unsafe fn build(
     item: &PageItem,
 ) -> windows::core::Result<ICoreWebView2ContextMenuItem> {
     if item.separator {
-        return env.CreateContextMenuItem(
-            &HSTRING::new(),
-            None,
-            COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR,
-        );
+        return separator_item(env);
     }
     let kind = if item.children.is_some() {
         COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SUBMENU
@@ -189,4 +274,33 @@ unsafe fn build(
         )?;
     }
     Ok(entry)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::opens_up;
+
+    #[test]
+    fn drops_down_when_it_fits_below() {
+        assert!(!opens_up(100, 0, 1040, 300));
+        assert!(!opens_up(740, 0, 1040, 300));
+    }
+
+    #[test]
+    fn flips_up_near_the_bottom() {
+        assert!(opens_up(900, 0, 1040, 300));
+    }
+
+    #[test]
+    fn stays_down_when_there_is_less_room_above() {
+        // Fits neither way: Chromium keeps the roomier side.
+        assert!(!opens_up(200, 0, 500, 400));
+        assert!(opens_up(300, 0, 500, 400));
+    }
+
+    #[test]
+    fn work_area_offset_on_a_second_monitor() {
+        assert!(!opens_up(1180, 1080, 2120, 300));
+        assert!(opens_up(2000, 1080, 2120, 300));
+    }
 }
