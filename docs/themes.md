@@ -164,6 +164,7 @@ The keys:
 | `code`          | Inline code and code blocks. |
 | `quote`         | Blockquotes. |
 | `list`          | List bullets and numbers. |
+| `mention`       | `@path` imports in `CLAUDE.md`, `GEMINI.md` and `AGENTS.md`. |
 
 To color each heading level differently, set `heading1` through `heading6`
 instead of (or on top of) `heading`.

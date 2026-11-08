@@ -141,6 +141,12 @@ you; **Initialize workspace…** does the same for a folder you pick later:
 3. **Create.** Besides `AGENTS.md` you get a one-line `CLAUDE.md` and
    `GEMINI.md` that point at it, so those tools pick it up too.
 
+In the source editor, these three files get one extra: an `@path` line such
+as `@AGENTS.md` or `@docs/style.md` — how the agents pull another file in —
+is highlighted, so the imports stand out from the prose. E-mail addresses and
+`@` inside code are left alone. Themes recolor it with the `mention` key (see
+[Themes](themes.md)).
+
 To change your mind later, right-click the workspace → **Workspace
 directives…**. Ticking adds a section, unticking removes it. Anything you
 wrote in `AGENTS.md` yourself stays, and files the agent has filled in are

@@ -298,6 +298,13 @@ html[data-cursor='underscore'] .cm-cursor {
   font-variant-ligatures: none;
 }
 
+/* `@path` imports in CLAUDE.md / GEMINI.md / AGENTS.md (editors/agent-imports.ts).
+   Themes recolor through the `mention` syntax key. */
+.cm-agent-import {
+  color: var(--md-mention, var(--accent));
+  font-weight: 600;
+}
+
 /* Ghost text for an empty note (core/new-note-hint.ts): multi-line, muted,
    and never in the way of the caret. */
 /* The ghost is taken OUT of the line's flow: left inline, its many lines

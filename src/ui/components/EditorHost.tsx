@@ -23,6 +23,7 @@
 
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { isAgentFilePath } from '../../core/agent-files';
 import { codeLanguageFor } from '../../core/code/parse';
 import { identifierHint } from '../../core/code/vocab';
 import { isMarpDocument } from '../../core/deck';
@@ -519,6 +520,8 @@ function EditorHostImpl({ tabId, active }: { tabId: string; active: boolean }) {
                 : family === 'code'
                   ? (codeLanguageFor(tab.filePath ?? tab.notePath) ?? 'plain')
                   : 'markdown',
+            // CLAUDE.md / GEMINI.md / AGENTS.md: light up their @path imports.
+            agentFile: isAgentFilePath(tab.filePath ?? tab.notePath),
           });
           sourceAdapterRef.current = adapter;
           registerSourceAdapter(tabId, adapter);

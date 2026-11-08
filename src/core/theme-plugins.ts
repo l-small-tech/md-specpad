@@ -90,6 +90,7 @@ export const SYNTAX_KEYS = {
   code: '--md-code',
   quote: '--md-quote',
   list: '--md-list',
+  mention: '--md-mention',
 } as const;
 
 export type ThemeMode = 'light' | 'dark';

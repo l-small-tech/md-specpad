@@ -44,6 +44,7 @@ import { codeHighlightStyle, rustLanguage, tsLanguage } from './code-highlight';
 import { reindentLists } from './list-indent';
 import { plainDotsExtension } from './plain-dots';
 import { headingMarksExtension } from './heading-marks-cm6';
+import { agentImportsExtension } from './agent-imports';
 import { headingFoldExtension } from './heading-fold-cm6';
 import type { DocModel } from '../core/doc-model';
 import type { EditorAdapter } from '../core/mode-sync';
@@ -107,6 +108,13 @@ export interface Cm6Options {
    * nothing. All three drop the markdown behaviours.
    */
   language?: 'markdown' | 'xml' | 'plain' | 'ts' | 'rust';
+  /**
+   * The file is an agent instruction file (CLAUDE.md, GEMINI.md, AGENTS.md —
+   * core/agent-files.ts decides): its `@path` import lines are highlighted
+   * (editors/agent-imports.ts). Markdown only. Fixed when the editor mounts:
+   * renaming the file keeps the highlighting until the tab is reopened.
+   */
+  agentFile?: boolean;
 }
 
 /** Ribbon formatting actions the adapter can apply to the current selection. */
@@ -989,6 +997,7 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
         copyEnrichHandler,
         plainDotsExtension,
         ...(isMarkdown ? [headingMarksExtension] : []),
+        ...(isMarkdown && options.agentFile ? [agentImportsExtension] : []),
         addedFlashField,
         removedFlashField,
         linkedField,
