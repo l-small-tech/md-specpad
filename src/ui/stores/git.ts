@@ -619,6 +619,13 @@ export const LOG_PAGE = 50;
 /** Streamed output lines kept per network op (the drawer shows the tail). */
 /** The pause before the second `git worktree remove` when a just-closed shell still holds the directory. */
 export const WORKTREE_REMOVE_RETRY_MS = 400;
+/**
+ * The pause before a background read is retried once. A read that lands
+ * while another process rewrites `.git/HEAD`, adds or removes a worktree or
+ * holds the index lock fails with "not a git repository" or a lock error
+ * and succeeds a moment later.
+ */
+export const READ_RETRY_MS = 400;
 
 export const OP_LINE_CAP = 500;
 
@@ -637,6 +644,8 @@ interface RepoInternals {
   finishRunning: boolean;
   /** HEAD of the tracker's checkout when it was armed — moved = merge committed. */
   trackerHead: string | null;
+  /** `error` came from a background read: the next clean refresh retires it. */
+  readFailed: boolean;
 }
 
 const newInternals = (): RepoInternals => ({
@@ -648,7 +657,11 @@ const newInternals = (): RepoInternals => ({
   opCancel: null,
   finishRunning: false,
   trackerHead: null,
+  readFailed: false,
 });
+
+/** Failures a second attempt a moment later may not repeat. */
+const TRANSIENT_READ_CODES: ReadonlySet<string> = new Set(['GIT_NOT_A_REPO', 'GIT_FAILED']);
 
 const sameCheckout = (a: string, b: string) => checkoutKey(a) === checkoutKey(b);
 
@@ -918,8 +931,90 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
     /** Record a failed call and say so. */
     const fail = (mainRoot: string, err: unknown) => {
       const message = gitFailureText(err);
+      it(mainRoot).readFailed = false;
       patch(mainRoot, () => ({ error: { code: errorCode(err) ?? 'ERROR', message } }));
       getDeps().notice(message);
+    };
+
+    /**
+     * A background read failed for good: recorded like any failure, but the
+     * next refresh that reads cleanly retires it (`readSucceeded`). The raw
+     * error is logged once so a report carries git's own words.
+     */
+    const failRead = (mainRoot: string, root: string, err: unknown) => {
+      console.warn('[git] read failed', root, err);
+      fail(mainRoot, err);
+      it(mainRoot).readFailed = true;
+    };
+
+    /** A clean read pass: a stale read failure in the status bar is over. */
+    const readSucceeded = (mainRoot: string) => {
+      const state = it(mainRoot);
+      if (state.readFailed) {
+        state.readFailed = false;
+        patch(mainRoot, () => ({ error: null }));
+      }
+    };
+
+    /** Run a read, retrying once after `READ_RETRY_MS` when the failure looks transient. */
+    const readWithRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
+      try {
+        return await fn();
+      } catch (err) {
+        if (!TRANSIENT_READ_CODES.has(errorCode(err) ?? '')) {
+          throw err;
+        }
+        await new Promise((resolve) => setTimeout(resolve, READ_RETRY_MS));
+        return await fn();
+      }
+    };
+
+    /**
+     * A read in a linked checkout said "not a git repository" while the main
+     * checkout is fine: its admin directory is gone (pruned by hand, removed
+     * by another tool). The card is marked missing and the view falls back
+     * to the main checkout instead of wearing a red notice. True when the
+     * failure was handled that way.
+     */
+    const fallBackFromBrokenCheckout = async (
+      mainRoot: string,
+      sel: string,
+      err: unknown,
+    ): Promise<boolean> => {
+      if (errorCode(err) !== 'GIT_NOT_A_REPO' || sameCheckout(sel, mainRoot)) {
+        return false;
+      }
+      const stillShown = () => {
+        const r = repo(mainRoot);
+        return r !== undefined && sameCheckout(r.selectedCheckout, sel);
+      };
+      if (!stillShown()) {
+        // A sibling read got here first.
+        return true;
+      }
+      try {
+        await getDeps().ipc.gitRepoInfo(mainRoot);
+      } catch {
+        return false;
+      }
+      if (!stillShown()) {
+        return true;
+      }
+      it(mainRoot).explicitCheckout = true;
+      patch(mainRoot, (r) => ({
+        checkouts: r.checkouts.map((c) =>
+          sameCheckout(c.path, sel) && c.summary
+            ? { ...c, summary: { ...c.summary, missing: true } }
+            : c,
+        ),
+        selectedCheckout: mainRoot,
+        ...clearedForCheckout(),
+      }));
+      getDeps().notice(
+        `${relCheckout(mainRoot, sel)} is no longer a worktree — showing the main checkout`,
+      );
+      void get().refresh(mainRoot, { force: true, parts: ['status', 'branches', 'log'] });
+      return true;
     };
 
     /**
@@ -934,6 +1029,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       const state = it(mainRoot);
       state.inflight += 1;
       // A new action retires the previous failure's header line.
+      state.readFailed = false;
       patch(mainRoot, () => ({ error: null }));
       let ok = true;
       try {
@@ -970,31 +1066,40 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       }
     };
 
-    const loadStatus = async (mainRoot: string, sel: string): Promise<void> => {
+    /*
+     * The readers resolve false when they recorded a failure, true otherwise
+     * (a read superseded by a newer one is not a failure: that one decides).
+     */
+
+    const loadStatus = async (mainRoot: string, sel: string): Promise<boolean> => {
       const state = it(mainRoot);
       const seq = ++state.seq.status;
       setLoading(mainRoot, 'status', true);
       let status: GitStatus;
       try {
-        status = await getDeps().ipc.gitStatus(sel);
+        status = await readWithRetry(() => getDeps().ipc.gitStatus(sel));
       } catch (err) {
         if (seq !== state.seq.status) {
-          return;
+          return true;
         }
         setLoading(mainRoot, 'status', false);
-        fail(mainRoot, err);
-        return;
+        if (await fallBackFromBrokenCheckout(mainRoot, sel, err)) {
+          return true;
+        }
+        failRead(mainRoot, sel, err);
+        return false;
       }
       const current = repo(mainRoot);
       if (seq !== state.seq.status || !current || !sameCheckout(current.selectedCheckout, sel)) {
-        return;
+        return true;
       }
       const groups = groupStatus(status.entries);
       patch(mainRoot, (r) => ({ status, groups, loading: { ...r.loading, status: false } }));
       reconcileTracker(mainRoot, sel, status, groups);
+      return true;
     };
 
-    const loadBranches = async (mainRoot: string, sel: string): Promise<void> => {
+    const loadBranches = async (mainRoot: string, sel: string): Promise<boolean> => {
       const state = it(mainRoot);
       const seq = ++state.seq.branches;
       setLoading(mainRoot, 'branches', true);
@@ -1002,7 +1107,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       let remotes: GitRemote[] | null;
       try {
         [branches, remotes] = await Promise.all([
-          getDeps().ipc.gitBranches(sel),
+          readWithRetry(() => getDeps().ipc.gitBranches(sel)),
           // Best effort: a failure here keeps the last known list.
           getDeps()
             .ipc.gitRemotes(sel)
@@ -1010,47 +1115,55 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         ]);
       } catch (err) {
         if (seq !== state.seq.branches) {
-          return;
+          return true;
         }
         setLoading(mainRoot, 'branches', false);
-        fail(mainRoot, err);
-        return;
+        if (await fallBackFromBrokenCheckout(mainRoot, sel, err)) {
+          return true;
+        }
+        failRead(mainRoot, sel, err);
+        return false;
       }
       const current = repo(mainRoot);
       if (seq !== state.seq.branches || !current || !sameCheckout(current.selectedCheckout, sel)) {
-        return;
+        return true;
       }
       patch(mainRoot, (r) => ({
         branches,
         remotes: remotes ?? r.remotes,
         loading: { ...r.loading, branches: false },
       }));
+      return true;
     };
 
-    const loadLog = async (mainRoot: string, sel: string, skip: number): Promise<void> => {
+    const loadLog = async (mainRoot: string, sel: string, skip: number): Promise<boolean> => {
       const state = it(mainRoot);
       const seq = ++state.seq.log;
       setLoading(mainRoot, 'log', true);
       let rows: GitCommit[];
       try {
-        rows = await getDeps().ipc.gitLog(sel, null, LOG_PAGE, skip, true);
+        rows = await readWithRetry(() => getDeps().ipc.gitLog(sel, null, LOG_PAGE, skip, true));
       } catch (err) {
         if (seq !== state.seq.log) {
-          return;
+          return true;
         }
         setLoading(mainRoot, 'log', false);
-        fail(mainRoot, err);
-        return;
+        if (await fallBackFromBrokenCheckout(mainRoot, sel, err)) {
+          return true;
+        }
+        failRead(mainRoot, sel, err);
+        return false;
       }
       const current = repo(mainRoot);
       if (seq !== state.seq.log || !current || !sameCheckout(current.selectedCheckout, sel)) {
-        return;
+        return true;
       }
       patch(mainRoot, (r) => ({
         log: skip === 0 ? rows : [...r.log, ...rows],
         logExhausted: rows.length < LOG_PAGE,
         loading: { ...r.loading, log: false },
       }));
+      return true;
     };
 
     /** What a checkout switch clears: everything read from the previous one. */
@@ -1076,13 +1189,21 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       if (!before) {
         return;
       }
+      // Whether every read of this pass came back: only then is a stale
+      // read failure retired.
+      let clean = true;
 
       if (parts.has('worktrees') || before.info === null) {
         const seq = ++state.seq.info;
         setLoading(mainRoot, 'worktrees', true);
         let info: GitRepoInfo;
         try {
-          info = await deps.ipc.gitRepoInfo(mainRoot, baseArg);
+          // A folder that is not a repository is told so at once; a repository
+          // that was fine a moment ago gets the retry.
+          info =
+            before.info === null
+              ? await deps.ipc.gitRepoInfo(mainRoot, baseArg)
+              : await readWithRetry(() => deps.ipc.gitRepoInfo(mainRoot, baseArg));
         } catch (err) {
           if (seq !== state.seq.info || !repo(mainRoot)) {
             return;
@@ -1094,7 +1215,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
             }));
           } else {
             setLoading(mainRoot, 'worktrees', false);
-            fail(mainRoot, err);
+            failRead(mainRoot, mainRoot, err);
           }
           return;
         }
@@ -1103,12 +1224,13 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         }
         let summaries: Awaited<ReturnType<GitIpc['gitWorktrees']>> | null = null;
         try {
-          summaries = await deps.ipc.gitWorktrees(mainRoot, baseArg);
+          summaries = await readWithRetry(() => deps.ipc.gitWorktrees(mainRoot, baseArg));
         } catch (err) {
           if (seq !== state.seq.info || !repo(mainRoot)) {
             return;
           }
-          fail(mainRoot, err);
+          clean = false;
+          failRead(mainRoot, mainRoot, err);
         }
         if (seq !== state.seq.info || !repo(mainRoot)) {
           return;
@@ -1149,7 +1271,7 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         return;
       }
       const sel = current.selectedCheckout;
-      const jobs: Promise<void>[] = [];
+      const jobs: Promise<boolean>[] = [];
       if (parts.has('status')) {
         jobs.push(loadStatus(mainRoot, sel));
       }
@@ -1159,7 +1281,10 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       if (parts.has('log')) {
         jobs.push(loadLog(mainRoot, sel, 0));
       }
-      await Promise.all(jobs);
+      const results = await Promise.all(jobs);
+      if (clean && results.every(Boolean) && repo(mainRoot)) {
+        readSucceeded(mainRoot);
+      }
     };
 
     /* -------------------------------- diffs ------------------------------- */

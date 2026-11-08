@@ -87,6 +87,9 @@ describe('gitFailureText', () => {
       'Git is not installed or not on PATH',
     );
     expect(gitFailureText(new CodedError('GIT_NOT_A_REPO', 'x'))).toBe('Not a git repository');
+    expect(
+      gitFailureText(new CodedError('GIT_NOT_A_REPO', 'not a git repository: C:/r/worktrees/x')),
+    ).toBe('Not a git repository: C:/r/worktrees/x');
     expect(gitFailureText(new CodedError('GIT_UNTRUSTED', 'x'))).toBe(
       'Git does not trust this folder — it is owned by another user',
     );

@@ -535,9 +535,7 @@ mod tests {
         let plain = root.join("worktrees").join("plain");
         std::fs::create_dir_all(&plain).unwrap();
         assert!(!is_orphaned_worktree_of(&root, &plain));
-        // (The runner classifies git's "is not a working tree" as NotARepo.)
         match worktree_remove(&root, &s(&plain), false) {
-            Err(GitError::NotARepo(_)) => {}
             Err(GitError::Failed { stderr }) => {
                 assert!(stderr.contains("not a working tree"), "{stderr}")
             }

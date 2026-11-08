@@ -236,9 +236,11 @@ fn git_line_opt(root: &Path, args: &[&str]) -> GitResult<Option<String>> {
     Ok((!line.is_empty()).then_some(line))
 }
 
+/// git's "fatal: not a git repository (or any of the parent directories)",
+/// and only that: `worktree remove`'s "'x' is not a working tree" is a plain
+/// folder being refused, which `worktree_remove` recognises on its own.
 fn is_not_a_repo(stderr: &str) -> bool {
-    let lower = stderr.to_lowercase();
-    lower.contains("not a git repository") || lower.contains("not a working tree")
+    stderr.to_lowercase().contains("not a git repository")
 }
 
 /// The path git names when its `safe.directory` check refuses a repository,
@@ -896,6 +898,24 @@ mod tests {
         assert!(is_not_a_repo(
             "fatal: not a git repository (or any of the parent directories): .git"
         ));
+        assert!(!is_not_a_repo("fatal: 'C:/x' is not a working tree"));
+    }
+
+    #[test]
+    fn classify_tells_a_missing_repo_from_a_plain_failure() {
+        let root = Path::new("C:/repo/worktrees/x");
+        match classify("fatal: not a git repository: 'C:/repo/.git/worktrees/x'", root) {
+            GitError::NotARepo(p) => assert_eq!(p, "C:/repo/worktrees/x"),
+            other => panic!("{other:?}"),
+        }
+        match classify("fatal: 'C:/x' is not a working tree", root) {
+            GitError::Failed { stderr } => assert!(stderr.contains("not a working tree")),
+            other => panic!("{other:?}"),
+        }
+        match classify("fatal: Unable to create '.git/index.lock': File exists.", root) {
+            GitError::Failed { .. } => {}
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

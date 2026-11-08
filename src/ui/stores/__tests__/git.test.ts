@@ -14,6 +14,7 @@ import {
   createGitStore,
   LOG_PAGE,
   OP_LINE_CAP,
+  READ_RETRY_MS,
   REFRESH_THROTTLE_MS,
   WORKTREE_REMOVE_RETRY_MS,
   repoKey,
@@ -363,6 +364,89 @@ describe('refresh', () => {
     await h.s().refresh(MAIN, { force: true });
     expect(h.r().error).toEqual({ code: 'GIT_FAILED', message: 'Git: broken' });
     expect(h.notices()).toEqual(['Git: broken']);
+  });
+
+  test('a read that fails once and succeeds on retry is not an error', async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      h.ipc.gitStatus.mockRejectedValueOnce(
+        new IpcError('GIT_NOT_A_REPO', 'not a git repository: C:/repo'),
+      );
+      const opened = h.open();
+      await vi.advanceTimersByTimeAsync(READ_RETRY_MS + 1);
+      await opened;
+      expect(h.ipc.gitStatus).toHaveBeenCalledTimes(2);
+      expect(h.r().error).toBeNull();
+      expect(h.r().status?.branch).toBe('development');
+      expect(h.notices()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a read failure names the path and is retired by the next clean refresh', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const h = harness();
+      await h.open();
+      h.ipc.gitStatus.mockRejectedValue(
+        new IpcError('GIT_NOT_A_REPO', 'not a git repository: C:/repo'),
+      );
+      const failing = h.s().refresh(MAIN, { force: true, parts: ['status'] });
+      await vi.advanceTimersByTimeAsync(READ_RETRY_MS + 1);
+      await failing;
+      expect(h.r().error).toEqual({
+        code: 'GIT_NOT_A_REPO',
+        message: 'Not a git repository: C:/repo',
+      });
+      expect(warn).toHaveBeenCalledWith('[git] read failed', MAIN, expect.any(IpcError));
+
+      h.ipc.gitStatus.mockImplementation((root: string) => Promise.resolve(statusFor(root)));
+      await h.s().refresh(MAIN, { force: true, parts: ['status'] });
+      expect(h.r().error).toBeNull();
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  test('a mutation failure stays until the next action; the refresh after it does not clear it', async () => {
+    const h = harness();
+    await h.open();
+    h.ipc.gitStage.mockRejectedValue(new IpcError('GIT_FAILED', 'fatal: nope'));
+    await h.s().stage(MAIN, ['x']);
+    expect(h.r().error?.message).toBe('Git: nope');
+    await h.s().refresh(MAIN, { force: true });
+    expect(h.r().error?.message).toBe('Git: nope');
+  });
+
+  test('a linked checkout that is no longer a worktree is marked missing; the view falls back to main', async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      await h.open(WT);
+      expect(h.r().selectedCheckout).toBe(WT);
+      h.ipc.gitStatus.mockImplementation((root: string) =>
+        root === WT
+          ? Promise.reject(
+              new IpcError('GIT_NOT_A_REPO', 'not a git repository: C:/repo/.git/worktrees/a'),
+            )
+          : Promise.resolve(statusFor(root)),
+      );
+      const refreshed = h.s().refresh(MAIN, { force: true, parts: ['status', 'branches', 'log'] });
+      await vi.advanceTimersByTimeAsync(READ_RETRY_MS + 1);
+      await refreshed;
+      await vi.advanceTimersByTimeAsync(1);
+      expect(h.r().selectedCheckout).toBe(MAIN);
+      expect(h.r().checkouts.find((c) => c.path === WT)?.summary?.missing).toBe(true);
+      expect(h.r().error).toBeNull();
+      expect(h.notices()).toEqual(['worktrees/a is no longer a worktree — showing the main checkout']);
+      expect(h.r().status?.branch).toBe('development');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('an untrusted repository is a state; trusting it confirms, trusts and reloads', async () => {
