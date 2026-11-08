@@ -8,7 +8,7 @@ release notes and refuses to build a tag that has none.
 Keep an `## [Unreleased]` section at the top while working; rename it to
 `## [X.Y.Z] — YYYY-MM-DD` when bumping the version.
 
-## [Unreleased]
+## [0.13.0] — 2026-11-07
 
 - Git tab: **Sync** and **Land** on every worktree card, in words. Sync
   fetches (when there is a remote) and merges the base branch into the
