@@ -378,8 +378,9 @@ export function tabDisplayTitle(tab: {
     return tab.customTitle ?? tab.terminalTitle ?? tab.title;
   }
   if (tab.kind === 'git') {
-    // Named after the repository's main folder, whichever worktree is shown.
-    return tab.customTitle ?? `Git: ${baseName(tab.gitRoot ?? '') || tab.gitRoot || 'repository'}`;
+    // Named after the repository's main folder, whichever worktree is shown;
+    // the tab's branch icon says what kind it is (no "Git:" prefix).
+    return tab.customTitle ?? (baseName(tab.gitRoot ?? '') || tab.gitRoot || 'repository');
   }
   if ((tab.kind === 'file' || tab.kind === 'image' || tab.kind === 'import') && tab.filePath) {
     return stripExtension(baseName(tab.filePath));

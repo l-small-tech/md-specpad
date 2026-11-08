@@ -814,7 +814,7 @@ describe('git tabs', () => {
     expect(tab.gitRoot).toBe('C:/code/proj');
     // No checkout named: the main root is shown.
     expect(tab.gitCheckout).toBe('C:/code/proj');
-    expect(mod.tabDisplayTitle(tab)).toBe('Git: proj');
+    expect(mod.tabDisplayTitle(tab)).toBe('proj');
     expect(state().activeTabId).toBe(id);
   });
 

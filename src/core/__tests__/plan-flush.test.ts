@@ -537,7 +537,7 @@ describe('planFlush — git tabs', () => {
             id: 'g1',
             kind: 'git',
             mode: 'tool',
-            title: 'Git: proj',
+            title: 'proj',
             sessionDirty: true,
             fileDirty: true,
             git,
