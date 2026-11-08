@@ -140,8 +140,14 @@ of this window's terminals is standing inside it. Each card offers:
 - **Terminal here** / **Harness here** — open a shell, or your AI agent, in
   that folder. Nothing is typed into it.
 - **Diff vs base** — the files the branch changed since it left the base.
-- **Merge** — the base into this branch (to catch up), or this branch into
-  the base (in the main checkout).
+- **Sync** — catch up with the base: fetch (when the repository has a
+  remote), then merge the base branch into this one, here. Disabled, reading
+  *Up to date*, when the branch is not behind. A merge that stops on
+  conflicts opens the Merge-conflicts panel like any other.
+- **Land** — merge this branch into the base, in the main checkout. Shown
+  once the branch is ahead of the base; it asks for what *Finish…* asks for
+  (this worktree and the main checkout clean, main on the base) and leaves
+  the worktree and branch in place.
 - **Finish…** — the guided end of a worktree, below.
 - **Remove** — remove the worktree. First it checks the worktree: one with
   uncommitted or untracked files, or a locked one, is refused straight away
@@ -154,6 +160,9 @@ of this window's terminals is standing inside it. Each card offers:
   to is left alone. Files git ignores (build output, `node_modules`) are
   deleted with the worktree. If git still refuses, the workspace entry is
   put back; terminals it closed stay closed, and the error message says so.
+
+Right-click a card (or press **Shift+F10** on a focused one) for the same
+actions as a menu, plus **Reveal in file manager** and **Copy path**.
 
 **New worktree** asks for a slug and does the whole dance: creates
 `worktrees/<slug>` on `<prefix><slug>` from the base branch, makes sure

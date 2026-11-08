@@ -58,6 +58,7 @@ import {
   finishPreflight,
   nextAction,
   reduceFinish,
+  syncPreflight,
   type FinishEvent,
   type FinishPreflightFacts,
 } from '../../core/git/finish-flow';
@@ -522,6 +523,20 @@ export interface GitState {
   closeWorktreeDialog: (mainRoot: string) => void;
   openWorktreeAsWorkspace: (mainRoot: string, path: string) => void;
   openTerminalIn: (mainRoot: string, path: string, harness: boolean) => void;
+  /**
+   * One-click catch-up: fetch (when the repository has a remote; the op
+   * drawer streams it), then merge the base branch into the checkout at
+   * `path`. Conflicts arm the tracker like any merge. Blockers
+   * (`syncPreflight`) are a notice.
+   */
+  syncWorktree: (mainRoot: string, path: string) => Promise<void>;
+  /**
+   * One-click landing: merge the checkout's branch into the base, in the main
+   * checkout — the Finish flow's merge step alone, with its preflight
+   * (`finishPreflight`): the worktree and main must be clean, main on the
+   * base. Nothing is removed afterwards; that is Finish….
+   */
+  landWorktree: (mainRoot: string, path: string) => Promise<void>;
 
   /* finish-worktree flow (one per repository at a time) */
   startFinish: (mainRoot: string, worktreePath: string) => Promise<void>;
@@ -1782,6 +1797,54 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
       }
     };
 
+    /**
+     * Fresh facts about a checkout for a preflight (Sync, Land, Finish…): the
+     * worktree list is re-read first, so the decision is not made on a stale
+     * dashboard. Null (after a notice) when the checkout is no longer listed.
+     */
+    const worktreeFacts = async (
+      mainRoot: string,
+      worktreePath: string,
+    ): Promise<{
+      checkout: GitCheckout;
+      main: GitCheckout | undefined;
+      base: string | null;
+      facts: FinishPreflightFacts;
+    } | null> => {
+      await get().refresh(mainRoot, { force: true, parts: ['worktrees'] });
+      const cur = repo(mainRoot);
+      if (!cur?.info) {
+        return null;
+      }
+      const checkout = cur.checkouts.find((c) => sameCheckout(c.path, worktreePath));
+      if (!checkout) {
+        getDeps().notice('That worktree is no longer listed');
+        return null;
+      }
+      const main = cur.checkouts.find((c) => c.isMain);
+      const base = cur.info.baseBranch;
+      const w = checkout.summary;
+      const m = main?.summary;
+      const facts: FinishPreflightFacts = {
+        worktree: w ?? {
+          isMain: checkout.isMain,
+          branch: checkout.branch,
+          staged: 0,
+          unstaged: 0,
+          untracked: 0,
+          conflicted: 0,
+          state: 'clean',
+        },
+        main: {
+          branch: m?.branch ?? main?.branch ?? null,
+          clean: m ? m.staged + m.unstaged + m.untracked + m.conflicted === 0 : true,
+          state: m?.state ?? 'clean',
+        },
+        base,
+      };
+      return { checkout, main, base, facts };
+    };
+
     /** Run steps until one waits, fails or the flow ends; re-entrant calls are no-ops. */
     const runFinish = async (mainRoot: string): Promise<void> => {
       const state = it(mainRoot);
@@ -2824,6 +2887,63 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
         }
       },
 
+      async syncWorktree(mainRoot, path) {
+        const fresh = await worktreeFacts(mainRoot, path);
+        if (!fresh) {
+          return;
+        }
+        const { checkout, facts, base } = fresh;
+        const blockers = syncPreflight({ worktree: facts.worktree, base });
+        if (blockers.length > 0 || base === null || checkout.branch === null) {
+          getDeps().notice(blockers[0]?.message ?? 'Nothing to sync');
+          return;
+        }
+        const branch = checkout.branch;
+        // Catch up with the server first, when there is one to catch up with.
+        if ((repo(mainRoot)?.remotes?.length ?? 0) > 0) {
+          const result = await startNet(mainRoot, 'fetch', { remote: null, prune: false });
+          if (!result?.ok) {
+            return; // the op drawer holds git's words
+          }
+          // A good fetch has nothing left to say; the merge's notice takes over.
+          patch(mainRoot, () => ({ op: null }));
+        }
+        await mutate(mainRoot, ['status', 'log', 'worktrees'], async () => {
+          const outcome = await getDeps().ipc.gitMerge(checkout.path, base, false);
+          if (outcome.outcome === 'conflicts') {
+            armTracker(mainRoot, checkout.path, branch, base, outcome.conflicted, checkout.head);
+          }
+          getDeps().notice(mergeNotice(outcome, base));
+        });
+      },
+      async landWorktree(mainRoot, path) {
+        const fresh = await worktreeFacts(mainRoot, path);
+        if (!fresh) {
+          return;
+        }
+        const { checkout, facts, base, main } = fresh;
+        const blockers = finishPreflight(facts);
+        if (blockers.length > 0 || base === null || checkout.branch === null) {
+          getDeps().notice(blockers[0]?.message ?? 'Nothing to land');
+          return;
+        }
+        const branch = checkout.branch;
+        await mutate(mainRoot, ['status', 'log', 'worktrees'], async () => {
+          const outcome = await getDeps().ipc.gitMerge(mainRoot, branch, false);
+          switch (outcome.outcome) {
+            case 'conflicts':
+              armTracker(mainRoot, mainRoot, base, branch, outcome.conflicted, main?.head ?? null);
+              getDeps().notice(mergeNotice(outcome, branch));
+              return;
+            case 'up-to-date':
+              getDeps().notice(`${base} already has every commit of ${branch}`);
+              return;
+            default:
+              getDeps().notice(`${branch} merged into ${base}`);
+          }
+        });
+      },
+
       async startFinish(mainRoot, worktreePath) {
         const r = repo(mainRoot);
         if (!r) {
@@ -2833,37 +2953,11 @@ export function createGitStore(getDeps: () => GitStoreDeps) {
           getDeps().notice('A finish flow is already running for this repository');
           return;
         }
-        await get().refresh(mainRoot, { force: true, parts: ['worktrees'] });
-        const cur = repo(mainRoot);
-        if (!cur?.info) {
+        const fresh = await worktreeFacts(mainRoot, worktreePath);
+        if (!fresh) {
           return;
         }
-        const checkout = cur.checkouts.find((c) => sameCheckout(c.path, worktreePath));
-        if (!checkout) {
-          getDeps().notice('That worktree is no longer listed');
-          return;
-        }
-        const main = cur.checkouts.find((c) => c.isMain);
-        const base = cur.info.baseBranch;
-        const w = checkout.summary;
-        const m = main?.summary;
-        const facts: FinishPreflightFacts = {
-          worktree: w ?? {
-            isMain: checkout.isMain,
-            branch: checkout.branch,
-            staged: 0,
-            unstaged: 0,
-            untracked: 0,
-            conflicted: 0,
-            state: 'clean',
-          },
-          main: {
-            branch: m?.branch ?? main?.branch ?? null,
-            clean: m ? m.staged + m.unstaged + m.untracked + m.conflicted === 0 : true,
-            state: m?.state ?? 'clean',
-          },
-          base,
-        };
+        const { checkout, facts, base } = fresh;
         const blockers = finishPreflight(facts);
         const finish: FinishState = createFinishState({
           worktree: checkout.path,

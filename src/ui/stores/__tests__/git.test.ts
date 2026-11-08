@@ -442,7 +442,9 @@ describe('refresh', () => {
       expect(h.r().selectedCheckout).toBe(MAIN);
       expect(h.r().checkouts.find((c) => c.path === WT)?.summary?.missing).toBe(true);
       expect(h.r().error).toBeNull();
-      expect(h.notices()).toEqual(['worktrees/a is no longer a worktree — showing the main checkout']);
+      expect(h.notices()).toEqual([
+        'worktrees/a is no longer a worktree — showing the main checkout',
+      ]);
       expect(h.r().status?.branch).toBe('development');
     } finally {
       vi.useRealTimers();
@@ -1874,6 +1876,137 @@ describe('delete all clean worktrees', () => {
     gate.resolve();
     await run;
     expect(h.r().removal).toBeNull();
+  });
+});
+
+describe('sync and land', () => {
+  const origin = { name: 'origin', url: 'https://github.com/ann/notes.git', pushUrl: null };
+
+  test('sync without a remote merges the base straight in and notices the outcome', async () => {
+    const h = harness();
+    await h.open();
+    await h.s().syncWorktree(MAIN, WT);
+    expect(h.net.calls).toHaveLength(0);
+    expect(h.ipc.gitMerge).toHaveBeenCalledWith(WT, 'development', false);
+    expect(h.notices().at(-1)).toBe('Merged development');
+    expect(h.r().error).toBeNull();
+  });
+
+  test('sync with a remote fetches first (op drawer), then merges; a failed fetch stops there', async () => {
+    const h = harness();
+    h.ipc.gitRemotes.mockResolvedValue([origin]);
+    await h.open();
+    const sync = h.s().syncWorktree(MAIN, WT);
+    await flush();
+    expect(h.net.calls[0]).toMatchObject({
+      kind: 'fetch',
+      options: { remote: null, prune: false },
+    });
+    expect(h.ipc.gitMerge).not.toHaveBeenCalled();
+    h.net.calls[0]!.finish(okResult());
+    await sync;
+    expect(h.ipc.gitMerge).toHaveBeenCalledWith(WT, 'development', false);
+    expect(h.r().op).toBeNull();
+
+    const again = h.s().syncWorktree(MAIN, WT);
+    await flush();
+    h.net.calls[1]!.finish(
+      okResult({ ok: false, exitCode: 128, stderr: 'fatal: unable to access' }),
+    );
+    await again;
+    expect(h.ipc.gitMerge).toHaveBeenCalledTimes(1);
+    expect(h.r().op).toMatchObject({ kind: 'fetch', running: false });
+  });
+
+  test('sync conflicts arm the tracker on the worktree; blockers are a notice', async () => {
+    const h = harness();
+    await h.open();
+    h.ipc.gitMerge.mockResolvedValueOnce({
+      outcome: 'conflicts',
+      head: 'bbb2222',
+      conflicted: ['src/x.ts'],
+    });
+    // The refresh after the merge sees git mid-merge, so the tracker stays armed.
+    h.ipc.gitStatus.mockImplementation((root: string) =>
+      Promise.resolve(
+        root === WT
+          ? statusFor(WT, {
+              state: 'merging',
+              mergeHead: 'aaa1111',
+              entries: [entry('src/x.ts', 'U', 'U', 'unmerged')],
+            })
+          : statusFor(root),
+      ),
+    );
+    await h.s().syncWorktree(MAIN, WT);
+    expect(h.r().conflictTracker).toMatchObject({
+      root: WT,
+      into: 'feat/a',
+      from: 'development',
+      files: ['src/x.ts'],
+    });
+    expect(h.r().selectedCheckout).toBe(WT);
+
+    h.ipc.gitMerge.mockClear();
+    await h.s().syncWorktree(MAIN, MAIN);
+    expect(h.ipc.gitMerge).not.toHaveBeenCalled();
+    expect(h.notices().at(-1)).toBe(
+      'The checkout is on development already — there is nothing to sync',
+    );
+  });
+
+  test('land merges the branch into the base in MAIN; a dirty main is refused first', async () => {
+    const h = harness();
+    await h.open();
+    await h.s().landWorktree(MAIN, WT);
+    expect(h.ipc.gitMerge).toHaveBeenCalledWith(MAIN, 'feat/a', false);
+    expect(h.notices().at(-1)).toBe('feat/a merged into development');
+
+    h.ipc.gitMerge.mockClear();
+    h.ipc.gitWorktrees.mockResolvedValue([
+      { ...summary(MAIN, 'development', true), unstaged: 2 },
+      summary(WT, 'feat/a', false),
+    ]);
+    await h.s().landWorktree(MAIN, WT);
+    expect(h.ipc.gitMerge).not.toHaveBeenCalled();
+    expect(h.notices().at(-1)).toBe(
+      'The main checkout has uncommitted changes — commit or discard them first',
+    );
+  });
+
+  test('land conflicts arm the tracker on the main checkout; up to date says so', async () => {
+    const h = harness();
+    await h.open();
+    h.ipc.gitMerge.mockResolvedValueOnce({
+      outcome: 'conflicts',
+      head: 'aaa1111',
+      conflicted: ['README.md'],
+    });
+    h.ipc.gitStatus.mockImplementation((root: string) =>
+      Promise.resolve(
+        root === MAIN
+          ? statusFor(MAIN, {
+              state: 'merging',
+              mergeHead: 'bbb2222',
+              entries: [entry('README.md', 'U', 'U', 'unmerged')],
+            })
+          : statusFor(root),
+      ),
+    );
+    await h.s().landWorktree(MAIN, WT);
+    expect(h.r().conflictTracker).toMatchObject({
+      root: MAIN,
+      into: 'development',
+      from: 'feat/a',
+    });
+    h.ipc.gitStatus.mockImplementation((root: string) => Promise.resolve(statusFor(root)));
+    h.ipc.gitMerge.mockResolvedValueOnce({
+      outcome: 'up-to-date',
+      head: 'aaa1111',
+      conflicted: [],
+    });
+    await h.s().landWorktree(MAIN, WT);
+    expect(h.notices().at(-1)).toBe('development already has every commit of feat/a');
   });
 });
 

@@ -233,7 +233,9 @@ export interface FinishBlocker {
     | 'worktree-dirty'
     | 'worktree-detached'
     | 'no-base'
-    | 'worktree-is-main';
+    | 'worktree-is-main'
+    | 'worktree-on-base'
+    | 'worktree-busy';
   message: string;
 }
 

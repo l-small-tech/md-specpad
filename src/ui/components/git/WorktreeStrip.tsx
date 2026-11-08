@@ -29,6 +29,11 @@
  * row, from core/strip-clip); the selected card is scrolled into view when it
  * changes, so the shown checkout is never off-screen.
  *
+ * Each card's hover row holds the quick actions; two labelled pills, Sync
+ * (merge the base in) and Land (merge the branch into the base), stay in
+ * view since they are the point of a worktree. The same actions, plus Reveal
+ * and Copy path, are a right-click (or Shift+F10) menu on the card.
+ *
  * The strip is also the git tab's only header, so it carries the
  * distraction-free button the ribbon gives a document (the git tab has no
  * ribbon). While chrome-less and windowed, the empty room after the last card
@@ -48,13 +53,15 @@ import {
 import type { GitCheckout } from '../../../core/git/types';
 import { planCleanRemoval, removalProgressText } from '../../../core/git/worktree-removal';
 import { stripClipState, type StripClip } from '../../../core/strip-clip';
+import { ipc } from '../../../ipc/commands';
 import { setDistractionFree } from '../../fullscreen';
 import { installHorizontalWheel } from '../../horizontal-wheel';
 import { isAndroid } from '../../platform';
 import { gitStore, type RemovalProgress } from '../../stores/git';
 import { settingsStore, useSettingsStore } from '../../stores/settings';
 import { tabDisplayTitle, tabsStore, useTabsStore, type TabEntry } from '../../stores/tabs';
-import { useUiStore } from '../../stores/ui';
+import { uiStore, useUiStore } from '../../stores/ui';
+import { anchorFor, GitMenu, MenuItem, type MenuAnchor } from './GitMenu';
 import { Icon, Spinner } from './icons';
 import { checkoutDir, checkoutLabel, checkoutName, IconButton, useRepoSlice } from './shared';
 
@@ -221,6 +228,38 @@ function WorktreeCard({
     tabsStore.getState().setGitCheckout(tabId, checkout.path);
     actions.selectCheckout(root, checkout.path);
   };
+  // The right-click menu: null while closed.
+  const [menu, setMenu] = useState<MenuAnchor | null>(null);
+  const closeMenu = () => setMenu(null);
+  const openMenuAt = (anchor: MenuAnchor) => {
+    if (!busy) {
+      setMenu(anchor);
+    }
+  };
+  const canMerge = !onBase && base !== null && checkout.branch !== null;
+  const upToDate = s?.behind === 0;
+  const nothingToLand = s?.ahead === 0;
+  const syncTitle =
+    canMerge && upToDate
+      ? `Up to date with ${base}`
+      : `Fetch, then merge ${base} into ${checkout.branch} (here) — catch up with the base`;
+  const landTitle = `Merge ${checkout.branch} into ${base} in the main checkout`;
+  const copyPath = () => {
+    void navigator.clipboard
+      .writeText(checkout.path)
+      .then(() => uiStore.getState().showNotice('Path copied.'))
+      .catch(() => uiStore.getState().showNotice('Could not access the clipboard.'));
+  };
+  const reveal = () => {
+    void ipc
+      .openDir(checkout.path)
+      .catch(() => uiStore.getState().showNotice('Could not open the folder.'));
+  };
+  /** Close the menu, then run the item. */
+  const item = (run: () => void) => () => {
+    closeMenu();
+    run();
+  };
   const classes = [
     'git-card',
     selected ? 'is-selected' : '',
@@ -246,10 +285,20 @@ function WorktreeCard({
           : `${checkout.path}${selected ? '' : '\nClick to show this checkout'}`
       }
       onClick={pick}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openMenuAt({ x: e.clientX, y: e.clientY, dir: 'down' });
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           pick();
+        } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+          e.preventDefault();
+          if (cardRef.current) {
+            openMenuAt(anchorFor(cardRef.current, 'down'));
+          }
         }
       }}
     >
@@ -346,23 +395,6 @@ function WorktreeCard({
             onClick={() => actions.select(root, { kind: 'worktree-diff', path: checkout.path })}
           />
         )}
-        {!onBase && base !== null && checkout.branch !== null && (
-          <>
-            <IconButton
-              icon="merge-in"
-              title={`Merge ${base} into ${checkout.branch} (here) — catch up with the base`}
-              disabled={missing}
-              onClick={() =>
-                void actions.merge(root, base, { root: checkout.path, into: checkout.branch ?? '' })
-              }
-            />
-            <IconButton
-              icon="merge-out"
-              title={`Merge ${checkout.branch} into ${base} (in the main checkout)`}
-              onClick={() => void actions.merge(root, checkout.branch ?? '', { root, into: base })}
-            />
-          </>
-        )}
         {!isMain && (
           <>
             <IconButton
@@ -379,6 +411,126 @@ function WorktreeCard({
           </>
         )}
       </div>
+      {canMerge && s && (
+        <div
+          className="git-card-pills"
+          onClick={(e) => e.stopPropagation()}
+          inert={busy || undefined}
+        >
+          <button
+            type="button"
+            className="git-card-pill"
+            title={syncTitle}
+            disabled={missing || upToDate}
+            onClick={() => void actions.syncWorktree(root, checkout.path)}
+          >
+            <Icon name="merge-in" />
+            Sync
+          </button>
+          {!nothingToLand && (
+            <button
+              type="button"
+              className="git-card-pill"
+              title={landTitle}
+              disabled={missing}
+              onClick={() => void actions.landWorktree(root, checkout.path)}
+            >
+              <Icon name="merge-out" />
+              Land
+            </button>
+          )}
+        </div>
+      )}
+      {menu && (
+        <GitMenu anchor={menu} onClose={closeMenu}>
+          <div className="git-menu-head">
+            <Icon name={isMain ? 'home' : 'folder'} />
+            <span className="git-menu-title">{checkoutName(checkout.path, root)}</span>
+          </div>
+          <MenuItem
+            disabled={missing}
+            onClick={item(() => actions.openTerminalIn(root, checkout.path, false))}
+          >
+            <Icon name="terminal" />
+            Terminal here
+          </MenuItem>
+          <MenuItem
+            disabled={missing}
+            onClick={item(() => actions.openTerminalIn(root, checkout.path, true))}
+          >
+            <Icon name="sparkle" />
+            Harness here
+          </MenuItem>
+          <MenuItem
+            disabled={missing}
+            onClick={item(() => actions.openWorktreeAsWorkspace(root, checkout.path))}
+          >
+            <Icon name="folder" />
+            Open as workspace
+          </MenuItem>
+          <MenuItem disabled={missing} onClick={item(reveal)}>
+            <Icon name="folder" />
+            Reveal in file manager
+          </MenuItem>
+          <MenuItem onClick={item(copyPath)}>
+            <Icon name="copy" />
+            Copy path
+          </MenuItem>
+          {(canMerge || !isMain) && <div className="git-menu-sep" role="separator" />}
+          {!onBase && base !== null && (
+            <MenuItem
+              onClick={item(() =>
+                actions.select(root, { kind: 'worktree-diff', path: checkout.path }),
+              )}
+            >
+              <Icon name="diff" />
+              Diff vs {base}
+            </MenuItem>
+          )}
+          {canMerge && (
+            <>
+              <MenuItem
+                disabled={missing || upToDate}
+                title={syncTitle}
+                onClick={item(() => void actions.syncWorktree(root, checkout.path))}
+              >
+                <Icon name="merge-in" />
+                Sync — merge {base} in
+              </MenuItem>
+              <MenuItem
+                disabled={missing || nothingToLand}
+                title={
+                  nothingToLand
+                    ? `${base} already has every commit of ${checkout.branch}`
+                    : landTitle
+                }
+                onClick={item(() => void actions.landWorktree(root, checkout.path))}
+              >
+                <Icon name="merge-out" />
+                Land — merge into {base}
+              </MenuItem>
+            </>
+          )}
+          {!isMain && (
+            <MenuItem onClick={item(() => void actions.startFinish(root, checkout.path))}>
+              <Icon name="flag" />
+              Finish…
+            </MenuItem>
+          )}
+          {!isMain && (
+            <>
+              <div className="git-menu-sep" role="separator" />
+              <MenuItem
+                danger
+                onClick={item(() => void actions.removeWorktree(root, checkout.path))}
+              >
+                <Icon name="trash" />
+                Remove worktree
+              </MenuItem>
+            </>
+          )}
+        </GitMenu>
+      )}
     </div>
   );
 }

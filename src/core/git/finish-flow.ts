@@ -121,6 +121,47 @@ export function finishPreflight(facts: FinishPreflightFacts): FinishBlocker[] {
   return out;
 }
 
+export interface SyncPreflightFacts {
+  /** The checkout to catch up, as the dashboard knows it. */
+  worktree: Pick<GitWorktreeSummary, 'branch' | 'state'>;
+  /** The base branch, or null when none could be resolved. */
+  base: string | null;
+}
+
+/**
+ * Why a one-click Sync (merge the base into the checkout) cannot run; empty =
+ * go. Uncommitted work is NOT a blocker: git refuses a merge that would
+ * clobber it and says so, and a merge that touches other files is fine.
+ */
+export function syncPreflight(facts: SyncPreflightFacts): FinishBlocker[] {
+  const out: FinishBlocker[] = [];
+  const { worktree, base } = facts;
+  if (base === null) {
+    out.push({
+      code: 'no-base',
+      message: 'No base branch — set Review › base branch in Settings, or create main',
+    });
+  }
+  if (worktree.branch === null) {
+    out.push({
+      code: 'worktree-detached',
+      message: 'The checkout is on a detached HEAD — switch it to a branch first',
+    });
+  } else if (base !== null && worktree.branch === base) {
+    out.push({
+      code: 'worktree-on-base',
+      message: `The checkout is on ${base} already — there is nothing to sync`,
+    });
+  }
+  if (worktree.state !== 'clean') {
+    out.push({
+      code: 'worktree-busy',
+      message: `The checkout has a ${worktree.state} in progress — finish or abort it first`,
+    });
+  }
+  return out;
+}
+
 /* -------------------------------- reducer -------------------------------- */
 
 export function createFinishState(input: {

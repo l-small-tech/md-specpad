@@ -8,6 +8,7 @@ import {
   nextAction,
   recoverFinishState,
   reduceFinish,
+  syncPreflight,
   type FinishPreflightFacts,
 } from '../finish-flow';
 import type { FinishState } from '../types';
@@ -87,6 +88,32 @@ function drive(state: FinishState, events: Parameters<typeof reduceFinish>[1][])
   }
   return s;
 }
+
+describe('syncPreflight', () => {
+  test('a branch off the base may sync, dirty or not', () => {
+    expect(syncPreflight({ worktree: { branch: 'feat/x', state: 'clean' }, base: 'main' })).toEqual(
+      [],
+    );
+  });
+
+  test('no base, detached, on the base, or an operation in progress block it', () => {
+    expect(
+      syncPreflight({ worktree: { branch: 'feat/x', state: 'clean' }, base: null })[0],
+    ).toMatchObject({ code: 'no-base' });
+    expect(
+      syncPreflight({ worktree: { branch: null, state: 'clean' }, base: 'main' }).map(
+        (b) => b.code,
+      ),
+    ).toEqual(['worktree-detached']);
+    expect(
+      syncPreflight({ worktree: { branch: 'main', state: 'clean' }, base: 'main' })[0]?.message,
+    ).toBe('The checkout is on main already — there is nothing to sync');
+    expect(
+      syncPreflight({ worktree: { branch: 'feat/x', state: 'rebasing' }, base: 'main' })[0]
+        ?.message,
+    ).toBe('The checkout has a rebasing in progress — finish or abort it first');
+  });
+});
 
 describe('reduceFinish / nextAction', () => {
   test('the step order and the labels', () => {
