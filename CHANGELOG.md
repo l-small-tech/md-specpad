@@ -10,6 +10,35 @@ Keep an `## [Unreleased]` section at the top while working; rename it to
 
 ## [Unreleased]
 
+- Git tab: **Sync** and **Land** on every worktree card, in words. Sync
+  fetches (when there is a remote) and merges the base branch into the
+  worktree; Land merges the worktree's branch into the base in the main
+  checkout, with the same checks as **Finish…**. They replace the two
+  unlabelled merge arrows. Conflicts open the Merge-conflicts panel as usual.
+- Git tab: **right-click a worktree card** (or Shift+F10) for a menu —
+  terminal, harness, open as workspace, reveal in file manager, copy path,
+  diff, Sync, Land, Finish… and Remove.
+- Git tab: the worktree strip no longer hides cards past the third. It fades
+  at a clipped edge, shows chevrons to scroll by, keeps the selected card in
+  view, and in distraction-free mode its scrollbar scrolls instead of dragging
+  the window.
+- Git tab: a red **Not a git repository** notice no longer sticks after a
+  worktree is added or removed while the tab is open. Reads that fail once
+  are retried, a good refresh clears the notice, the message names the path
+  git complained about, and a worktree whose folder vanished falls back to the
+  main checkout with a notice instead.
+- Git tabs are titled by the repository's name alone; the branch icon marks
+  the kind, as it does for terminal tabs.
+- Source editor: **Tab** now indents everywhere — two spaces at the caret, a
+  level across a selection, Shift+Tab takes one back — instead of moving focus
+  out of the editor outside lists. List lines still re-indent with bullet
+  cycling.
+- Source editor: `@path` imports in `CLAUDE.md`, `GEMINI.md` and `AGENTS.md`
+  are highlighted. Themes can color them with the new `mention` key.
+- Settings → Appearance: **Light theme** and **Dark theme** pick which two
+  themes **System** switches between with your computer's setting (the two
+  greens by default).
+
 ## [0.12.0] — 2026-10-17
 
 - **Open in explorer** on a workspace or folder's right-click menu opens it
