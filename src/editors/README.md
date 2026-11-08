@@ -82,8 +82,11 @@ Word-like semantics: bullet markers cycle with depth (`*` → `-` → `+`,
 repeating), a moved item takes its descendants with it, ordered runs are
 renumbered across the surrounding block, and an item that would skip a level
 (the first at its depth) does not move. Returning `null` means "not a list
-selection" — the keymap then reports not-handled so Tab falls through to focus
-navigation. Ordered nesting stays numeric: CommonMark has no `a.`/`i.` lists.
+selection" — the keymap then reports not-handled so Tab falls through to the
+plain Tab handler (`tabKeymap` in `cm6.ts`: two spaces at the caret, or an
+indent level across a selection; Shift+Tab removes one), never to the
+browser's focus navigation. Ordered nesting stays numeric: CommonMark has no
+`a.`/`i.` lists.
 
 ### Syntax highlighting
 

@@ -28,9 +28,15 @@ import { EditorState, Compartment, Prec, StateEffect, StateField } from '@codemi
 import { isAltGraphText } from '../core/altgr';
 import { diffToChanges } from '../core/diff';
 import { joinDictation } from '../core/dictation-insert';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentLess,
+  indentMore,
+} from '@codemirror/commands';
 import { markdown, markdownKeymap, markdownLanguage } from '@codemirror/lang-markdown';
-import { foldNodeProp, syntaxHighlighting } from '@codemirror/language';
+import { foldNodeProp, indentUnit, syntaxHighlighting } from '@codemirror/language';
 import { search, searchKeymap } from '@codemirror/search';
 import { highlightStyle, listMarkStyling } from './markdown-highlight';
 import { xmlHighlightStyle, xmlLanguage } from './xml-highlight';
@@ -395,10 +401,10 @@ function fontSizeTheme(fontSize: string) {
  * Tab / Shift+Tab on list lines: re-indent one level, cycling bullet markers
  * with depth and renumbering ordered siblings. All the logic lives in the pure
  * {@link reindentLists}; this is just the CM6 glue. Applies to every line the
- * selection spans, but only when ALL of them are list items; otherwise the
- * command reports "not handled" and Tab keeps its default behavior (focus
- * navigation), which also keeps plain text out of harm's way. Raw (CM6) mode
- * only — the WYSIWYG editor has its own list handling.
+ * selection spans, but only when ALL of them are list items and at least one
+ * can move; otherwise the command reports "not handled" and Tab falls through
+ * to {@link tabKeymap} (indent / two spaces). Raw (CM6) mode only — the
+ * WYSIWYG editor has its own list handling.
  */
 function changeListIndent(view: EditorView, delta: 1 | -1): boolean {
   const { state } = view;
@@ -419,7 +425,9 @@ function changeListIndent(view: EditorView, delta: 1 | -1): boolean {
     }
   }
   if (changes.length === 0) {
-    return true; // all list items, nothing to do (e.g. Shift+Tab at column 0)
+    // All list items but none can move (a first-level item, Shift+Tab at
+    // column 0): let the plain Tab handler have the key rather than eat it.
+    return false;
   }
   const changeSet = state.changes(changes);
   view.dispatch({
@@ -434,6 +442,34 @@ function changeListIndent(view: EditorView, delta: 1 | -1): boolean {
 const bulletIndentKeymap = keymap.of([
   { key: 'Tab', run: (view) => changeListIndent(view, 1) },
   { key: 'Shift-Tab', run: (view) => changeListIndent(view, -1) },
+]);
+
+/** The editor indents by two spaces: what the list rules use, and what Tab inserts. */
+const INDENT_UNIT = '  ';
+
+/**
+ * Tab everywhere the list handler declined: two spaces at the caret, or one
+ * indent level for every line a selection spans; Shift+Tab removes a level.
+ * Without this CM6 lets Tab fall through to the browser's focus navigation,
+ * so the caret left the editor. Escape then Tab is still the accessible way
+ * out (CM6's own tab-focus mode), and the app's Ctrl+Tab switches tabs.
+ */
+const tabKeymap = keymap.of([
+  {
+    key: 'Tab',
+    run: (view) => {
+      if (view.state.selection.ranges.some((r) => !r.empty)) {
+        return indentMore(view);
+      }
+      // Not CM6's insertTab: that types a literal tab character.
+      view.dispatch(view.state.replaceSelection(view.state.facet(indentUnit)), {
+        scrollIntoView: true,
+        userEvent: 'input',
+      });
+      return true;
+    },
+  },
+  { key: 'Shift-Tab', run: indentLess },
 ]);
 
 /**
@@ -935,6 +971,8 @@ export function createCm6Adapter(options: Cm6Options = {}): Cm6Adapter {
         // must win over the default keymap's own Enter/Backspace. Neither
         // belongs in XML source, so both are dropped there.
         ...(isMarkdown ? [bulletIndentKeymap] : []),
+        tabKeymap,
+        indentUnit.of(INDENT_UNIT),
         keymap.of([
           ...(isMarkdown ? markdownKeymap : []),
           ...defaultKeymap,
