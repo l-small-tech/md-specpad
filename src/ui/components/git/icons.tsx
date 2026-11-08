@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 
 export type IconName =
   | 'chevron-down'
+  | 'chevron-left'
   | 'chevron-right'
   | 'refresh'
   | 'plus'
@@ -44,6 +45,7 @@ export type IconName =
 
 const PATHS: Record<IconName, ReactNode> = {
   'chevron-down': <path d="M4 6l4 4 4-4" />,
+  'chevron-left': <path d="M10 4L6 8l4 4" />,
   'chevron-right': <path d="M6 4l4 4-4 4" />,
   refresh: (
     <>

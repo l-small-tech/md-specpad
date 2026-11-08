@@ -1510,6 +1510,14 @@
   text-align: center;
 }
 
+.git-strip-row {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+
 .git-strip-scroll {
   flex: 1 1 auto;
   min-width: 0;
@@ -1522,6 +1530,93 @@
   /* No scrollbar-width / scrollbar-color here: in Chromium either one turns
      off the app's shared fading thumb (base.css). A vertical wheel scrolls the
      row sideways (ui/horizontal-wheel.ts). */
+}
+
+/* The shared thumb fades in while the row scrolls (base.css); it also shows
+   while the pointer rests on the row, so a row that has never scrolled still
+   says there is more. */
+@media (hover: hover) and (pointer: fine) {
+  .git-strip-scroll:hover {
+    --sb-thumb: var(--sb-active);
+  }
+}
+
+/* The empty room after the last card: the window's grab handle while
+   chrome-less (WorktreeStrip sets data-tauri-drag-region on it alone). */
+.git-strip-drag {
+  flex: 1 1 auto;
+  min-width: 16px;
+}
+
+/* An edge with cards hidden past it fades out; `data-clip` is start, end,
+   both or none (core/strip-clip). */
+.git-strip-row::before,
+.git-strip-row::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  z-index: 1;
+}
+
+.git-strip-row::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg-alt), transparent);
+}
+
+.git-strip-row::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg-alt), transparent);
+}
+
+.git-strip-row[data-clip='start']::before,
+.git-strip-row[data-clip='both']::before,
+.git-strip-row[data-clip='end']::after,
+.git-strip-row[data-clip='both']::after {
+  opacity: 1;
+}
+
+/* The chevrons that page the row one card, over the faded edge. */
+.git-strip-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  cursor: pointer;
+  box-shadow: 0 1px 4px color-mix(in oklab, var(--fg) 18%, transparent);
+}
+
+.git-strip-nav.is-start {
+  left: 6px;
+}
+
+.git-strip-nav.is-end {
+  right: 6px;
+}
+
+.git-strip-nav:hover,
+.git-strip-nav:focus-visible {
+  color: var(--fg);
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
+}
+
+.git-strip-nav .git-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .git-card {

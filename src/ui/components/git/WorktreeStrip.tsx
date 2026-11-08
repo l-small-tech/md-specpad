@@ -23,16 +23,23 @@
  * "Removing…" chip in place of any "missing" one, until it is gone.
  *
  * The row scrolls sideways under a plain vertical wheel (ui/horizontal-wheel)
- * and wears the app's shared fading scrollbar.
+ * and wears the app's shared fading scrollbar, shown as well while the pointer
+ * rests on the row. Cards clipped off either edge are announced by a fade on
+ * that edge and a chevron that pages the row one card (`data-clip` on the
+ * row, from core/strip-clip); the selected card is scrolled into view when it
+ * changes, so the shown checkout is never off-screen.
  *
  * The strip is also the git tab's only header, so it carries the
  * distraction-free button the ribbon gives a document (the git tab has no
- * ribbon). While chrome-less and windowed, the strip's empty room doubles as
- * the grab-to-move handle — the overlay strip App lays over a document would
- * sit exactly on the cards' top line and swallow their clicks.
+ * ribbon). While chrome-less and windowed, the empty room after the last card
+ * (`.git-strip-drag`) doubles as the grab-to-move handle — the overlay strip
+ * App lays over a document would sit exactly on the cards' top line and
+ * swallow their clicks. The handle is that spacer alone, never the scroller:
+ * a press on the scrollbar or the row's padding must scroll, not move the
+ * window.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   checkoutKey,
   isActiveCheckout,
@@ -40,6 +47,7 @@ import {
 } from '../../../core/git/checkouts';
 import type { GitCheckout } from '../../../core/git/types';
 import { planCleanRemoval, removalProgressText } from '../../../core/git/worktree-removal';
+import { stripClipState, type StripClip } from '../../../core/strip-clip';
 import { setDistractionFree } from '../../fullscreen';
 import { installHorizontalWheel } from '../../horizontal-wheel';
 import { isAndroid } from '../../platform';
@@ -59,6 +67,9 @@ function terminalsInside(tabs: readonly TabEntry[], path: string): string[] {
 }
 
 const NONE: readonly string[] = [];
+
+/** One card plus the row's gap: what a chevron click scrolls by. */
+const CARD_STEP_PX = 228;
 
 /**
  * A card's removal state: going now (with the progress text — "Removing 2 of
@@ -197,6 +208,12 @@ function WorktreeCard({
       cardRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     }
   }, [goingNow]);
+  // The shown checkout is never left clipped off an edge of the row.
+  useEffect(() => {
+    if (selected) {
+      cardRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    }
+  }, [selected]);
   const pick = () => {
     if (missing || busy) {
       return;
@@ -391,6 +408,36 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
       ? installHorizontalWheel(el, () => settingsStore.getState().settings.smoothScrolling)
       : undefined;
   }, []);
+  // Which edges hide cards: drives the fades and the chevrons.
+  const [clip, setClip] = useState<StripClip>('none');
+  const measureClip = () => {
+    const el = scrollRef.current;
+    if (el) {
+      setClip(stripClipState(el.scrollLeft, el.clientWidth, el.scrollWidth));
+    }
+  };
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      return undefined;
+    }
+    el.addEventListener('scroll', measureClip, { passive: true });
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureClip);
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener('scroll', measureClip);
+      ro?.disconnect();
+    };
+  }, []);
+  // The row's content width changes with the cards (filter, add, remove):
+  // re-measure after every render; one layout read.
+  useEffect(measureClip);
+  const page = (dir: -1 | 1) => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollBy({ left: dir * CARD_STEP_PX, behavior: 'smooth' });
+    }
+  };
   const terminalsAt = new Map(checkouts.map((c) => [c.path, terminalsInside(tabs, c.path)]));
   const removingKeys = new Set(removing.map(checkoutKey));
   const removingState = (c: GitCheckout) => cardRemoval(c.path, removingKeys, removal);
@@ -416,46 +463,73 @@ export function WorktreeStrip({ root, tabId }: { root: string; tabId: string }) 
 
   return (
     <header className="git-strip" aria-label="Checkouts">
-      <div className="git-strip-scroll" ref={scrollRef} data-tauri-drag-region={dragRegion}>
-        {checkouts.length === 0 ? (
-          <div className="git-card is-placeholder">
-            {loading ? 'Listing worktrees…' : checkoutLabel(root, root)}
-          </div>
-        ) : (
-          shown.map((c) => (
-            <WorktreeCard
-              key={c.path}
-              root={root}
-              tabId={tabId}
-              checkout={c}
-              base={base}
-              selected={c.path.replaceAll('\\', '/').toLowerCase() === selKey}
-              viewingDiff={selected?.kind === 'worktree-diff' && selected.path === c.path}
-              terminals={terminalsAt.get(c.path) ?? []}
-              removing={removingState(c)}
-            />
-          ))
-        )}
-        {hidden > 0 && (
+      <div className="git-strip-row" data-clip={clip}>
+        <div className="git-strip-scroll" ref={scrollRef}>
+          {checkouts.length === 0 ? (
+            <div className="git-card is-placeholder">
+              {loading ? 'Listing worktrees…' : checkoutLabel(root, root)}
+            </div>
+          ) : (
+            shown.map((c) => (
+              <WorktreeCard
+                key={c.path}
+                root={root}
+                tabId={tabId}
+                checkout={c}
+                base={base}
+                selected={c.path.replaceAll('\\', '/').toLowerCase() === selKey}
+                viewingDiff={selected?.kind === 'worktree-diff' && selected.path === c.path}
+                terminals={terminalsAt.get(c.path) ?? []}
+                removing={removingState(c)}
+              />
+            ))
+          )}
+          {hidden > 0 && (
+            <button
+              type="button"
+              className="git-card git-card-hidden"
+              title={`${hidden} clean ${hidden === 1 ? 'worktree is' : 'worktrees are'} hidden — click to show every worktree`}
+              onClick={() => setActiveOnly(false)}
+            >
+              <span className="git-card-hidden-n">+{hidden}</span>
+              <span>clean</span>
+            </button>
+          )}
           <button
             type="button"
-            className="git-card git-card-hidden"
-            title={`${hidden} clean ${hidden === 1 ? 'worktree is' : 'worktrees are'} hidden — click to show every worktree`}
-            onClick={() => setActiveOnly(false)}
+            className="git-card git-card-new"
+            title="Create a linked worktree on a new branch — a second folder checked out from this repository, for an agent to work in"
+            onClick={() => actions.openNewWorktree(root)}
           >
-            <span className="git-card-hidden-n">+{hidden}</span>
-            <span>clean</span>
+            <Icon name="plus" />
+            <span>New worktree</span>
+          </button>
+          <div className="git-strip-drag" data-tauri-drag-region={dragRegion} />
+        </div>
+        {(clip === 'start' || clip === 'both') && (
+          <button
+            type="button"
+            className="git-strip-nav is-start"
+            aria-label="Scroll to earlier worktrees"
+            title="Earlier worktrees"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => page(-1)}
+          >
+            <Icon name="chevron-left" />
           </button>
         )}
-        <button
-          type="button"
-          className="git-card git-card-new"
-          title="Create a linked worktree on a new branch — a second folder checked out from this repository, for an agent to work in"
-          onClick={() => actions.openNewWorktree(root)}
-        >
-          <Icon name="plus" />
-          <span>New worktree</span>
-        </button>
+        {(clip === 'end' || clip === 'both') && (
+          <button
+            type="button"
+            className="git-strip-nav is-end"
+            aria-label="Scroll to more worktrees"
+            title="More worktrees"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => page(1)}
+          >
+            <Icon name="chevron-right" />
+          </button>
+        )}
       </div>
       <div className="git-strip-tools">
         <button
