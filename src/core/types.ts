@@ -150,11 +150,16 @@ export type AndroidDictationEngine = (typeof ANDROID_DICTATION_ENGINES)[number];
  *
  * The id is a free-form string, not a closed union: schemes are pluggable theme
  * files loaded from the themes folder at runtime (see core/theme-plugins.ts,
- * ipc/theme-loader.ts). 'default' is the built-in blue/grey palette in base.css
- * (it has no plugin — the base :root IS its palette); an id with no loaded plugin
- * simply matches no injected block and falls through to that default.
+ * ipc/theme-loader.ts). 'default' is the adaptive **System** entry: it has no
+ * plugin of its own — main.tsx resolves it to the `lightScheme` / `darkScheme`
+ * pair by the OS mode (the two greens unless changed in Settings). An id with no
+ * loaded plugin matches no injected block and falls through to base.css.
  */
 export const DEFAULT_COLOR_SCHEME = 'default';
+
+/** The pair System shows until Settings → Appearance says otherwise. */
+export const DEFAULT_LIGHT_SCHEME = 'light-green';
+export const DEFAULT_DARK_SCHEME = 'dark-green';
 
 export type ColorScheme = string;
 
@@ -390,8 +395,16 @@ export interface Settings {
   /** null = platform default: appDataDir()/notes (resolved in src/ipc, not here). */
   notesDir: string | null;
   theme: 'system' | 'light' | 'dark';
-  /** Palette family; light-vs-dark still comes from `theme`. Default 'default'. */
+  /**
+   * Palette family. 'default' (the picker's **System**) renders the
+   * light/dark pair below, swapping with the OS; any other id is one theme
+   * file, locked to its declared mode. Default 'default'.
+   */
   colorScheme: ColorScheme;
+  /** The theme System shows in light mode (a theme id). Default 'light-green'. */
+  lightScheme: string;
+  /** The theme System shows in dark mode (a theme id). Default 'dark-green'. */
+  darkScheme: string;
   fontSize: number;
   /** Editor/content typeface. Default 'fira-code'. */
   editorFont: EditorFontId;

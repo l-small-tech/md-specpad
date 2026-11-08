@@ -19,7 +19,7 @@ import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand';
 import type { ThemeMode, ThemePlugin } from '../../core/theme-plugins';
 import { loadThemePlugins } from '../../ipc/theme-loader';
-import { DEFAULT_COLOR_SCHEME } from '../../core/types';
+import { DEFAULT_COLOR_SCHEME, DEFAULT_DARK_SCHEME, DEFAULT_LIGHT_SCHEME } from '../../core/types';
 import { BUILT_IN_ORDER } from '../../core/theme-seeds';
 
 export interface ThemeOption {
@@ -58,9 +58,10 @@ export const useThemeRegistry = <T>(selector: (s: ThemeRegistryState) => T): T =
   useStore(themeRegistryStore, selector);
 
 /**
- * The unified Theme picker (SettingsDialog) is one dropdown. Selecting a mode
- * uses the default palette (`colorScheme = 'default'`); selecting a plugin uses
- * that scheme and follows the OS light/dark (`theme = 'system'`). See
+ * The unified Theme picker (SettingsDialog) is one dropdown. Selecting System
+ * uses the adaptive pair (`colorScheme = 'default'`, resolved by
+ * `resolveSystemScheme`); selecting a plugin uses that scheme, locked to its
+ * declared mode (`theme` stays 'system'; `isDark` reads the plugin). See
  * `themePickerGroups` for the on-screen ordering.
  *
  * Only `system` is offered in the picker now — the forced plain Light/Dark
@@ -90,6 +91,27 @@ export function themePluginOptions(plugins: readonly ThemePlugin[]): ThemeOption
   return plugins
     .filter((p) => !RESERVED_IDS.has(p.id))
     .map((p) => ({ value: p.id, label: p.name, mode: p.mode }));
+}
+
+/** The themes of one mode, for the System pair's Light theme / Dark theme selects. */
+export function pairOptions(plugins: readonly ThemePlugin[], mode: ThemeMode): ThemeOption[] {
+  const label = mode === 'dark' ? 'Dark' : 'Light';
+  return partitionByMode(themePluginOptions(plugins)).find((g) => g.label === label)?.options ?? [];
+}
+
+/**
+ * The theme id System shows in `mode`: the pair member from Settings when a
+ * loaded theme has that id, else the green of that mode (today's look, and
+ * what a deleted theme file falls back to).
+ */
+export function resolveSystemScheme(
+  pair: { lightScheme: string; darkScheme: string },
+  plugins: readonly ThemePlugin[],
+  mode: ThemeMode,
+): string {
+  const wanted = mode === 'dark' ? pair.darkScheme : pair.lightScheme;
+  const fallback = mode === 'dark' ? DEFAULT_DARK_SCHEME : DEFAULT_LIGHT_SCHEME;
+  return plugins.some((p) => p.id === wanted && p.mode === mode) ? wanted : fallback;
 }
 
 /** A labeled section of the Theme picker; `label: null` renders as a plain,

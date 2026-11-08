@@ -3,7 +3,13 @@
  * around ipc/theme-loader, covered there).
  */
 import { describe, expect, test } from 'vitest';
-import { currentThemeValue, exportThemeGroups, themeSelectionPatch } from '../theme-registry';
+import {
+  currentThemeValue,
+  exportThemeGroups,
+  pairOptions,
+  resolveSystemScheme,
+  themeSelectionPatch,
+} from '../theme-registry';
 import type { ThemeMode, ThemePlugin } from '../../../core/theme-plugins';
 
 const plugin = (id: string, mode: ThemeMode, name = id): ThemePlugin => ({
@@ -58,6 +64,29 @@ describe('currentThemeValue / themeSelectionPatch', () => {
     expect(currentThemeValue({ theme: 'dark', colorScheme: 'default' })).toBe('dark');
     // A selected plugin pins its own mode, so its id wins over the saved mode.
     expect(currentThemeValue({ theme: 'system', colorScheme: 'nord' })).toBe('nord');
+  });
+
+  test('the System pair offers one mode per select and resolves to a loaded theme or the green', () => {
+    expect(pairOptions(PLUGINS, 'light').map((o) => o.value)).toEqual([
+      'light-green',
+      'skylark',
+      'my-theme',
+    ]);
+    expect(pairOptions(PLUGINS, 'dark').map((o) => o.value)).toEqual([
+      'dark-green',
+      'vantablack',
+      'my-night',
+    ]);
+    const pair = { lightScheme: 'skylark', darkScheme: 'my-night' };
+    expect(resolveSystemScheme(pair, PLUGINS, 'light')).toBe('skylark');
+    expect(resolveSystemScheme(pair, PLUGINS, 'dark')).toBe('my-night');
+    // A deleted theme file, or a dark theme named for the light slot: the green.
+    expect(resolveSystemScheme({ ...pair, darkScheme: 'gone' }, PLUGINS, 'dark')).toBe(
+      'dark-green',
+    );
+    expect(resolveSystemScheme({ ...pair, lightScheme: 'vantablack' }, PLUGINS, 'light')).toBe(
+      'light-green',
+    );
   });
 
   test('picking a mode returns to the default palette; picking a plugin keeps theme=system', () => {

@@ -48,6 +48,8 @@ describe('normalizeSettings', () => {
       // a plugin scheme is exercised by the merged-model test below.
       theme: 'dark',
       colorScheme: 'default',
+      lightScheme: ' skylark ',
+      darkScheme: 'nightjar',
       fontSize: 16,
       editorFont: 'jetbrains-mono',
       uiFont: 'inter',
@@ -84,6 +86,8 @@ describe('normalizeSettings', () => {
       harnessCustomCommand: '',
       theme: 'dark',
       colorScheme: 'default',
+      lightScheme: 'skylark',
+      darkScheme: 'nightjar',
       fontSize: 16,
       editorFont: 'jetbrains-mono',
       uiFont: 'inter',
@@ -141,6 +145,17 @@ describe('normalizeSettings', () => {
       terminalBackspaceSendsDelete: true,
       terminalOnExit: 'close',
       terminalConfirmCloseRunning: true,
+    });
+  });
+
+  test('the System pair defaults to the greens; blank or odd values fall back', () => {
+    expect(normalizeSettings({})).toMatchObject({
+      lightScheme: 'light-green',
+      darkScheme: 'dark-green',
+    });
+    expect(normalizeSettings({ lightScheme: '  ', darkScheme: 7 })).toMatchObject({
+      lightScheme: 'light-green',
+      darkScheme: 'dark-green',
     });
   });
 

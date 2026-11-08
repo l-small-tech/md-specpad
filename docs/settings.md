@@ -14,7 +14,7 @@ button in its header opens this guide.
 
 - **Theme** — one list that combines the light/dark mode and the color scheme:
   - **System** follows your computer's light/dark setting, switching live
-    when it changes, using the app's built-in green palette.
+    when it changes, between the two themes chosen below it.
   - Below it every theme is grouped by its declared mode: **Light**
     (**Light Green**, **Beacon**, **Skylark**, **Lagoon**, **Marmalade**,
     **Honeycomb**, **Ultramarine**, **Dragonfruit**) and **Dark** (**Dark
@@ -29,6 +29,11 @@ button in its header opens this guide.
   markdown elements (headings, bold, links, …). The same list — plus the
   **Open harness here**, **Reload**, and **Help** buttons — lives in
   the **⌄ menu → Themes** (the arrow beside the `+` button on the tab bar).
+- **Light theme** / **Dark theme** — the pair **System** switches between:
+  one theme declared light, one declared dark. **Light Green** and **Dark
+  Green** until you change them. The two lists sleep while a named theme is
+  picked above, since a named theme keeps its one look. A window pinned with
+  **This window only** on System follows the same pair.
 - **This window only** — a theme normally applies to every open window and is
   remembered for next launch. Tick this box (or **right-click** a theme in the
   **⌄ menu → Themes** list) to dress just the window you're in — handy for

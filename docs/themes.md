@@ -8,9 +8,10 @@ Pick a theme in the **⌄ menu → Themes** — the arrow beside the `+` button 
 the tab bar. Every installed theme is listed there, with a ✓ on the one you're
 using, and picking one applies it instantly.
 (The same list is also in **Settings → Theme**.) It starts with **System**
-(the app's built-in green palette, light or dark to match your computer and
-switching live when it changes), then every theme grouped by its declared
-mode:
+(a light theme and a dark theme, switched to match your computer and
+switching live when it changes — **Light Green** and **Dark Green** until you
+pick others under **Settings → Appearance → Light theme / Dark theme**), then
+every theme grouped by its declared mode:
 
 - **Light** — **Light Green**, **Beacon** (maximum-contrast black-on-white),
   **Skylark** (color-vision-friendly), **Lagoon** (shallow tropical water),
@@ -32,7 +33,10 @@ Two pairs deserve a special note:
 
 Unlike **System**, each named theme keeps its one look — light stays light and
 dark stays dark, whatever your computer's light/dark setting. You pick the
-mood, not the machine.
+mood, not the machine. To have the machine pick between two moods of your
+own, stay on **System** and choose them as its **Light theme** and **Dark
+theme** in Settings — Skylark by day and Nightjar by night, say. A theme file
+you later delete drops its slot back to the green of that mode.
 
 The best part: **themes are just small files you can edit or create yourself** —
 no programming needed, and an AI assistant can write a whole theme for you in

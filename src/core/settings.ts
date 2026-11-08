@@ -15,6 +15,8 @@ import {
   LEGACY_HARNESS_PROFILE_ID,
   CURSOR_STYLES,
   DEFAULT_COLOR_SCHEME,
+  DEFAULT_DARK_SCHEME,
+  DEFAULT_LIGHT_SCHEME,
   ANDROID_DICTATION_ENGINES,
   DESKTOP_DICTATION_ENGINES,
   EDITOR_FONT_IDS,
@@ -175,6 +177,8 @@ export const DEFAULT_SETTINGS: Settings = {
   notesDir: null,
   theme: 'system',
   colorScheme: 'default',
+  lightScheme: DEFAULT_LIGHT_SCHEME,
+  darkScheme: DEFAULT_DARK_SCHEME,
   fontSize: 14,
   editorFont: 'fira-code',
   uiFont: 'match',
@@ -502,16 +506,20 @@ export function normalizeSettings(raw: unknown): Settings {
       : DEFAULT_COLOR_SCHEME;
   const rawTheme =
     r.theme === 'system' || r.theme === 'light' || r.theme === 'dark' ? r.theme : d.theme;
+  const schemeId = (v: unknown, fallback: string): string =>
+    typeof v === 'string' && v.trim().length > 0 ? v.trim() : fallback;
   const terminalProfiles = normalizeTerminalProfiles(r.terminalProfiles, schemaVersion);
   return {
     schemaVersion: SETTINGS_SCHEMA,
     notesDir: typeof r.notesDir === 'string' && r.notesDir.length > 0 ? r.notesDir : d.notesDir,
-    // The Theme picker is unified (Settings): a plugin scheme always follows the
-    // OS light/dark, so light/dark is only a meaningful override for the built-in
-    // `default` palette. Coerce any legacy `theme: 'light'|'dark'` paired with a
-    // plugin back to 'system' so persisted state matches the merged model.
+    // The Theme picker is unified (Settings): a plugin scheme is locked to its
+    // declared mode, so light/dark is only a meaningful override for the
+    // adaptive `default` entry. Coerce any legacy `theme: 'light'|'dark'` paired
+    // with a plugin back to 'system' so persisted state matches the merged model.
     theme: colorScheme === DEFAULT_COLOR_SCHEME ? rawTheme : 'system',
     colorScheme,
+    lightScheme: schemeId(r.lightScheme, d.lightScheme),
+    darkScheme: schemeId(r.darkScheme, d.darkScheme),
     fontSize:
       typeof r.fontSize === 'number' && Number.isFinite(r.fontSize)
         ? Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(r.fontSize)))

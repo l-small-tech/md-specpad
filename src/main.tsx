@@ -83,7 +83,7 @@ import { imageMimeType, isImagePath } from './core/images';
 import { ipc } from './ipc/commands';
 import { initProviders } from './ipc/provider';
 import { resolveDocsDir, resolvePaths, resolveThemesDir } from './ipc/paths';
-import { themeRegistryStore } from './ui/stores/theme-registry';
+import { resolveSystemScheme, themeRegistryStore } from './ui/stores/theme-registry';
 import { importFilters } from './core/import/registry';
 import { themePluginsToCss } from './core/theme-plugins';
 import { detectPlatform, keyEventToAction } from './ui/keymap';
@@ -124,15 +124,22 @@ function applyDomSettings(): void {
   const { ligatures, fontSize, editorFont, uiFont, readerMargins, cursorStyle, colorScheme } =
     settingsStore.getState().settings;
   const root = document.documentElement;
-  root.dataset.theme = isDark() ? 'dark' : 'light';
+  const dark = isDark();
+  root.dataset.theme = dark ? 'dark' : 'light';
   // Palette family — each value (paired with data-theme) maps to the ten color
-  // variables via the injected theme-plugin CSS. The built-in System/Light/Dark
-  // modes (`colorScheme === 'default'`) render the green built-ins — Light
-  // Green in light mode, Dark Green in dark — instead of the plain base.css
-  // palette; if those theme files were deleted the id matches no injected
-  // block and falls through to base.css anyway.
+  // variables via the injected theme-plugin CSS. The adaptive System entry
+  // (`colorScheme === 'default'`) renders the light/dark pair from Settings
+  // (`resolveSystemScheme`: the two greens unless changed; a pair member whose
+  // theme file is gone falls back to the green of that mode, and if that is
+  // gone too the id matches no injected block and base.css shows through).
   root.dataset.colorScheme =
-    colorScheme === DEFAULT_COLOR_SCHEME ? (isDark() ? 'dark-green' : 'light-green') : colorScheme;
+    colorScheme === DEFAULT_COLOR_SCHEME
+      ? resolveSystemScheme(
+          settingsStore.getState().settings,
+          themeRegistryStore.getState().plugins,
+          dark ? 'dark' : 'light',
+        )
+      : colorScheme;
   root.classList.toggle('no-ligatures', !ligatures);
   root.style.setProperty('--editor-font-size', `${fontSize}px`);
   // Editor/content typeface; the UI chrome either follows it ('match', the
@@ -152,6 +159,9 @@ function applyDomSettings(): void {
 
 applyDomSettings();
 settingsStore.subscribe(applyDomSettings);
+// The System pair resolves against the loaded themes ("Reload themes" may
+// bring a chosen one back, or take it away).
+themeRegistryStore.subscribe(applyDomSettings);
 
 // Scrollbars fade in while their pane scrolls and out when idle (base.css).
 watchScrollActivity(document);

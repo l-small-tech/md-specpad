@@ -46,6 +46,7 @@ import { settingsStore, useSettingsStore } from '../stores/settings';
 import {
   useThemeRegistry,
   currentThemeValue,
+  pairOptions,
   themePickerGroups,
   themePluginOptions,
 } from '../stores/theme-registry';
@@ -540,6 +541,11 @@ function SettingsBody({ initialTab }: { initialTab: SettingsTabId }) {
 
   const pluginOptions = themePluginOptions(plugins);
   const themeGroups = themePickerGroups(plugins);
+  // The System pair: one theme per mode, swapped with the OS. Only System
+  // uses them, so the two selects sleep while a named theme is picked.
+  const onSystemPair = settings.colorScheme === DEFAULT_COLOR_SCHEME;
+  const lightPair = pairOptions(plugins, 'light');
+  const darkPair = pairOptions(plugins, 'dark');
 
   // Unified Theme picker: System/Light/Dark drive the built-in default palette;
   // a plugin id drives that scheme and follows the OS light/dark. The dropdown
@@ -652,6 +658,51 @@ function SettingsBody({ initialTab }: { initialTab: SettingsTabId }) {
                   </span>
                 </label>
               )}
+
+              <label className="settings-row">
+                <span className="settings-label">Light theme</span>
+                <select
+                  className="settings-control"
+                  value={settings.lightScheme}
+                  disabled={!onSystemPair}
+                  onChange={(e) => update({ lightScheme: e.target.value })}
+                >
+                  {lightPair.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                  {!lightPair.some((o) => o.value === settings.lightScheme) && (
+                    <option value={settings.lightScheme}>{settings.lightScheme} (missing)</option>
+                  )}
+                </select>
+              </label>
+              <label className="settings-row">
+                <span className="settings-label">Dark theme</span>
+                <select
+                  className="settings-control"
+                  value={settings.darkScheme}
+                  disabled={!onSystemPair}
+                  onChange={(e) => update({ darkScheme: e.target.value })}
+                >
+                  {darkPair.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                  {!darkPair.some((o) => o.value === settings.darkScheme) && (
+                    <option value={settings.darkScheme}>{settings.darkScheme} (missing)</option>
+                  )}
+                </select>
+              </label>
+              <div className="settings-row settings-row-hint">
+                <span className="settings-label" />
+                <span className="settings-hint">
+                  {onSystemPair
+                    ? "System switches between these two with your computer's light/dark setting."
+                    : 'Pick System above to switch between a light and a dark theme with your computer.'}
+                </span>
+              </div>
 
               <div className="settings-row settings-row-hint">
                 <span className="settings-label" />
